@@ -1,0 +1,9 @@
+description,tag,externalId,type,geometryRadius,geometryCoordinates,metadata
+Sagrada Família,sagrada-familia,sagrada-familia,circle,40,"[2.1744, 41.4036]","{""category"":""landmark""}"
+Park Güell,park-guell,park-guell,circle,40,"[2.1527, 41.4145]","{""category"":""landmark""}"
+Gothic Quarter (Barri Gòtic),gothic-quarter,gothic-quarter,circle,100,"[2.1767, 41.3829]","{""category"":""dismount_zone""}"
+Camp Nou,camp-nou,camp-nou,circle,40,"[2.1228, 41.3809]","{""category"":""landmark""}"
+La Barceloneta Beach,barceloneta,barceloneta,circle,40,"[2.1898, 41.3780]","{""category"":""landmark""}"
+Palau de la Música Catalana,palau-musica,palau-musica,circle,40,"[2.1752, 41.3875]","{""category"":""landmark""}"
+Casa Batlló,casa-batllo,casa-batllo,circle,40,"[2.1649, 41.3916]","{""category"":""landmark""}"
+La Rambla,la-rambla,la-rambla,circle,80,"[2.1735, 41.3810]","{""category"":""dismount_zone""}"
