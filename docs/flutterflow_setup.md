@@ -210,3 +210,74 @@ Wire this action to:
 | FAQ section | `faqQuestions.length > 0` |
 | FAQ premium lock icon | `faqIsPremium[i] == true && isSubscribed == false` |
 | Visited badge on card | `isVisited == true` |
+
+---
+
+## 10. Regulatory Alerts & Nearby Parking (Task 5)
+
+### 10a. Register the Exit Callback
+
+Extend `app_geofencing_init.dart` (from §2) with the exit handler:
+
+```dart
+GeofencingActions.onLandmarkExited = ({required String slug}) {
+  // Only clear state if the exited zone is the one currently displayed
+  if (FFAppState().activeLocationSlug == slug) {
+    FFAppState().update(() {
+      FFAppState().activeLocationSlug = '';
+      FFAppState().activeLocationName = '';
+      FFAppState().activeLocationDescription = '';
+      FFAppState().activeLocationCategory = '';
+      FFAppState().activeLocationIsRegulatory = false;
+      FFAppState().activeLocationRegulatoryMessage = '';
+      FFAppState().activeLocationRegulatoryFineEur = 0;
+      FFAppState().activeLocationAffiliateUrl = '';
+      FFAppState().activeLocationAudioUrl = '';
+    });
+  }
+};
+```
+
+This clears the bottom sheet automatically when the rider leaves the 40 m (or 100 m) zone.
+
+### 10b. Regulatory Alert Priority Tiers
+
+`start_geofencing.dart` now derives notification severity from `regulatory_alert.priority` in Firestore, not from `category`:
+
+| `priority` field | Notification behaviour | Example |
+|---|---|---|
+| `high` | Full-screen intent, `Importance.max`, TimeSensitive iOS, 10-min cooldown | Gothic Quarter (€500 dismount) |
+| `medium` | High-priority banner, no full-screen, cooldown skipped | Park Güell (no_cycling advisory) |
+| `low` | Standard priority, no cooldown | Minor advisory |
+| *(absent)* | Standard landmark notification | Any landmark without `regulatory_alert` |
+
+**Cooldown:** repeated entries into the same high-priority zone within 10 minutes fire only one full-screen notification. The UI card still updates on every entry.
+
+### 10c. Nearby Parking — Logistics Tab
+
+Wire up the two custom actions on the **Logistics tab** (or inside the LandmarkCard parking FAQ CTA):
+
+```
+On Logistics tab open:
+  1. getCurrentLocation()
+       → returns [latitude, longitude]
+  2. filterParkingByDistance(
+         stationsJson  = jsonEncode(FFAppState().biciboxStations),
+         userLatitude  = result[0],
+         userLongitude = result[1],
+         radiusMetres  = 500
+     )
+       → returns JSON string → decode → bind to Bicibox list widget
+
+  3. filterParkingByDistance(
+         stationsJson  = jsonEncode(FFAppState().biciparkStations),
+         userLatitude  = result[0],
+         userLongitude = result[1],
+         radiusMetres  = 500
+     )
+       → bind to Bicipark list widget
+```
+
+Each station record in the filtered result includes a `distanceMetres` integer field you can display in the list tile (e.g. "320 m away").
+
+**Guard:** check `result[0] != 0.0 || result[1] != 0.0` before calling `filterParkingByDistance` — `[0.0, 0.0]` means location was unavailable.

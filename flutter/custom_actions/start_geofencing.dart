@@ -6,9 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:radar_flutter/radar_flutter.dart';
 
-// Register this in FlutterFlow's MyApp initState to push geofence data into
-// FFAppState without a direct import of generated FlutterFlow code.
-// See docs/flutterflow_setup.md — "Step 3: Register the state callback".
+// Register both callbacks in FlutterFlow's MyApp initState.
+// See docs/flutterflow_setup.md §10 for the full registration snippet.
 abstract class GeofencingActions {
   static void Function({
     required String slug,
@@ -21,10 +20,18 @@ abstract class GeofencingActions {
     required String affiliateUrl,
     required String audioUrl,
   })? onLandmarkEntered;
+
+  static void Function({required String slug})? onLandmarkExited;
 }
 
 final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
 bool _pluginReady = false;
+
+// Tracks when a regulatory alert was last shown per slug.
+// Prevents repeated full-screen interruptions when a rider oscillates
+// near the boundary of a dismount zone.
+final Map<String, DateTime> _lastRegulatoryAlert = {};
+const Duration _regulatoryCooldown = Duration(minutes: 10);
 
 Future<void> startGeofencing() async {
   await _ensurePluginReady();
@@ -52,7 +59,7 @@ Future<void> _ensurePluginReady() async {
   await android?.createNotificationChannel(const AndroidNotificationChannel(
     'bike_tour_regulatory',
     'Regulatory Alerts',
-    description: 'Cycling-law warnings (dismount zones, fines)',
+    description: 'Cycling-law warnings (dismount zones, fine zones)',
     importance: Importance.max,
   ));
   _pluginReady = true;
@@ -62,13 +69,21 @@ Future<void> _onGeofenceEvent(Map<dynamic, dynamic> result) async {
   final events = (result['events'] as List<dynamic>?) ?? [];
   for (final raw in events) {
     final event = raw as Map<dynamic, dynamic>;
-    if (event['type'] != 'user.entered_geofence') continue;
-
+    final type = (event['type'] as String?) ?? '';
     final geo = (event['geofence'] as Map<dynamic, dynamic>?) ?? {};
     final slug = (geo['tag'] as String?) ?? '';
     if (slug.isEmpty) continue;
 
-    // Fetch full landmark record — Radar only carries the tag + metadata snapshot
+    // ── EXIT ────────────────────────────────────────────────────────────────
+    if (type == 'user.exited_geofence') {
+      GeofencingActions.onLandmarkExited?.call(slug: slug);
+      continue;
+    }
+
+    if (type != 'user.entered_geofence') continue;
+
+    // ── ENTRY ────────────────────────────────────────────────────────────────
+    // Fetch full landmark record; Radar only carries tag + metadata snapshot
     final query = await FirebaseFirestore.instance
         .collection('locations')
         .where('slug', isEqualTo: slug)
@@ -83,35 +98,23 @@ Future<void> _onGeofenceEvent(Map<dynamic, dynamic> result) async {
     final description = (d['short_description'] as String?) ?? '';
     final category = (d['category'] as String?) ?? 'landmark';
     final regAlert = d['regulatory_alert'] as Map<String, dynamic>?;
-    final isRegulatory =
-        regAlert != null && (category == 'dismount_zone' || category == 'hazard');
+
+    // Any landmark with a regulatory_alert map is treated as regulatory —
+    // severity is driven by priority, not category, so landmarks like
+    // Park Güell (category=landmark, priority=medium) are handled correctly.
+    final isRegulatory = regAlert != null;
+    final regulatoryPriority = (regAlert?['priority'] as String?) ?? 'low';
     final regulatoryMessage = (regAlert?['message'] as String?) ?? '';
     final regulatoryFineEur = ((regAlert?['fine_eur'] as num?) ?? 0).toDouble();
     final affiliateUrl = (d['getyourguide_affiliate_url'] as String?) ?? '';
     final audioUrl = (d['audio_url'] as String?) ?? '';
 
-    await _plugin.show(
-      slug.hashCode & 0x7FFFFFFF,
-      name,
-      description,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          isRegulatory ? 'bike_tour_regulatory' : 'bike_tour_geofence',
-          isRegulatory ? 'Regulatory Alerts' : 'Landmark Alerts',
-          importance: isRegulatory ? Importance.max : Importance.high,
-          priority: isRegulatory ? Priority.max : Priority.high,
-          // Surfaces over lock screen for dismount zones — fine is €500
-          fullScreenIntent: isRegulatory,
-          category: isRegulatory ? AndroidNotificationCategory.alarm : null,
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentSound: true,
-          interruptionLevel: isRegulatory
-              ? InterruptionLevel.timeSensitive
-              : InterruptionLevel.active,
-        ),
-      ),
+    await _fireNotification(
+      slug: slug,
+      name: name,
+      body: isRegulatory ? regulatoryMessage : description,
+      isRegulatory: isRegulatory,
+      regulatoryPriority: regulatoryPriority,
     );
 
     GeofencingActions.onLandmarkEntered?.call(
@@ -126,4 +129,58 @@ Future<void> _onGeofenceEvent(Map<dynamic, dynamic> result) async {
       audioUrl: audioUrl,
     );
   }
+}
+
+Future<void> _fireNotification({
+  required String slug,
+  required String name,
+  required String body,
+  required bool isRegulatory,
+  required String regulatoryPriority,
+}) async {
+  if (isRegulatory) {
+    // Suppress repeat regulatory interruptions within the cooldown window.
+    // Still fires on the first entry; subsequent re-entries within 10 min
+    // are silent (the UI card is still updated via onLandmarkEntered).
+    final last = _lastRegulatoryAlert[slug];
+    if (last != null && DateTime.now().difference(last) < _regulatoryCooldown) {
+      return;
+    }
+    _lastRegulatoryAlert[slug] = DateTime.now();
+  }
+
+  // high   → full-screen intent + TimeSensitive (dismount zones, €500 fines)
+  // medium → high-priority banner, no full-screen (no_cycling advisories)
+  // low    → standard landmark priority
+  final isHighPriority = regulatoryPriority == 'high';
+  final isMediumPriority = regulatoryPriority == 'medium';
+  final useRegulatoryChannel = isRegulatory;
+
+  await _plugin.show(
+    slug.hashCode & 0x7FFFFFFF,
+    name,
+    body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        useRegulatoryChannel ? 'bike_tour_regulatory' : 'bike_tour_geofence',
+        useRegulatoryChannel ? 'Regulatory Alerts' : 'Landmark Alerts',
+        importance: isHighPriority
+            ? Importance.max
+            : (isMediumPriority ? Importance.high : Importance.defaultImportance),
+        priority: isHighPriority
+            ? Priority.max
+            : (isMediumPriority ? Priority.high : Priority.defaultPriority),
+        // Full-screen intent only for high-priority (Gothic Quarter €500, etc.)
+        fullScreenIntent: isHighPriority,
+        category: isHighPriority ? AndroidNotificationCategory.alarm : null,
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentSound: isRegulatory,
+        interruptionLevel: isHighPriority
+            ? InterruptionLevel.timeSensitive
+            : InterruptionLevel.active,
+      ),
+    ),
+  );
 }
