@@ -113,12 +113,13 @@ Inside `<application>`:
 
 ## 5. FlutterFlow — Add Packages
 
-In FlutterFlow → **pubspec.yaml (Custom Packages)**:
+> Radar.io replaced with custom geolocator engine (no account needed).
+
+In FlutterFlow → Settings ⚙️ → **Project Dependencies** → Pub Dependencies:
 
 ```yaml
-dependencies:
-  radar_flutter: ^3.4.0       # Check pub.dev for latest
-  flutter_local_notifications: ^17.0.0
+geolocator: ^13.0.2
+flutter_local_notifications: ^17.2.2
 ```
 
 ---

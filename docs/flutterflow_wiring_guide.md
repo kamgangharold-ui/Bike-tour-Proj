@@ -3,28 +3,16 @@
 
 ---
 
-## PHASE B — Packages & Environment Variables
+## PHASE B — Packages
 
-### B1. Create Radar.io Account (YOU DO THIS)
-1. Go to https://radar.com → Sign Up
-2. Create app → name it "Bike Tour Guide"
-3. Copy the **Test Publishable Key** (starts with `prj_test_pk_...`)
+> Radar.io replaced with custom geolocator engine. No external account needed.
 
-### B2. Add Environment Variable in FlutterFlow (YOU DO THIS)
-FlutterFlow → Settings ⚙️ → App Values → Environment Values → + Add
-
-| Field | Value |
-|---|---|
-| Name | `FF_RADAR_PUBLISHABLE_KEY` |
-| Value | `prj_test_pk_...` (your key) |
-| Type | String |
-
-### B3. Add Packages in FlutterFlow (YOU DO THIS)
+### B1. Add Packages in FlutterFlow (YOU DO THIS)
 FlutterFlow → Settings ⚙️ → Project Dependencies → Pub Dependencies
 
 Paste exactly:
 ```
-radar_flutter: ^3.4.0
+geolocator: ^13.0.2
 flutter_local_notifications: ^17.2.2
 ```
 Click Reload. Wait for green confirmation.
@@ -35,30 +23,14 @@ Click Reload. Wait for green confirmation.
 
 In FlutterFlow → Custom Code → Custom Actions → + Add Action
 
-### C1. Action: initializeRadar
+### C1. Action: initializeGeofencing
 
-**Action Name:** `initializeRadar`
+**Action Name:** `initializeGeofencing`
 **Return Value:** None (Future void)
 **Parameters:** none
 
 **Code to paste:**
-```dart
-import 'package:radar_flutter/radar_flutter.dart';
-
-Future<void> initializeRadar() async {
-  const String radarKey = 'YOUR_RADAR_PUBLISHABLE_KEY';
-  await Radar.initialize(radarKey);
-  await Radar.requestPermissions(background: false);
-  await Radar.requestPermissions(background: true);
-}
-```
-> After pasting, replace `YOUR_RADAR_PUBLISHABLE_KEY` with:
-> `FFDevEnvironmentValues().FF_RADAR_PUBLISHABLE_KEY`
-
-Final line should read:
-```dart
-  await Radar.initialize(FFDevEnvironmentValues().FF_RADAR_PUBLISHABLE_KEY);
-```
+→ Copy entire contents of `flutter/custom_actions/initialize_geofencing.dart`
 
 ---
 
@@ -304,24 +276,17 @@ Add these fields:
 
 ---
 
-## RADAR.IO GEOFENCES — Bulk Import (YOU DO THIS ONCE)
-
-1. Go to https://radar.com → Dashboard → Geofences
-2. Click "Import" → upload file: `api/radar_geofences_import.csv`
-3. All 8 Barcelona landmarks are registered in one shot
-
-This CSV is already in your repo at `api/radar_geofences_import.csv`
-
----
-
 ## STARTUP ACTION CHAIN (wires everything together)
 
 In FlutterFlow, on your main/home page → On Page Load action chain:
 
 ```
-1. initializeRadar()
+1. initializeGeofencing()
 2. [on success] startGeofencing()
 3. [on success] registerGeofencingCallback()
 ```
+
+> No Radar.io dashboard needed. Geofences load automatically from your
+> Firestore `locations` collection on every app start.
 
 Set this chain on the page that loads immediately after sign-in.
