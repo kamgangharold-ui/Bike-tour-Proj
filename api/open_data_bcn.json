@@ -1,0 +1,289 @@
+{
+  "_meta": {
+    "description": "FlutterFlow API call configuration for the Barcelona Open Data CKAN API. Enter each call in FlutterFlow → API Calls → Add API Call, using the fields below.",
+    "base_url": "https://opendata-ajuntament.barcelona.cat/data/api/action",
+    "authentication": "None — all endpoints are public reads. Do not add an Authorization header.",
+    "ckan_version": "2.9",
+    "how_to_obtain_resource_ids": [
+      "1. Open https://opendata-ajuntament.barcelona.cat/data/ca/dataset",
+      "2. Search for the dataset by name (e.g. 'bicibox').",
+      "3. Click the dataset → click the CSV or JSON resource → copy the Resource ID from the URL (the UUID segment, e.g. 'b384e71f-...').",
+      "4. Paste into the matching RESOURCE_ID placeholder below."
+    ],
+    "response_envelope": "All CKAN responses wrap data in: { success: true, result: { records: [...], total: N } }"
+  },
+
+  "flutterflow_api_group": "OpenDataBCN",
+
+  "calls": [
+
+    {
+      "name": "GetBiciboxStations",
+      "description": "Fetches all Bicibox secure bike-parking stations in Barcelona. Filter by distance client-side using the returned lat/lng fields.",
+      "flutterflow_wiring": "Call once on app launch (or on Logistics tab open). Store the result list in App State > biciboxStations. Re-call if the user leaves and re-opens the app.",
+
+      "method": "GET",
+      "url": "https://opendata-ajuntament.barcelona.cat/data/api/action/datastore_search",
+
+      "query_params": {
+        "resource_id": "BICIBOX_RESOURCE_ID",
+        "_comment_resource_id": "Dataset: 'Bicibox — Estacions d'aparcament de bicicletes'. Find UUID via the meta instructions above.",
+        "limit": "200",
+        "fields": "NOM,ADRECA,LATITUD,LONGITUD,PLACES_TOTALS,HORARI"
+      },
+
+      "headers": {
+        "Accept": "application/json"
+      },
+
+      "response_fields": [
+        {
+          "ff_field_name": "stations",
+          "json_path": "$.result.records",
+          "ff_type": "List of JSON Object",
+          "description": "Full list of Bicibox stations"
+        },
+        {
+          "ff_field_name": "total",
+          "json_path": "$.result.total",
+          "ff_type": "Integer",
+          "description": "Total record count"
+        }
+      ],
+
+      "sample_record": {
+        "NOM": "Bicibox — Plaça de Catalunya",
+        "ADRECA": "Pl. de Catalunya, 08002 Barcelona",
+        "LATITUD": "41.38703",
+        "LONGITUD": "2.16962",
+        "PLACES_TOTALS": "20",
+        "HORARI": "24h"
+      },
+
+      "firestore_sync": {
+        "strategy": "Nightly Cloud Function — not a live call from the mobile app.",
+        "function_logic": "For each record, upsert a `logistics` document with type=bicibox, using a slug derived from NOM. Update coordinates, total_spaces, is_24h. Set available_spaces only if a real-time BICIBOX API is available; otherwise omit.",
+        "document_id_pattern": "bicibox-{slug(NOM)}"
+      }
+    },
+
+    {
+      "name": "GetBiciparkStations",
+      "description": "Fetches all Bicipark open-rack bike-parking stations in Barcelona.",
+      "flutterflow_wiring": "Call alongside GetBiciboxStations. Merge both lists when rendering the Logistics parking tab.",
+
+      "method": "GET",
+      "url": "https://opendata-ajuntament.barcelona.cat/data/api/action/datastore_search",
+
+      "query_params": {
+        "resource_id": "BICIPARK_RESOURCE_ID",
+        "_comment_resource_id": "Dataset: 'Bicipark — Aparcaments per a bicicletes'. Find UUID via the meta instructions above.",
+        "limit": "300",
+        "fields": "NOM,ADRECA,LATITUD,LONGITUD,PLACES_TOTALS,COBERT,HORARI"
+      },
+
+      "headers": {
+        "Accept": "application/json"
+      },
+
+      "response_fields": [
+        {
+          "ff_field_name": "stations",
+          "json_path": "$.result.records",
+          "ff_type": "List of JSON Object",
+          "description": "Full list of Bicipark stations"
+        },
+        {
+          "ff_field_name": "total",
+          "json_path": "$.result.total",
+          "ff_type": "Integer"
+        }
+      ],
+
+      "sample_record": {
+        "NOM": "Bicipark — Carrer d'Olot (Park Güell)",
+        "ADRECA": "C. d'Olot, 08024 Barcelona",
+        "LATITUD": "41.41380",
+        "LONGITUD": "2.15283",
+        "PLACES_TOTALS": "30",
+        "COBERT": "No",
+        "HORARI": "24h"
+      },
+
+      "firestore_sync": {
+        "strategy": "Nightly Cloud Function.",
+        "function_logic": "Same as Bicibox sync; set type=bicipark, is_open_rack=true, is_covered=(COBERT=='Sí').",
+        "document_id_pattern": "bicipark-{slug(NOM)}"
+      }
+    },
+
+    {
+      "name": "GetBikeLanesGeoJSON",
+      "description": "Fetches Barcelona cycling infrastructure (protected lanes, painted lanes, shared roads) as a GeoJSON FeatureCollection for rendering as a map overlay on MapPage.",
+      "flutterflow_wiring": "Call once on MapPage initState. Pass the raw GeoJSON string to a custom map widget that supports GeoJSON layers (e.g. flutter_map with a GeoJsonLayer). Do NOT store in App State — the payload can be several MB.",
+
+      "method": "GET",
+      "url": "https://opendata-ajuntament.barcelona.cat/data/api/action/datastore_search",
+
+      "_geojson_alternative": {
+        "note": "If the CKAN tabular endpoint does not include geometry, use the direct GeoJSON download URL instead. Replace the url field with the GeoJSON URL found on the dataset page under 'GeoJSON' resource.",
+        "example_url_pattern": "https://opendata-ajuntament.barcelona.cat/data/dataset/DATASET_ID/resource/GEOJSON_RESOURCE_ID/download/FILENAME.geojson"
+      },
+
+      "query_params": {
+        "resource_id": "BIKE_LANES_RESOURCE_ID",
+        "_comment_resource_id": "Dataset: 'Carrils bici' or 'Xarxa ciclista'. Find UUID via the meta instructions above. Look for the GeoJSON or JSON resource specifically.",
+        "limit": "5000",
+        "_comment_limit": "Barcelona has ~250 km of bike lanes. 5000 segments covers the full network."
+      },
+
+      "headers": {
+        "Accept": "application/json"
+      },
+
+      "response_fields": [
+        {
+          "ff_field_name": "geojsonString",
+          "json_path": "$",
+          "ff_type": "String (raw JSON)",
+          "description": "Full response serialised as a string; pass directly to the flutter_map GeoJsonLayer"
+        },
+        {
+          "ff_field_name": "laneCount",
+          "json_path": "$.result.total",
+          "ff_type": "Integer"
+        }
+      ],
+
+      "sample_feature": {
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [[2.1744, 41.4036], [2.1750, 41.4040]]
+        },
+        "properties": {
+          "TIPUS": "Carril bici protegit",
+          "LONGITUD_M": 450,
+          "SENTIT": "Doble sentit"
+        }
+      },
+
+      "map_layer_config": {
+        "flutter_package": "flutter_map",
+        "layer_type": "GeoJsonLayer",
+        "stroke_color_by_type": {
+          "Carril bici protegit": "#1565C0",
+          "Carril bici pintat": "#42A5F5",
+          "Carril bici compartit": "#90CAF9"
+        },
+        "stroke_width": 3
+      }
+    },
+
+    {
+      "name": "SearchMonuments",
+      "description": "Full-text search of the Barcelona monuments and singular buildings dataset. Used in the admin workflow to discover POIs and pre-populate the Firestore locations collection.",
+      "flutterflow_wiring": "Admin / content-seeding use only. Add a search bar on an admin page; bind the query parameter to the search input. On result, show a list of monuments; tapping one triggers a Firestore write to the locations collection.",
+
+      "method": "GET",
+      "url": "https://opendata-ajuntament.barcelona.cat/data/api/action/datastore_search",
+
+      "query_params": {
+        "resource_id": "MONUMENTS_RESOURCE_ID",
+        "_comment_resource_id": "Dataset: 'Monuments i elements d'interès arquitectònic'. Find UUID via the meta instructions above.",
+        "q": "[QUERY_VARIABLE]",
+        "_comment_q": "Bind to a FF variable: searchQuery. CKAN full-text search across all string fields.",
+        "limit": "20",
+        "fields": "NOM,ADRECA,LATITUD,LONGITUD,DESCRIPCIO,URL_FITXA"
+      },
+
+      "headers": {
+        "Accept": "application/json"
+      },
+
+      "ff_variables": [
+        {
+          "name": "searchQuery",
+          "type": "String",
+          "passed_as": "query param: q",
+          "description": "Keyword entered in the admin search bar"
+        }
+      ],
+
+      "response_fields": [
+        {
+          "ff_field_name": "monuments",
+          "json_path": "$.result.records",
+          "ff_type": "List of JSON Object"
+        },
+        {
+          "ff_field_name": "totalResults",
+          "json_path": "$.result.total",
+          "ff_type": "Integer"
+        }
+      ],
+
+      "sample_record": {
+        "NOM": "Temple Expiatori de la Sagrada Família",
+        "ADRECA": "C. de Mallorca, 401, 08013 Barcelona",
+        "LATITUD": "41.40363",
+        "LONGITUD": "2.17441",
+        "DESCRIPCIO": "Obra inacabada d'Antoni Gaudí, iniciada el 1882.",
+        "URL_FITXA": "https://www.barcelona.cat/barcelonacultura/ca/monument/sagrada-familia"
+      },
+
+      "firestore_mapping": {
+        "note": "When the admin selects a monument from the search results, create a draft locations document using this field mapping.",
+        "mapping": {
+          "name":                     "NOM",
+          "slug":                     "slugify(NOM)",
+          "category":                 "landmark (default — override manually)",
+          "coordinates":              "GeoPoint(LATITUD, LONGITUD)",
+          "geofence_radius_metres":   "40 (default)",
+          "short_description":        "first 160 chars of DESCRIPCIO",
+          "long_description":         "DESCRIPCIO",
+          "is_active":                "false (review before activating)",
+          "created_at":               "SERVER_TIMESTAMP",
+          "updated_at":               "SERVER_TIMESTAMP"
+        }
+      }
+    }
+
+  ],
+
+  "app_state_additions": {
+    "description": "Add these two App State variables in FlutterFlow to store the parking results fetched at launch.",
+    "variables": [
+      {
+        "name": "biciboxStations",
+        "type": "List of JSON",
+        "initial_value": "[]",
+        "populated_by": "GetBiciboxStations → stations"
+      },
+      {
+        "name": "biciparkStations",
+        "type": "List of JSON",
+        "initial_value": "[]",
+        "populated_by": "GetBiciparkStations → stations"
+      }
+    ]
+  },
+
+  "distance_filter_action": {
+    "description": "Since CKAN does not support native radius queries, filter the parking lists client-side with this custom action.",
+    "dart_file": "flutter/custom_actions/filter_parking_by_distance.dart",
+    "note": "See Task 5 — this action is produced as part of the regulatory alerts + logistics geofence logic."
+  },
+
+  "launch_sequence": {
+    "description": "Where to call each API in the FF action chain on app launch.",
+    "sequence": [
+      "initializeRadar()",
+      "startGeofencing()",
+      "registerGeofencingCallback()",
+      "GetBiciboxStations → update FFAppState().biciboxStations",
+      "GetBiciparkStations → update FFAppState().biciparkStations",
+      "GetBikeLanesGeoJSON → pass directly to MapPage GeoJsonLayer (do not store in App State)"
+    ]
+  }
+}

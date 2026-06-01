@@ -27,7 +27,7 @@ A location-aware digital tour guide for cyclists in Barcelona. When a rider ente
 | 1 | Firebase Firestore schema | ✅ Done |
 | 2 | Radar.io geofencing + Dart custom actions | ✅ Done |
 | 3 | FlutterFlow state management + conditional UI | ✅ Done |
-| 4 | Open Data BCN API configuration | Pending |
+| 4 | Open Data BCN API configuration | ✅ Done |
 | 5 | Regulatory alerts geofence logic | Pending |
 
 ---
