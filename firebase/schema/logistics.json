@@ -1,0 +1,155 @@
+{
+  "_collection": "logistics",
+  "_description": "Parking spots (Bicibox/Bicipark), fine schedules, cycling rules, and infrastructure. Shown in the Logistics tab and also linked from FAQs.",
+
+  "_document_id": "Use a human-readable slug as the ID, e.g. 'bicibox-placa-catalunya'",
+
+  "fields": {
+    "type": {
+      "type": "String",
+      "required": true,
+      "enum": ["bicibox", "bicipark", "rule", "fine", "bike_lane", "repair_station"],
+      "example": "bicibox"
+    },
+    "name": {
+      "type": "String",
+      "required": true,
+      "example": "Bicibox — Plaça de Catalunya"
+    },
+    "coordinates": {
+      "type": "GeoPoint",
+      "required": true,
+      "example": { "latitude": 41.3870, "longitude": 2.1696 },
+      "note": "For rules/fines without a physical location, use the geographic centroid of the applicable zone"
+    },
+    "address": {
+      "type": "String",
+      "required": false,
+      "example": "Plaça de Catalunya, 08002 Barcelona"
+    },
+    "details": {
+      "type": "Map",
+      "required": true,
+      "note": "Contents vary by type. See sub-schemas below.",
+
+      "_bicibox_fields": {
+        "total_spaces": { "type": "Number", "example": 20 },
+        "available_spaces": { "type": "Number", "example": 7, "note": "Update via Cloud Function if real-time API is available" },
+        "requires_pin": { "type": "Boolean", "example": true },
+        "pin_source_url": { "type": "String", "example": "https://www.bicibox.com/login" },
+        "is_24h": { "type": "Boolean", "example": true },
+        "price_per_hour_eur": { "type": "Number", "example": 0, "note": "0 = free" }
+      },
+
+      "_bicipark_fields": {
+        "total_spaces": { "type": "Number", "example": 30 },
+        "is_open_rack": { "type": "Boolean", "example": true },
+        "is_covered": { "type": "Boolean", "example": false },
+        "is_24h": { "type": "Boolean", "example": true }
+      },
+
+      "_rule_fields": {
+        "rule_text": { "type": "String", "example": "Maximum speed on bike lanes: 30 km/h" },
+        "applies_to_zone": { "type": "String", "example": "All Barcelona municipal roads" },
+        "legal_reference": { "type": "String", "example": "Ordenança de Circulació Art. 52" }
+      },
+
+      "_fine_fields": {
+        "infraction": { "type": "String", "example": "Riding on pedestrian pavement (sidewalk)" },
+        "fine_eur": { "type": "Number", "example": 500 },
+        "legal_reference": { "type": "String", "example": "RDL 6/2015 Art. 65.4.c" },
+        "notes": { "type": "String", "example": "Fine doubled in pedestrian priority zones" }
+      },
+
+      "_repair_station_fields": {
+        "has_pump": { "type": "Boolean", "example": true },
+        "has_tools": { "type": "Boolean", "example": true },
+        "condition": { "type": "String", "enum": ["good", "fair", "poor"], "example": "good" }
+      }
+    },
+    "opening_hours": {
+      "type": "String",
+      "required": false,
+      "example": "24/7",
+      "note": "Human-readable string. For machine-readable hours use the OSM opening_hours spec."
+    },
+    "nearby_location_slugs": {
+      "type": "Array<String>",
+      "required": false,
+      "example": ["sagrada-familia", "eixample-grid"],
+      "note": "Locations within ~500 m that should surface this logistics entry in their FAQ cards"
+    },
+    "is_active": {
+      "type": "Boolean",
+      "required": true,
+      "example": true
+    },
+    "created_at": {
+      "type": "Timestamp",
+      "required": true
+    },
+    "updated_at": {
+      "type": "Timestamp",
+      "required": true
+    }
+  },
+
+  "_example_documents": [
+    {
+      "_id": "bicibox-placa-catalunya",
+      "type": "bicibox",
+      "name": "Bicibox — Plaça de Catalunya",
+      "coordinates": { "latitude": 41.3870, "longitude": 2.1696 },
+      "address": "Plaça de Catalunya, 08002 Barcelona",
+      "details": {
+        "total_spaces": 20,
+        "available_spaces": 7,
+        "requires_pin": true,
+        "pin_source_url": "https://www.bicibox.com/login",
+        "is_24h": true,
+        "price_per_hour_eur": 0
+      },
+      "opening_hours": "24/7",
+      "nearby_location_slugs": ["las-ramblas", "palau-de-la-musica"],
+      "is_active": true,
+      "created_at": "SERVER_TIMESTAMP",
+      "updated_at": "SERVER_TIMESTAMP"
+    },
+    {
+      "_id": "fine-sidewalk-riding",
+      "type": "fine",
+      "name": "Fine: Sidewalk / Pavement Cycling",
+      "coordinates": { "latitude": 41.3851, "longitude": 2.1734 },
+      "address": null,
+      "details": {
+        "infraction": "Riding a bicycle on pedestrian pavement (sidewalk)",
+        "fine_eur": 500,
+        "legal_reference": "RDL 6/2015 Art. 65.4.c",
+        "notes": "Applies city-wide. Amount can be doubled in pedestrian priority zones."
+      },
+      "opening_hours": null,
+      "nearby_location_slugs": [],
+      "is_active": true,
+      "created_at": "SERVER_TIMESTAMP",
+      "updated_at": "SERVER_TIMESTAMP"
+    },
+    {
+      "_id": "fine-earphones",
+      "type": "fine",
+      "name": "Fine: Both-Ear Headphones While Cycling",
+      "coordinates": { "latitude": 41.3851, "longitude": 2.1734 },
+      "address": null,
+      "details": {
+        "infraction": "Using headphones in both ears simultaneously while riding",
+        "fine_eur": 100,
+        "legal_reference": "RDL 6/2015 Art. 65.4.g",
+        "notes": "One ear is permitted. Both ears blocked = €100 fine."
+      },
+      "opening_hours": null,
+      "nearby_location_slugs": [],
+      "is_active": true,
+      "created_at": "SERVER_TIMESTAMP",
+      "updated_at": "SERVER_TIMESTAMP"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── HELPER FUNCTIONS ────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // Only Cloud Functions using the Admin SDK bypass rules entirely.
+      // This guard is for any server-side callable that sets request.auth.token.admin.
+      return request.auth.token.get('admin', false) == true;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Fields that only Cloud Functions / Stripe webhooks may write
+    function isProtectedUserField() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['stripe_customer_id', 'subscription_status', 'subscription_expires_at', 'total_points']);
+    }
+
+    // ─── LOCATIONS (public read, admin write) ─────────────────────────────────
+    match /locations/{locationId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── QUIZZES (public read, admin write) ───────────────────────────────────
+    match /quizzes/{quizId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── FAQS (public read, admin write) ──────────────────────────────────────
+    match /faqs/{faqId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── LOGISTICS (public read, admin write) ─────────────────────────────────
+    match /logistics/{logisticsId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── USERS (owner read/write, protected fields admin-only) ────────────────
+    match /users/{userId} {
+      // Any signed-in user can read their own document
+      allow read: if isSignedIn() && isOwner(userId);
+
+      // Creating own document on sign-up is allowed
+      allow create: if isSignedIn() && isOwner(userId);
+
+      // Updates: owner can change safe fields; protected fields require admin
+      allow update: if isSignedIn() && isOwner(userId) && !isProtectedUserField()
+                    || isAdmin();
+
+      // Deletion not permitted from client side
+      allow delete: if false;
+    }
+
+  }
+}

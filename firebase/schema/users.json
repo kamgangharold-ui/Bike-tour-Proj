@@ -1,0 +1,119 @@
+{
+  "_collection": "users",
+  "_description": "One document per authenticated user. Document ID = Firebase Auth UID. Created automatically on first sign-in via a Cloud Function or FlutterFlow action.",
+
+  "_document_id": "Firebase Auth UID (e.g. 'abc123XYZ')",
+
+  "fields": {
+    "uid": {
+      "type": "String",
+      "required": true,
+      "example": "abc123XYZ",
+      "note": "Mirrors the Firestore document ID for easy client-side access"
+    },
+    "display_name": {
+      "type": "String",
+      "required": false,
+      "example": "Sarah",
+      "note": "Can be anonymous ('Cyclist #4821') for users who skip profile setup"
+    },
+    "email": {
+      "type": "String",
+      "required": false,
+      "example": "sarah@example.com",
+      "note": "Null for anonymous sign-in. Never display in UI."
+    },
+    "auth_provider": {
+      "type": "String",
+      "required": true,
+      "enum": ["anonymous", "email", "google", "apple"],
+      "example": "email"
+    },
+    "subscription_status": {
+      "type": "String",
+      "required": true,
+      "enum": ["free", "active", "past_due", "cancelled"],
+      "example": "free",
+      "note": "Gate premium FAQs and offline maps on 'active'. Updated by Stripe webhook → Cloud Function."
+    },
+    "subscription_expires_at": {
+      "type": "Timestamp",
+      "required": false,
+      "example": "2025-12-31T00:00:00Z",
+      "note": "Null for free users. Check server-side; never trust client-side date."
+    },
+    "stripe_customer_id": {
+      "type": "String",
+      "required": false,
+      "example": "cus_ABC123",
+      "note": "Set by Stripe webhook. Never expose in client queries."
+    },
+    "total_points": {
+      "type": "Number",
+      "required": true,
+      "example": 150,
+      "note": "Incremented server-side (Cloud Function) when a quiz is answered correctly to prevent cheating"
+    },
+    "visited_location_slugs": {
+      "type": "Array<String>",
+      "required": true,
+      "example": ["sagrada-familia", "park-guell"],
+      "note": "Appended when the geofence is breached for the first time. Powers the 'X of Y landmarks visited' progress bar."
+    },
+    "completed_quiz_ids": {
+      "type": "Array<String>",
+      "required": true,
+      "example": ["quizDocId1", "quizDocId2"],
+      "note": "Stores Firestore document IDs from the quizzes collection to prevent re-showing answered questions"
+    },
+    "preferred_language": {
+      "type": "String",
+      "required": true,
+      "enum": ["en", "es", "ca", "fr", "de", "it"],
+      "example": "en",
+      "note": "Used for future multi-language content. Default 'en'."
+    },
+    "push_notifications_enabled": {
+      "type": "Boolean",
+      "required": true,
+      "example": true,
+      "note": "Synced with OS permission status. If false, skip showing prompts."
+    },
+    "fcm_token": {
+      "type": "String",
+      "required": false,
+      "example": "dGhpcyBpcyBhIGZha2UgRkNNIHRva2Vu",
+      "note": "Firebase Cloud Messaging token. Refreshed on app launch."
+    },
+    "created_at": {
+      "type": "Timestamp",
+      "required": true
+    },
+    "last_active_at": {
+      "type": "Timestamp",
+      "required": true,
+      "note": "Updated on app foreground — helps identify churned users"
+    }
+  },
+
+  "_example_document": {
+    "_id": "abc123XYZ",
+    "uid": "abc123XYZ",
+    "display_name": "Sarah",
+    "email": "sarah@example.com",
+    "auth_provider": "email",
+    "subscription_status": "active",
+    "subscription_expires_at": "2025-12-31T00:00:00Z",
+    "stripe_customer_id": "cus_ABC123",
+    "total_points": 150,
+    "visited_location_slugs": ["sagrada-familia", "park-guell"],
+    "completed_quiz_ids": ["quizDocId1", "quizDocId2"],
+    "preferred_language": "en",
+    "push_notifications_enabled": true,
+    "fcm_token": "YOUR_FCM_TOKEN_HERE",
+    "created_at": "SERVER_TIMESTAMP",
+    "last_active_at": "SERVER_TIMESTAMP"
+  },
+
+  "_security_rules_note": "A user may only read and write their OWN document. Rule: allow read, write: if request.auth.uid == resource.data.uid. Stripe-controlled fields (stripe_customer_id, subscription_status, subscription_expires_at) must only be writable by Cloud Functions using Admin SDK — add a check: if request.auth.token.admin == true for those fields."
+}

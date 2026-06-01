@@ -1,0 +1,243 @@
+{
+  "_instructions": "Use this file to manually add sample documents in the Firebase Console (Firestore > Add document). Paste each block under its matching collection. Replace SERVER_TIMESTAMP with the 'Timestamp' field type in the console.",
+
+  "locations": [
+    {
+      "_suggested_id": "auto",
+      "name": "Sagrada Família",
+      "slug": "sagrada-familia",
+      "category": "landmark",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.4036, "longitude": 2.1744 },
+      "geofence_radius_metres": 40,
+      "short_description": "Gaudí's unfinished masterpiece — the most visited monument in Spain.",
+      "long_description": "Construction began in 1882. Gaudí took over in 1883 and dedicated his life to it until his death in 1926. Anticipated completion: 2026.",
+      "audio_url": "",
+      "image_urls": [],
+      "getyourguide_affiliate_url": "",
+      "regulatory_alert": null,
+      "tags": ["gaudí", "architecture", "modernisme", "must-see"],
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "name": "Park Güell",
+      "slug": "park-guell",
+      "category": "landmark",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.4145, "longitude": 2.1527 },
+      "geofence_radius_metres": 40,
+      "short_description": "Gaudí's hilltop park with sweeping views over Barcelona.",
+      "long_description": "Originally designed as a residential estate, Park Güell was donated to the city in 1922. The monumental zone requires a timed entry ticket.",
+      "audio_url": "",
+      "image_urls": [],
+      "getyourguide_affiliate_url": "",
+      "regulatory_alert": {
+        "alert_type": "no_cycling",
+        "message": "Bicycles are not allowed inside the monumental zone. Please use the Bicipark racks at the entrance.",
+        "fine_eur": 0,
+        "priority": "medium"
+      },
+      "tags": ["gaudí", "park", "views", "monumental"],
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "name": "Gothic Quarter (Barri Gòtic)",
+      "slug": "gothic-quarter",
+      "category": "dismount_zone",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.3829, "longitude": 2.1767 },
+      "geofence_radius_metres": 100,
+      "short_description": "Medieval streets — dismount zone. Cycling prohibited. Fine: €500.",
+      "long_description": "The Barri Gòtic is a pedestrian-priority zone with extremely narrow medieval streets. Cycling is prohibited. You must dismount and walk your bike.",
+      "audio_url": "",
+      "image_urls": [],
+      "getyourguide_affiliate_url": "",
+      "regulatory_alert": {
+        "alert_type": "dismount",
+        "message": "DISMOUNT ZONE — You have entered the Gothic Quarter. Cycling is prohibited here. Fine: €500. Please walk your bike.",
+        "fine_eur": 500,
+        "priority": "high"
+      },
+      "tags": ["dismount", "historic", "pedestrian", "warning"],
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "name": "Camp Nou",
+      "slug": "camp-nou",
+      "category": "landmark",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.3809, "longitude": 2.1228 },
+      "geofence_radius_metres": 40,
+      "short_description": "Home of FC Barcelona — the largest stadium in Europe.",
+      "long_description": "Camp Nou holds over 99,000 fans. The stadium experience tour lets you walk through the tunnel and sit in the directors' box.",
+      "audio_url": "",
+      "image_urls": [],
+      "getyourguide_affiliate_url": "",
+      "regulatory_alert": null,
+      "tags": ["football", "sports", "fcb", "stadium"],
+      "is_active": true
+    }
+  ],
+
+  "quizzes": [
+    {
+      "_suggested_id": "auto",
+      "location_slug": "sagrada-familia",
+      "question": "In what year did Gaudí die, leaving the Sagrada Família unfinished?",
+      "options": ["1916", "1926", "1936", "1946"],
+      "correct_option_index": 1,
+      "explanation": "Antoni Gaudí was struck by a tram on Gran Via in 1926. He died three days later aged 73.",
+      "difficulty": "medium",
+      "points_reward": 10,
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "location_slug": "sagrada-familia",
+      "question": "How many towers will the Sagrada Família have when fully complete?",
+      "options": ["12", "16", "18", "20"],
+      "correct_option_index": 2,
+      "explanation": "The final design includes 18 towers: 12 for the Apostles, 4 for the Evangelists, 1 for the Virgin Mary, and 1 central tower for Jesus Christ.",
+      "difficulty": "hard",
+      "points_reward": 15,
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "location_slug": "park-guell",
+      "question": "Park Güell was originally designed to be a…",
+      "options": ["Public park", "Residential housing estate", "Hospital", "Monastery"],
+      "correct_option_index": 1,
+      "explanation": "Eusebi Güell commissioned Gaudí to design a garden city of 60 housing plots. Only two houses were ever built, and the project was abandoned in 1914.",
+      "difficulty": "easy",
+      "points_reward": 10,
+      "is_active": true
+    }
+  ],
+
+  "faqs": [
+    {
+      "_suggested_id": "auto",
+      "location_slug": "sagrada-familia",
+      "question": "Can I lock my bike at the Sagrada Família?",
+      "answer": "Yes. There are Bicipark open racks on Avinguda de Gaudí (east side) and Carrer de Provença (north side). Do not lock to railings or barriers — wardens issue removal notices.",
+      "category": "parking",
+      "sort_order": 10,
+      "is_premium": false,
+      "related_logistics_id": null,
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "location_slug": "sagrada-familia",
+      "question": "Do I need to book tickets in advance?",
+      "answer": "Yes — strongly recommended. Same-day tickets are almost never available. Book via the official Sagrada Família website or GetYourGuide (link below) for skip-the-line access.",
+      "category": "tickets",
+      "sort_order": 20,
+      "is_premium": false,
+      "related_logistics_id": null,
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "location_slug": "park-guell",
+      "question": "Can I bring my bicycle inside Park Güell?",
+      "answer": "No. Bicycles are prohibited inside the ticketed monumental zone. Lock up at the designated Bicipark racks on Carrer d'Olot before the entrance gates.",
+      "category": "parking",
+      "sort_order": 10,
+      "is_premium": false,
+      "related_logistics_id": "bicipark-park-guell",
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "location_slug": "gothic-quarter",
+      "question": "Why can't I cycle through the Gothic Quarter?",
+      "answer": "The Barri Gòtic is a pedestrian-priority zone. Barcelona's traffic ordinance prohibits cycling in these streets. The fine is €500. You must dismount and walk your bike.",
+      "category": "rules",
+      "sort_order": 10,
+      "is_premium": false,
+      "related_logistics_id": "fine-sidewalk-riding",
+      "is_active": true
+    },
+    {
+      "_suggested_id": "auto",
+      "location_slug": "gothic-quarter",
+      "question": "Where can I park near the Gothic Quarter?",
+      "answer": "Use the Bicibox station on Plaça de Catalunya (24/7, free, requires PIN from the Bicibox app) or the Bicipark racks near La Rambla entrance.",
+      "category": "parking",
+      "sort_order": 20,
+      "is_premium": false,
+      "related_logistics_id": "bicibox-placa-catalunya",
+      "is_active": true
+    }
+  ],
+
+  "logistics": [
+    {
+      "_suggested_id": "bicibox-placa-catalunya",
+      "type": "bicibox",
+      "name": "Bicibox — Plaça de Catalunya",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.3870, "longitude": 2.1696 },
+      "address": "Plaça de Catalunya, 08002 Barcelona",
+      "details": {
+        "total_spaces": 20,
+        "available_spaces": 7,
+        "requires_pin": true,
+        "pin_source_url": "https://www.bicibox.com/login",
+        "is_24h": true,
+        "price_per_hour_eur": 0
+      },
+      "opening_hours": "24/7",
+      "nearby_location_slugs": ["gothic-quarter", "las-ramblas"],
+      "is_active": true
+    },
+    {
+      "_suggested_id": "bicipark-park-guell",
+      "type": "bicipark",
+      "name": "Bicipark — Park Güell Entrance",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.4138, "longitude": 2.1528 },
+      "address": "Carrer d'Olot, 08024 Barcelona",
+      "details": {
+        "total_spaces": 30,
+        "is_open_rack": true,
+        "is_covered": false,
+        "is_24h": true
+      },
+      "opening_hours": "24/7",
+      "nearby_location_slugs": ["park-guell"],
+      "is_active": true
+    },
+    {
+      "_suggested_id": "fine-sidewalk-riding",
+      "type": "fine",
+      "name": "Fine: Sidewalk / Pavement Cycling",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.3851, "longitude": 2.1734 },
+      "address": null,
+      "details": {
+        "infraction": "Riding a bicycle on pedestrian pavement (sidewalk)",
+        "fine_eur": 500,
+        "legal_reference": "RDL 6/2015 Art. 65.4.c",
+        "notes": "Applies city-wide. Can be doubled in pedestrian priority zones."
+      },
+      "opening_hours": null,
+      "nearby_location_slugs": [],
+      "is_active": true
+    },
+    {
+      "_suggested_id": "fine-earphones",
+      "type": "fine",
+      "name": "Fine: Both-Ear Headphones While Cycling",
+      "coordinates": { "_type": "GeoPoint", "latitude": 41.3851, "longitude": 2.1734 },
+      "address": null,
+      "details": {
+        "infraction": "Using headphones in both ears simultaneously while cycling",
+        "fine_eur": 100,
+        "legal_reference": "RDL 6/2015 Art. 65.4.g",
+        "notes": "One ear is permitted. Blocking both ears = €100 fine."
+      },
+      "opening_hours": null,
+      "nearby_location_slugs": [],
+      "is_active": true
+    }
+  ]
+}
