@@ -17,8 +17,6 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
-import Anthropic from '@anthropic-ai/sdk';
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -37,6 +35,8 @@ interface LandmarkInfo {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+
 const SUGGESTED = [
   "What's near me right now?",
   'Is it safe to ride here?',
@@ -44,16 +44,35 @@ const SUGGESTED = [
   'What are the cycling rules here?',
 ];
 
-// Lazy-initialised SDK client (one instance for the app lifetime)
-let _client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!_client) {
-    _client = new Anthropic({
-      apiKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '',
-      dangerouslyAllowBrowser: true,
-    });
+// Direct fetch wrapper — avoids Node.js built-ins in @anthropic-ai/sdk
+async function callAnthropic(
+  system: string,
+  messages: { role: 'user' | 'assistant'; content: string }[],
+): Promise<string> {
+  const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 500,
+      system,
+      messages,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic API error ${res.status}: ${err}`);
   }
-  return _client;
+  const data = (await res.json()) as {
+    content: { type: string; text: string }[];
+  };
+  const first = data.content[0];
+  return first?.type === 'text' ? first.text : 'No response generated.';
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -178,20 +197,10 @@ export default function ChatScreen() {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
 
     try {
-      const client = getClient();
-      const response = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 500,
-        system: buildSystemPrompt(),
-        messages: history.map(({ role, content }) => ({ role, content })),
-      });
-
-      const firstBlock = response.content[0];
-      const aiText =
-        firstBlock?.type === 'text'
-          ? firstBlock.text
-          : 'Sorry, I could not generate a response.';
-
+      const aiText = await callAnthropic(
+        buildSystemPrompt(),
+        history.map(({ role, content }) => ({ role, content })),
+      );
       setMessages((prev) => [
         ...prev,
         { id: (Date.now() + 1).toString(), role: 'assistant', content: aiText },
