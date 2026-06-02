@@ -50,6 +50,18 @@ interface LocationDoc {
   affiliateUrl: string;
 }
 
+interface BicingStation {
+  station_id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  mechanical: number;
+  ebike: number;
+  num_bikes_available: number;
+  num_docks_available: number;
+  distance: number;
+}
+
 interface CardData {
   quizQuestion: string;
   quizOptions: string[];
@@ -80,6 +92,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   viewpoint: 'Viewpoint',
 };
 
+const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_information.json';
+const BICING_STATUS = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_status.json';
+const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeTourGuide/1.0' } };
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
@@ -91,6 +107,9 @@ export default function MapScreen() {
 
   // Map data
   const [locations, setLocations] = useState<LocationDoc[]>([]);
+  const [bicingRaw, setBicingRaw] = useState<Omit<BicingStation, 'distance'>[]>([]);
+  const [bicingStations, setBicingStations] = useState<BicingStation[]>([]);
+  const [showBicing, setShowBicing] = useState(true);
 
   // Sheet state (Feature 2)
   const [tappedLandmark, setTappedLandmark] = useState<LocationDoc | null>(null);
@@ -178,6 +197,56 @@ export default function MapScreen() {
     })();
   }, []);
 
+  // ── Bicing GBFS fetch (with HTML-response guard) ──────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const [infoText, statusText] = await Promise.all([
+          fetch(BICING_INFO, FETCH_OPTS).then((r) => r.text()),
+          fetch(BICING_STATUS, FETCH_OPTS).then((r) => r.text()),
+        ]);
+        if (infoText.trim().startsWith('<') || statusText.trim().startsWith('<')) {
+          console.warn('[Bicing] API blocked — HTML response');
+          return;
+        }
+        const infoJson = JSON.parse(infoText) as { data?: { stations?: Record<string, unknown>[] } };
+        const statusJson = JSON.parse(statusText) as { data?: { stations?: Record<string, unknown>[] } };
+        const statusMap = new Map<string, Record<string, unknown>>();
+        (statusJson.data?.stations ?? []).forEach((s) =>
+          statusMap.set(s['station_id'] as string, s),
+        );
+        const raw = (infoJson.data?.stations ?? []).map((info) => {
+          const s = statusMap.get(info['station_id'] as string) ?? {};
+          const types = s['num_bikes_available_types'] as { mechanical?: number; ebike?: number } | undefined;
+          return {
+            station_id: info['station_id'] as string,
+            name: info['name'] as string,
+            lat: info['lat'] as number,
+            lon: info['lon'] as number,
+            mechanical: types?.mechanical ?? 0,
+            ebike: types?.ebike ?? 0,
+            num_bikes_available: (s['num_bikes_available'] as number) ?? 0,
+            num_docks_available: (s['num_docks_available'] as number) ?? 0,
+          };
+        });
+        setBicingRaw(raw);
+      } catch (e) {
+        console.warn('[Bicing] fetch failed', e);
+      }
+    })();
+  }, []);
+
+  // ── Filter Bicing to 1500 m ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userLocation) { setBicingStations([]); return; }
+    const { latitude: uLat, longitude: uLon } = userLocation;
+    const filtered = bicingRaw
+      .map((s) => ({ ...s, distance: Math.round(haversineMetres(uLat, uLon, s.lat, s.lon)) }))
+      .filter((s) => s.distance <= 1500)
+      .sort((a, b) => a.distance - b.distance);
+    setBicingStations(filtered);
+  }, [userLocation, bicingRaw]);
+
   // ── Fetch quiz + FAQ data ─────────────────────────────────────────────────────
   const fetchCardData = useCallback(async (slug: string) => {
     setLoadingCard(true);
@@ -210,6 +279,14 @@ export default function MapScreen() {
         )
         .slice(0, 6);
 
+      const seenQ = new Set<string>();
+      const uniqueFaqs = activeFaqs.filter((d) => {
+        const q = (d['question'] as string) ?? '';
+        if (seenQ.has(q)) return false;
+        seenQ.add(q);
+        return true;
+      });
+
       const user = auth.currentUser;
       let completedIds: string[] = [];
       if (user) {
@@ -238,9 +315,9 @@ export default function MapScreen() {
         quizExplanation,
         quizPoints,
         quizAlreadyCompleted: completedIds.includes(slug),
-        faqQuestions: activeFaqs.map((d) => (d['question'] as string) ?? ''),
-        faqAnswers: activeFaqs.map((d) => (d['answer'] as string) ?? ''),
-        faqIsPremium: activeFaqs.map((d) => (d['is_premium'] as boolean) ?? false),
+        faqQuestions: uniqueFaqs.map((d) => (d['question'] as string) ?? ''),
+        faqAnswers: uniqueFaqs.map((d) => (d['answer'] as string) ?? ''),
+        faqIsPremium: uniqueFaqs.map((d) => (d['is_premium'] as boolean) ?? false),
       });
     } finally {
       setLoadingCard(false);
@@ -363,14 +440,47 @@ export default function MapScreen() {
           );
         })}
 
+        {/* Bicing station markers */}
+        {showBicing && bicingStations.map((station) => (
+          <Marker
+            key={`bicing-${station.station_id}`}
+            coordinate={{ latitude: station.lat, longitude: station.lon }}
+            tracksViewChanges={false}
+          >
+            <View
+              style={[
+                styles.bicingMarker,
+                { backgroundColor: station.num_bikes_available > 0 ? '#2E7D32' : '#C62828' },
+              ]}
+            >
+              <Text style={styles.bicingMarkerLabel}>B</Text>
+            </View>
+          </Marker>
+        ))}
       </MapView>
 
-      {/* Feature 4: Re-centre FAB */}
+      {/* Re-centre FAB */}
       <TouchableOpacity
         style={[styles.fab, sheetVisible && styles.fabWithSheet]}
         onPress={handleRecenter}
       >
         <Ionicons name="navigate" size={20} color="#fff" />
+      </TouchableOpacity>
+
+      {/* AI chat FAB */}
+      <TouchableOpacity
+        style={[styles.aiFab, sheetVisible && styles.aiFabWithSheet]}
+        onPress={() => router.push('/(tabs)/chat')}
+      >
+        <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Bicing toggle FAB */}
+      <TouchableOpacity
+        style={[styles.bicingFab, sheetVisible && styles.bicingFabWithSheet]}
+        onPress={() => setShowBicing((p) => !p)}
+      >
+        <Ionicons name="bicycle" size={20} color={showBicing ? '#fff' : '#888'} />
       </TouchableOpacity>
 
       {/* Feature 2: Landmark preview sheet */}
@@ -517,6 +627,53 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   fabWithSheet: { bottom: 320 },
+
+  aiFab: {
+    position: 'absolute',
+    bottom: 76,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#00C853',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  aiFabWithSheet: { bottom: 372 },
+
+  bicingFab: {
+    position: 'absolute',
+    bottom: 128,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1E1E1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  bicingFabWithSheet: { bottom: 424 },
+
+  bicingMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  bicingMarkerLabel: { color: '#fff', fontSize: 10, fontWeight: '800' },
 
   // Preview sheet (Feature 2)
   previewSheet: {

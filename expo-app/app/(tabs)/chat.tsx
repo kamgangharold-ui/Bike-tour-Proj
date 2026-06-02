@@ -9,9 +9,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 import * as Location from 'expo-location';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
@@ -81,6 +83,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(true);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -185,6 +188,8 @@ export default function ChatScreen() {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
+    Speech.stop();
+
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -205,6 +210,12 @@ export default function ChatScreen() {
         ...prev,
         { id: (Date.now() + 1).toString(), role: 'assistant', content: aiText },
       ]);
+      if (speakerOn) {
+        const lang = /\b(je|vous|est|les|des|une|du|en|nous|qui|que|pas|sur|plus)\b/i.test(aiText)
+          ? 'fr'
+          : 'en';
+        Speech.speak(aiText, { language: lang, rate: 0.92, pitch: 1.0 });
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -252,6 +263,20 @@ export default function ChatScreen() {
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Header with speaker toggle */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Ask AI</Text>
+        <TouchableOpacity
+          onPress={() => { setSpeakerOn((p) => !p); Speech.stop(); }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons
+            name={speakerOn ? 'volume-high' : 'volume-mute'}
+            size={22}
+            color={speakerOn ? '#00C853' : '#555'}
+          />
+        </TouchableOpacity>
+      </View>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -298,6 +323,18 @@ export default function ChatScreen() {
 
         {/* Input bar */}
         <View style={styles.inputBar}>
+          <TouchableOpacity
+            style={styles.micBtn}
+            onPress={() =>
+              Alert.alert(
+                'Voice Input',
+                'Tap the 🎤 on your keyboard to dictate, or type your message.',
+                [{ text: 'OK' }],
+              )
+            }
+          >
+            <Ionicons name="mic" size={20} color="#9E9E9E" />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             placeholder="Ask about cycling, landmarks, rules…"
@@ -331,6 +368,17 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#121212' },
   flex: { flex: 1 },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A2A2A',
+  },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '600' },
 
   emptyState: {
     flex: 1,
@@ -404,6 +452,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     maxHeight: 100,
+  },
+  micBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#2A2A2A',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendBtn: {
     width: 40,
