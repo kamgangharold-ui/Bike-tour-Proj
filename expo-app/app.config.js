@@ -37,7 +37,6 @@ module.exports = {
         },
       ],
       ['expo-notifications', { sounds: [] }],
-      'react-native-maps',
     ],
     web: { bundler: 'metro' },
     experiments: { typedRoutes: true },

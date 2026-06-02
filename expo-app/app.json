@@ -23,8 +23,7 @@
       ["expo-location", {
         "locationAlwaysAndWhenInUsePermission": "Used to alert you near landmarks while riding."
       }],
-      ["expo-notifications", { "sounds": [] }],
-      "react-native-maps"
+      ["expo-notifications", { "sounds": [] }]
     ],
     "web": { "bundler": "metro" },
     "experiments": { "typedRoutes": true }
