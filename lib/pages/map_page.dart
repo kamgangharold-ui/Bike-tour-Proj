@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -261,6 +263,7 @@ class _LandmarkSheetState extends State<_LandmarkSheet> {
   int _quizCorrectIndex = -1;
   String _quizExplanation = '';
   int _quizPoints = 0;
+  bool _quizAlreadyCompleted = false;
   List<String> _faqQuestions = [];
   List<String> _faqAnswers = [];
   List<bool> _faqIsPremium = [];
@@ -282,24 +285,40 @@ class _LandmarkSheetState extends State<_LandmarkSheet> {
   Future<void> _fetchCardData(String slug) async {
     _loadedSlug = slug;
     final fs = FirebaseFirestore.instance;
+    final user = FirebaseAuth.instance.currentUser;
 
-    final quizSnap = await fs
-        .collection('quizzes')
-        .where('location_slug', isEqualTo: slug)
-        .where('is_active', isEqualTo: true)
-        .limit(1)
-        .get();
+    final futures = await Future.wait([
+      fs
+          .collection('quizzes')
+          .where('location_slug', isEqualTo: slug)
+          .where('is_active', isEqualTo: true)
+          .limit(1)
+          .get(),
+      fs
+          .collection('faqs')
+          .where('location_slug', isEqualTo: slug)
+          .where('is_active', isEqualTo: true)
+          .orderBy('sort_order')
+          .limit(6)
+          .get(),
+      if (user != null)
+        fs.collection('users').doc(user.uid).get()
+      else
+        Future.value(null),
+    ]);
 
-    final faqSnap = await fs
-        .collection('faqs')
-        .where('location_slug', isEqualTo: slug)
-        .where('is_active', isEqualTo: true)
-        .orderBy('sort_order')
-        .limit(6)
-        .get();
+    final quizSnap = futures[0] as QuerySnapshot<Map<String, dynamic>>;
+    final faqSnap = futures[1] as QuerySnapshot<Map<String, dynamic>>;
+    final userDoc = futures.length > 2
+        ? futures[2] as DocumentSnapshot<Map<String, dynamic>>?
+        : null;
+
+    final completedIds = List<String>.from(
+        (userDoc?.data()?['completed_quiz_ids'] as List?) ?? []);
 
     if (!mounted) return;
     setState(() {
+      _quizAlreadyCompleted = completedIds.contains(slug);
       if (quizSnap.docs.isNotEmpty) {
         final q = quizSnap.docs.first.data();
         _quizQuestion = (q['question'] as String?) ?? '';
@@ -342,15 +361,30 @@ class _LandmarkSheetState extends State<_LandmarkSheet> {
           quizCorrectIndex: _quizCorrectIndex,
           quizExplanation: _quizExplanation,
           quizPoints: _quizPoints,
+          quizAlreadyCompleted: _quizAlreadyCompleted,
           faqQuestions: _faqQuestions,
           faqAnswers: _faqAnswers,
           faqIsPremium: _faqIsPremium,
           onDismiss: () => context.read<AppState>().dismissActiveLandmark(),
-          onAudioPlay: () {
-            // TODO: integrate audio player
+          onAudioPlay: () async {
+            final uri = Uri.tryParse(a.activeLocationAudioUrl);
+            if (uri != null) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
           },
-          onQuizCorrect: (_) {
-            // TODO: update Firestore completed_quiz_ids + Cloud Function for points
+          onQuizCorrect: (points) async {
+            final user = FirebaseAuth.instance.currentUser;
+            if (user == null) return;
+            final slug = a.activeLocationSlug;
+            setState(() => _quizAlreadyCompleted = true);
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .set({
+              'completed_quiz_ids': FieldValue.arrayUnion([slug]),
+              'total_points': FieldValue.increment(points),
+              'visited_location_slugs': FieldValue.arrayUnion([slug]),
+            }, SetOptions(merge: true));
           },
         ),
       ),

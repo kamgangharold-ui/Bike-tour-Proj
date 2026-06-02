@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -38,9 +39,24 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
+// Replace with your real Stripe payment link from the Stripe Dashboard.
+const _stripeCheckoutUrl = 'https://buy.stripe.com/YOUR_PAYMENT_LINK';
+
 class _ProfileBody extends StatelessWidget {
   const _ProfileBody({required this.user});
   final User user;
+
+  Future<void> _openStripeCheckout(BuildContext context) async {
+    final uri = Uri.parse(_stripeCheckoutUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not open payment page'),
+        backgroundColor: AppTheme.surface,
+      ));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,13 +157,7 @@ class _ProfileBody extends StatelessWidget {
             const SizedBox(height: 28),
             if (!isSubscribed)
               ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: open Stripe payment link
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Stripe payment coming soon'),
-                    backgroundColor: AppTheme.surface,
-                  ));
-                },
+                onPressed: () => _openStripeCheckout(context),
                 icon: const Icon(Icons.star),
                 label: const Text('Upgrade to Premium'),
               ),
