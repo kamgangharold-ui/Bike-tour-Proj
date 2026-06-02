@@ -51,11 +51,11 @@ export default function ParkingScreen() {
       ]);
 
       const biciboxFiltered: Station[] = JSON.parse(
-        filterParkingByDistance(biciboxJson, latitude, longitude, 500),
+        filterParkingByDistance(biciboxJson, latitude, longitude, 1000),
       ).map((s: Record<string, unknown>) => ({ ...s, _type: 'bicibox' as const }));
 
       const biciparkFiltered: Station[] = JSON.parse(
-        filterParkingByDistance(biciparkJson, latitude, longitude, 500),
+        filterParkingByDistance(biciparkJson, latitude, longitude, 1000),
       ).map((s: Record<string, unknown>) => ({ ...s, _type: 'bicipark' as const }));
 
       setStations([...biciboxFiltered, ...biciparkFiltered]);

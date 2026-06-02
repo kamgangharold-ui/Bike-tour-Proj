@@ -36,8 +36,8 @@ export function filterParkingByDistance(
 
   const withDistance = stations
     .map((s) => {
-      const lat = parseFloat(String(s['LATITUD'] ?? s['latitud'] ?? ''));
-      const lng = parseFloat(String(s['LONGITUD'] ?? s['longitud'] ?? ''));
+      const lat = parseFloat(String(s['LATITUD'] ?? s['latitud'] ?? '').replace(',', '.'));
+      const lng = parseFloat(String(s['LONGITUD'] ?? s['longitud'] ?? '').replace(',', '.'));
       if (isNaN(lat) || isNaN(lng)) return null;
       const distanceMetres = Math.round(haversineMetres(userLat, userLng, lat, lng));
       return { ...s, distanceMetres };

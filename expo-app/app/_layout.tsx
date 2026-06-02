@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../src/firebase/config';
 import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -21,17 +22,19 @@ export default function RootLayout() {
   if (!authReady) return null;
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: '#1E1E1E' },
-        headerTintColor: '#fff',
-        contentStyle: { backgroundColor: '#121212' },
-        headerShown: false,
-      }}
-    >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
+    <SafeAreaProvider>
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: '#1E1E1E' },
+          headerTintColor: '#fff',
+          contentStyle: { backgroundColor: '#121212' },
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </SafeAreaProvider>
   );
 }

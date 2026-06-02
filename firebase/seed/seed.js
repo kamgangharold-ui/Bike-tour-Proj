@@ -639,6 +639,248 @@ const logistics = [
   },
 ];
 
+// ─── ADDITIONAL LANDMARKS ─────────────────────────────────────────────────────
+
+const moreLocations = [
+  {
+    _id: 'arc-de-triomf',
+    name: 'Arc de Triomf',
+    slug: 'arc-de-triomf',
+    category: 'landmark',
+    coordinates: geo(41.3910, 2.1804),
+    geofence_radius_metres: 40,
+    short_description: 'Triumphal arch built for the 1888 Barcelona World Exposition.',
+    long_description: "Designed by Josep Vilaseca, the Arc de Triomf served as the main entrance to the 1888 World Exposition. Its Moorish-influenced red brick design is unique in Barcelona's architecture.",
+    audio_url: '',
+    image_urls: [],
+    getyourguide_affiliate_url: '',
+    regulatory_alert: null,
+    tags: ['architecture', 'history', '1888', 'passeig'],
+    is_active: true,
+  },
+  {
+    _id: 'macba',
+    name: 'MACBA (Museum of Contemporary Art)',
+    slug: 'macba',
+    category: 'landmark',
+    coordinates: geo(41.3831, 2.1676),
+    geofence_radius_metres: 40,
+    short_description: "Richard Meier's iconic white contemporary art museum in El Raval.",
+    long_description: 'MACBA opened in 1995 and houses a collection of post-WWII art. The plaza in front is famous as one of Barcelona\'s top skateboarding spots.',
+    audio_url: '',
+    image_urls: [],
+    getyourguide_affiliate_url: '',
+    regulatory_alert: null,
+    tags: ['art', 'museum', 'raval', 'contemporary'],
+    is_active: true,
+  },
+  {
+    _id: 'parc-ciutadella',
+    name: 'Parc de la Ciutadella',
+    slug: 'parc-ciutadella',
+    category: 'viewpoint',
+    coordinates: geo(41.3865, 2.1860),
+    geofence_radius_metres: 40,
+    short_description: "Barcelona's main park with a lake, zoo entrance, and Gaudí's first major work.",
+    long_description: 'The 17-hectare park hosts the monumental cascade fountain (Gaudí\'s first work), a boating lake, and the Barcelona Zoo. A peaceful escape from the city.',
+    audio_url: '',
+    image_urls: [],
+    getyourguide_affiliate_url: '',
+    regulatory_alert: null,
+    tags: ['park', 'nature', 'gaudí', 'lake'],
+    is_active: true,
+  },
+  {
+    _id: 'port-olimpic',
+    name: 'Port Olímpic',
+    slug: 'port-olimpic',
+    category: 'viewpoint',
+    coordinates: geo(41.3874, 2.1993),
+    geofence_radius_metres: 40,
+    short_description: "Marina built for the 1992 Olympics with Frank Gehry's golden fish sculpture.",
+    long_description: "The Olympic Port was constructed for the 1992 Summer Olympics. The area features Frank Gehry's iconic 'Peix d'Or' golden fish sculpture and a lively marina.",
+    audio_url: '',
+    image_urls: [],
+    getyourguide_affiliate_url: '',
+    regulatory_alert: null,
+    tags: ['olympics', 'marina', 'gehry', 'seafront'],
+    is_active: true,
+  },
+  {
+    _id: 'la-boqueria',
+    name: 'La Boqueria Market',
+    slug: 'la-boqueria',
+    category: 'landmark',
+    coordinates: geo(41.3816, 2.1720),
+    geofence_radius_metres: 40,
+    short_description: "Barcelona's most famous public market on La Rambla since 1840.",
+    long_description: 'La Boqueria (Mercat de Sant Josep) is a large public market with over 300 stalls selling fresh produce, meats, and local delicacies. One of Barcelona\'s most visited spots.',
+    audio_url: '',
+    image_urls: [],
+    getyourguide_affiliate_url: '',
+    regulatory_alert: null,
+    tags: ['market', 'food', 'rambla', 'culture'],
+    is_active: true,
+  },
+];
+
+const moreQuizzes = [
+  {
+    location_slug: 'arc-de-triomf',
+    question: 'What event was the Arc de Triomf built for?',
+    options: ['1992 Olympics', '1888 World Exposition', '1929 International Exhibition', '2004 Forum'],
+    correct_option_index: 1,
+    explanation: 'The Arc de Triomf was designed by Josep Vilaseca as the main entrance gate for the 1888 Barcelona World Exposition.',
+    difficulty: 'easy',
+    points_reward: 10,
+    is_active: true,
+  },
+  {
+    location_slug: 'macba',
+    question: 'Who designed the MACBA building?',
+    options: ['Frank Gehry', 'Renzo Piano', 'Richard Meier', 'Norman Foster'],
+    correct_option_index: 2,
+    explanation: 'American architect Richard Meier designed the MACBA building, which opened in 1995. Its minimalist white façade became an iconic feature of the El Raval neighbourhood.',
+    difficulty: 'medium',
+    points_reward: 15,
+    is_active: true,
+  },
+  {
+    location_slug: 'parc-ciutadella',
+    question: "Which famous structure in Parc de la Ciutadella was Gaudí's first major collaborative work?",
+    options: ['The boating lake', 'The monumental cascade fountain', 'The glass greenhouse', 'The iron gate'],
+    correct_option_index: 1,
+    explanation: 'Gaudí worked as a young assistant to Josep Fontserè on the monumental cascade fountain, which is considered one of his earliest significant contributions.',
+    difficulty: 'medium',
+    points_reward: 15,
+    is_active: true,
+  },
+  {
+    location_slug: 'port-olimpic',
+    question: "What is the name of Frank Gehry's golden sculpture at Port Olímpic?",
+    options: ["Peix d'Or (Golden Fish)", 'El Toro', 'La Balena', 'Vela Barcelona'],
+    correct_option_index: 0,
+    explanation: "Frank Gehry's 'Peix d'Or' (Golden Fish) is a 54-metre-long sculpture made of steel mesh that has become one of the symbols of Barcelona's Olympic waterfront.",
+    difficulty: 'easy',
+    points_reward: 10,
+    is_active: true,
+  },
+  {
+    location_slug: 'la-boqueria',
+    question: 'What is the official Catalan name of La Boqueria?',
+    options: ['Mercat de Santa Caterina', 'Mercat de Sant Antoni', 'Mercat de Sant Josep de la Boqueria', 'Mercat del Born'],
+    correct_option_index: 2,
+    explanation: "La Boqueria's official name is Mercat de Sant Josep de la Boqueria. It has operated on La Rambla since 1840 and hosts over 300 vendor stalls.",
+    difficulty: 'easy',
+    points_reward: 10,
+    is_active: true,
+  },
+];
+
+const moreFaqs = [
+  {
+    location_slug: 'arc-de-triomf',
+    question: 'Can I cycle through the Arc de Triomf?',
+    answer: 'Yes — Passeig de Lluís Companys leading to the arch has a dedicated cycling lane. The arch itself is a pedestrian plaza, so dismount when approaching the arch closely.',
+    category: 'cycling',
+    sort_order: 1,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'arc-de-triomf',
+    question: 'Is there bike parking near the Arc de Triomf?',
+    answer: 'Yes, there are public bike racks along Passeig de Lluís Companys and at the nearby Parc de la Ciutadella entrance. Several Bicing stations are within 200 m.',
+    category: 'parking',
+    sort_order: 2,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'macba',
+    question: 'Is cycling allowed on the MACBA plaza?',
+    answer: "The MACBA plaza (Plaça dels Àngels) is a pedestrian area — no cycling allowed. It's a popular skate spot but bikes must be walked through. Use the adjacent streets to cycle around.",
+    category: 'cycling',
+    sort_order: 1,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'macba',
+    question: 'Where can I lock my bike near MACBA?',
+    answer: 'There are bike racks on Carrer dels Àngels and Carrer del Bonsuccés just off the plaza. A Bicing station is also available on Rambla del Raval, about 200 m away.',
+    category: 'parking',
+    sort_order: 2,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'parc-ciutadella',
+    question: 'Can I cycle inside Parc de la Ciutadella?',
+    answer: 'Cycling is allowed on the main paths inside the park but you must ride slowly and give way to pedestrians. The park is very popular so be extra careful on weekends.',
+    category: 'cycling',
+    sort_order: 1,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'parc-ciutadella',
+    question: 'Is there a Bicipark near Parc de la Ciutadella?',
+    answer: 'Yes — there is a Bicipark open rack near the Passeig de Pujades entrance (north side) and several Bicing stations on the streets surrounding the park.',
+    category: 'parking',
+    sort_order: 2,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'port-olimpic',
+    question: 'Is the seafront route to Port Olímpic bike-friendly?',
+    answer: 'Yes — the Ronda Litoral coastal path has a dedicated bike lane running all the way from Barceloneta beach to Port Olímpic and beyond. It is flat and well-maintained.',
+    category: 'cycling',
+    sort_order: 1,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'port-olimpic',
+    question: 'Where can I park my bike at Port Olímpic?',
+    answer: 'There are bike racks at the marina entrance and along Passeig Marítim. Several Bicing stations are located nearby on Avinguda del Litoral and Carrer de la Marina.',
+    category: 'parking',
+    sort_order: 2,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'la-boqueria',
+    question: 'Can I cycle on La Rambla where La Boqueria is located?',
+    answer: "Cycling is technically prohibited on La Rambla's pedestrian promenade. Use the parallel streets (Carrer del Carme or Carrer de l'Hospital) to ride, and walk your bike to the market entrance.",
+    category: 'cycling',
+    sort_order: 1,
+    is_premium: false,
+    is_active: true,
+  },
+  {
+    location_slug: 'la-boqueria',
+    question: 'Where can I lock my bike near La Boqueria?',
+    answer: "There are bike racks on Carrer del Carme and Carrer de l'Hospital, one block from La Rambla. A Bicing station is available on Carrer de la Portaferrissa, 100 m from the market.",
+    category: 'parking',
+    sort_order: 2,
+    is_premium: false,
+    is_active: true,
+  },
+];
+
+async function addMoreLandmarks() {
+  console.log('\n🗺️  Adding 5 new landmarks...');
+  await seed('locations', moreLocations);
+  await seed('quizzes', moreQuizzes);
+  await seed('faqs', moreFaqs);
+  console.log('\n✅  New landmarks seeded:');
+  console.log(`    • locations → ${moreLocations.length} new documents`);
+  console.log(`    • quizzes  → ${moreQuizzes.length} new documents`);
+  console.log(`    • faqs     → ${moreFaqs.length} new documents`);
+}
+
 // ─── RUN ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log('\n🚴  Barcelona Bike Tour — Firestore Seeder');
@@ -648,6 +890,7 @@ async function main() {
     await seed('quizzes', quizzes);
     await seed('faqs', faqs);
     await seed('logistics', logistics);
+    await addMoreLandmarks();
     console.log('\n✅  All done! Your Firestore database is fully seeded.');
     console.log('    Collections seeded:');
     console.log(`    • locations  → ${locations.length} documents`);

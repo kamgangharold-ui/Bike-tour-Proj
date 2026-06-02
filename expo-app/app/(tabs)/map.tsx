@@ -9,7 +9,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -20,7 +20,6 @@ import {
   query,
   where,
   limit,
-  orderBy,
   setDoc,
   doc,
   arrayUnion,
@@ -49,18 +48,6 @@ interface LocationDoc {
   regulatoryFineEur: number;
   audioUrl: string;
   affiliateUrl: string;
-}
-
-interface BicingStation {
-  station_id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  mechanical: number;
-  ebike: number;
-  num_bikes_available: number;
-  num_docks_available: number;
-  distance: number;
 }
 
 interface CardData {
@@ -93,9 +80,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   viewpoint: 'Viewpoint',
 };
 
-const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_information.json';
-const BICING_STATUS = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_status.json';
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
@@ -107,8 +91,6 @@ export default function MapScreen() {
 
   // Map data
   const [locations, setLocations] = useState<LocationDoc[]>([]);
-  const [bicingRaw, setBicingRaw] = useState<Omit<BicingStation, 'distance'>[]>([]);
-  const [bicingStations, setBicingStations] = useState<BicingStation[]>([]);
 
   // Sheet state (Feature 2)
   const [tappedLandmark, setTappedLandmark] = useState<LocationDoc | null>(null);
@@ -186,62 +168,15 @@ export default function MapScreen() {
           affiliateUrl: (data['getyourguide_affiliate_url'] as string) ?? '',
         } satisfies LocationDoc;
       });
-      setLocations(docs);
+      const seen = new Set<string>();
+      const deduplicated = docs.filter((loc) => {
+        if (seen.has(loc.slug)) return false;
+        seen.add(loc.slug);
+        return true;
+      });
+      setLocations(deduplicated);
     })();
   }, []);
-
-  // ── Feature 1: Bicing GBFS fetch ─────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
-      try {
-        const [infoRes, statusRes] = await Promise.all([
-          fetch(BICING_INFO),
-          fetch(BICING_STATUS),
-        ]);
-        const infoJson = (await infoRes.json()) as { data?: { stations?: Record<string, unknown>[] } };
-        const statusJson = (await statusRes.json()) as { data?: { stations?: Record<string, unknown>[] } };
-
-        const statusMap = new Map<string, Record<string, unknown>>();
-        (statusJson.data?.stations ?? []).forEach((s) =>
-          statusMap.set(s['station_id'] as string, s),
-        );
-
-        const raw = (infoJson.data?.stations ?? []).map((info) => {
-          const s = statusMap.get(info['station_id'] as string) ?? {};
-          const types = s['num_bikes_available_types'] as
-            | { mechanical?: number; ebike?: number }
-            | undefined;
-          return {
-            station_id: info['station_id'] as string,
-            name: info['name'] as string,
-            lat: info['lat'] as number,
-            lon: info['lon'] as number,
-            mechanical: types?.mechanical ?? 0,
-            ebike: types?.ebike ?? 0,
-            num_bikes_available: (s['num_bikes_available'] as number) ?? 0,
-            num_docks_available: (s['num_docks_available'] as number) ?? 0,
-          };
-        });
-        setBicingRaw(raw);
-      } catch (e) {
-        console.warn('[Bicing] fetch failed', e);
-      }
-    })();
-  }, []);
-
-  // ── Feature 1: Filter Bicing to 1 km ─────────────────────────────────────────
-  useEffect(() => {
-    if (!userLocation) { setBicingStations([]); return; }
-    const { latitude: uLat, longitude: uLon } = userLocation;
-    const filtered = bicingRaw
-      .map((s) => ({
-        ...s,
-        distance: Math.round(haversineMetres(uLat, uLon, s.lat, s.lon)),
-      }))
-      .filter((s) => s.distance <= 1000)
-      .sort((a, b) => a.distance - b.distance);
-    setBicingStations(filtered);
-  }, [userLocation, bicingRaw]);
 
   // ── Fetch quiz + FAQ data ─────────────────────────────────────────────────────
   const fetchCardData = useCallback(async (slug: string) => {
@@ -261,12 +196,19 @@ export default function MapScreen() {
           query(
             collection(db, 'faqs'),
             where('location_slug', '==', slug),
-            where('is_active', '==', true),
-            orderBy('sort_order'),
-            limit(6),
+            limit(10),
           ),
         ),
       ]);
+
+      const activeFaqs = faqSnap.docs
+        .map((d) => d.data())
+        .filter((d) => d['is_active'] !== false)
+        .sort(
+          (a, b) =>
+            ((a['sort_order'] as number) ?? 0) - ((b['sort_order'] as number) ?? 0),
+        )
+        .slice(0, 6);
 
       const user = auth.currentUser;
       let completedIds: string[] = [];
@@ -296,9 +238,9 @@ export default function MapScreen() {
         quizExplanation,
         quizPoints,
         quizAlreadyCompleted: completedIds.includes(slug),
-        faqQuestions: faqSnap.docs.map((d) => (d.data()['question'] as string) ?? ''),
-        faqAnswers: faqSnap.docs.map((d) => (d.data()['answer'] as string) ?? ''),
-        faqIsPremium: faqSnap.docs.map((d) => (d.data()['is_premium'] as boolean) ?? false),
+        faqQuestions: activeFaqs.map((d) => (d['question'] as string) ?? ''),
+        faqAnswers: activeFaqs.map((d) => (d['answer'] as string) ?? ''),
+        faqIsPremium: activeFaqs.map((d) => (d['is_premium'] as boolean) ?? false),
       });
     } finally {
       setLoadingCard(false);
@@ -408,13 +350,6 @@ export default function MapScreen() {
         showsUserLocation
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        <UrlTile
-          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          shouldReplaceMapContent={Platform.OS !== 'android'}
-          maximumZ={19}
-          flipY={false}
-        />
-
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
@@ -428,40 +363,6 @@ export default function MapScreen() {
           );
         })}
 
-        {/* Feature 1: Bicing station markers */}
-        {bicingStations.map((station) => (
-          <Marker
-            key={`bicing-${station.station_id}`}
-            coordinate={{ latitude: station.lat, longitude: station.lon }}
-            tracksViewChanges={false}
-          >
-            <View
-              style={[
-                styles.bicingMarker,
-                {
-                  backgroundColor:
-                    station.num_bikes_available > 0 ? '#2E7D32' : '#C62828',
-                },
-              ]}
-            >
-              <Text style={styles.bicingMarkerLabel}>B</Text>
-            </View>
-            <Callout>
-              <View style={styles.bicingCallout}>
-                <Text style={styles.bicingCalloutName} numberOfLines={2}>
-                  {station.name}
-                </Text>
-                <Text style={styles.bicingCalloutRow}>
-                  🚲 {station.mechanical} mechanical · ⚡ {station.ebike} electric
-                </Text>
-                <Text style={styles.bicingCalloutRow}>
-                  🅿️ {station.num_docks_available} docks free
-                </Text>
-                <Text style={styles.bicingCalloutRow}>📍 {station.distance} m away</Text>
-              </View>
-            </Callout>
-          </Marker>
-        ))}
       </MapView>
 
       {/* Feature 4: Re-centre FAB */}
@@ -616,26 +517,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   fabWithSheet: { bottom: 320 },
-
-  // Bicing markers
-  bicingMarker: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  bicingMarkerLabel: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  bicingCallout: { padding: 8, minWidth: 180, maxWidth: 240 },
-  bicingCalloutName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 4,
-  },
-  bicingCalloutRow: { fontSize: 12, color: '#424242', marginBottom: 2 },
 
   // Preview sheet (Feature 2)
   previewSheet: {
