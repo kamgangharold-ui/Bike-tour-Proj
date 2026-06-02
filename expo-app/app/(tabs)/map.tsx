@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, UrlTile, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
 import { Text } from 'react-native';
-import { collection, getDocs, query, where, limit, orderBy, setDoc, doc, arrayUnion, increment } from 'firebase/firestore';
+import { collection, getDocs, getDoc, query, where, limit, orderBy, setDoc, doc, arrayUnion, increment } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { db, auth } from '../../src/firebase/config';
@@ -113,7 +113,6 @@ export default function MapScreen() {
       const user = auth.currentUser;
       let completedIds: string[] = [];
       if (user) {
-        const { getDoc } = await import('firebase/firestore');
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         completedIds = (userDoc.data()?.['completed_quiz_ids'] as string[]) ?? [];
       }

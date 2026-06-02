@@ -9,3 +9,4 @@ dist/
 *.orig.*
 web-build/
 .env
+# Do NOT gitignore .env.example — it's a safe template (no real values)

@@ -15,7 +15,7 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
   }
 
   const { eventType, region } = data;
-  const slug = region.identifier;
+  const slug = region.identifier ?? '';
 
   if (eventType === Location.GeofencingEventType.Enter) {
     const snap = await getDocs(
@@ -41,7 +41,7 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: (loc['name'] as string) ?? 'Landmark',
+        title: ((loc['name'] as string | undefined) ?? 'Landmark'),
         body: isRegulatory
           ? `⚠️ ${(regAlert?.['message'] as string) ?? ''}`
           : (loc['short_description'] as string) ?? '',
