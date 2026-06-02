@@ -1,12 +1,15 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { initializeAuth, Persistence } from 'firebase/auth';
+// Import from @firebase/auth so Metro resolves the react-native export condition —
+// firebase/auth has no react-native condition and loads the browser bundle, which
+// fails to register the auth component at runtime.
+import { initializeAuth, type Persistence } from '@firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// getReactNativePersistence ships in the RN bundle (dist/rn) but is absent from
-// the browser/node type declarations that tsc picks up — require() avoids the error.
+// getReactNativePersistence exists in the RN bundle resolved at runtime but is absent
+// from @firebase/auth's main type declarations — require() lets Metro pick the RN bundle.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { getReactNativePersistence } = require('firebase/auth') as {
+const { getReactNativePersistence } = require('@firebase/auth') as {
   getReactNativePersistence: (storage: unknown) => Persistence;
 };
 
