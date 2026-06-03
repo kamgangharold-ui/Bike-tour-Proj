@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
-import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
@@ -84,7 +84,7 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
-  const [isListening, setIsListening] = useState(false);
+  const [isListening] = useState(false);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -140,27 +140,12 @@ export default function ChatScreen() {
     }
   }, [chatPrefill, setChatPrefill]);
 
-  // ── Voice recognition setup ──────────────────────────────────────────────────
-  useEffect(() => {
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      const text = e.value?.[0] ?? '';
-      if (text) setInput(text);
-      setIsListening(false);
-    };
-    Voice.onSpeechError = (_e: SpeechErrorEvent) => setIsListening(false);
-    return () => { void Voice.destroy(); };
-  }, []);
-
-  const handleVoice = async () => {
-    if (isListening) {
-      await Voice.stop();
-      setIsListening(false);
-    } else {
-      setInput('');
-      setIsListening(true);
-      const lang = messages.some(m => /\b(je|vous|est|les|des)\b/i.test(m.content)) ? 'fr-FR' : 'es-ES';
-      await Voice.start(lang);
-    }
+  const handleVoice = () => {
+    Alert.alert(
+      'Voice Input',
+      'Tap the microphone on your keyboard to dictate your message.',
+      [{ text: 'OK' }],
+    );
   };
 
   // ── System prompt builder ────────────────────────────────────────────────────
