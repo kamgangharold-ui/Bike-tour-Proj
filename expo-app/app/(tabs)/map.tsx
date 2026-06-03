@@ -119,6 +119,13 @@ export default function MapScreen() {
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [loadingCard, setLoadingCard] = useState(false);
 
+  // Free-tap state (any map location)
+  const [tappedMapPoint, setTappedMapPoint] = useState<{
+    latitude: number;
+    longitude: number;
+    name: string;
+  } | null>(null);
+
   // Zustand
   const activeSlug = useAppStore((s) => s.activeSlug);
   const activeName = useAppStore((s) => s.activeName);
@@ -128,7 +135,6 @@ export default function MapScreen() {
   const activeRegulatoryMessage = useAppStore((s) => s.activeRegulatoryMessage);
   const activeRegulatoryFineEur = useAppStore((s) => s.activeRegulatoryFineEur);
   const activeAffiliateUrl = useAppStore((s) => s.activeAffiliateUrl);
-  const activeAudioUrl = useAppStore((s) => s.activeAudioUrl);
   const isSubscribed = useAppStore((s) => s.isSubscribed);
   const exitLandmark = useAppStore((s) => s.exitLandmark);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
@@ -342,6 +348,7 @@ export default function MapScreen() {
 
   // ── Feature 2: Landmark marker tap ───────────────────────────────────────────
   const handleLandmarkPress = useCallback((loc: LocationDoc) => {
+    setTappedMapPoint(null);
     setTappedLandmark(loc);
     setShowFullDetails(false);
     setCardData(null);
@@ -365,6 +372,7 @@ export default function MapScreen() {
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
+    setTappedMapPoint(null);
   }, []);
 
   const handleDismissCard = useCallback(() => {
@@ -406,6 +414,35 @@ export default function MapScreen() {
     });
   };
 
+  // ── Free-tap: any map location ────────────────────────────────────────────────
+  const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        { headers: { 'User-Agent': 'BikeTourGuide/1.0', Accept: 'application/json' } },
+      );
+      const data = await res.json() as {
+        display_name?: string;
+        address?: { road?: string; neighbourhood?: string; suburb?: string; city_district?: string };
+      };
+      const a = data.address;
+      return a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location';
+    } catch {
+      return 'This location';
+    }
+  };
+
+  const handleMapPress = useCallback(async (e: { nativeEvent: { coordinate: Coords } }) => {
+    // Dismiss landmark cards; show place info for the tapped point
+    setTappedLandmark(null);
+    setShowFullDetails(false);
+    setCardData(null);
+    const { latitude, longitude } = e.nativeEvent.coordinate;
+    setTappedMapPoint({ latitude, longitude, name: '…' });
+    const name = await reverseGeocode(latitude, longitude);
+    setTappedMapPoint({ latitude, longitude, name });
+  }, []);
+
   // ── Derived state for which sheet to show ────────────────────────────────────
   const showPreview = tappedLandmark !== null && !showFullDetails;
   const showFullCard =
@@ -420,7 +457,6 @@ export default function MapScreen() {
   const fullIsReg = isTappedFull ? tappedLandmark.isRegulatory : activeIsRegulatory;
   const fullRegMsg = isTappedFull ? tappedLandmark.regulatoryMessage : activeRegulatoryMessage;
   const fullRegFine = isTappedFull ? tappedLandmark.regulatoryFineEur : activeRegulatoryFineEur;
-  const fullAudio = isTappedFull ? tappedLandmark.audioUrl : activeAudioUrl;
   const fullAffiliate = isTappedFull ? tappedLandmark.affiliateUrl : activeAffiliateUrl;
   const activeLandmarkCoords = !isTappedFull && activeSlug
     ? locations.find((l) => l.slug === activeSlug)?.coordinates
@@ -440,6 +476,7 @@ export default function MapScreen() {
         mapType={Platform.OS === 'android' ? 'none' : 'standard'}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
+        onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
         {Platform.OS === 'android' && (
@@ -590,6 +627,48 @@ export default function MapScreen() {
         </View>
       )}
 
+      {/* Free-tap location sheet */}
+      {tappedMapPoint !== null && tappedLandmark === null && activeSlug.length === 0 && (
+        <View style={styles.previewSheet}>
+          <View style={styles.previewHeader}>
+            <View style={[styles.chip, { backgroundColor: '#E3F2FD', borderColor: '#1565C0' }]}>
+              <Text style={[styles.chipText, { color: '#1565C0' }]}>Location</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setTappedMapPoint(null)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="close" size={22} color="#9E9E9E" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.previewTitle}>{tappedMapPoint.name}</Text>
+          <Text style={styles.previewDist}>
+            {tappedMapPoint.latitude.toFixed(5)}, {tappedMapPoint.longitude.toFixed(5)}
+          </Text>
+          <View style={styles.previewActions}>
+            <TouchableOpacity
+              style={styles.previewAIBtn}
+              onPress={() => handleAskAI(tappedMapPoint.name)}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={14} color="#00C853" />
+              <Text style={styles.previewAIBtnText}> Ask AI about this</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.previewDetailsBtn}
+              onPress={() => {
+                const url = Platform.OS === 'ios'
+                  ? `maps://maps.apple.com/?saddr=Current+Location&daddr=${tappedMapPoint.latitude},${tappedMapPoint.longitude}&dirflg=b`
+                  : `https://www.google.com/maps/dir/?api=1&destination=${tappedMapPoint.latitude},${tappedMapPoint.longitude}&travelmode=bicycling`;
+                void Linking.openURL(url);
+              }}
+            >
+              <Ionicons name="navigate" size={14} color="#fff" />
+              <Text style={styles.previewDetailsBtnText}> Directions</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Map loading overlay */}
       {(locationsLoading || !mapReady) && (
         <View style={styles.mapOverlay}>
@@ -614,7 +693,6 @@ export default function MapScreen() {
                 isRegulatory={fullIsReg}
                 regulatoryMessage={fullRegMsg}
                 regulatoryFineEur={fullRegFine}
-                audioUrl={fullAudio}
                 affiliateUrl={fullAffiliate}
                 isSubscribed={isSubscribed}
                 quizQuestion={cardData?.quizQuestion ?? ''}
@@ -630,9 +708,6 @@ export default function MapScreen() {
                 destinationLng={fullLng}
                 onDismiss={handleDismissCard}
                 onQuizCorrect={handleQuizCorrect}
-                onAudioPlay={() => {
-                  if (fullAudio) void Linking.openURL(fullAudio);
-                }}
               />
             </ScrollView>
           )}

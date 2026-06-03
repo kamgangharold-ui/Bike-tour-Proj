@@ -24,12 +24,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="parking"
-        options={{
-          title: 'Parking',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bicycle-outline" size={size} color={color} />
-          ),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="chat"

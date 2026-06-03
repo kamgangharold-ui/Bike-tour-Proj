@@ -32,7 +32,6 @@ interface Props {
   isRegulatory?: boolean;
   regulatoryMessage?: string;
   regulatoryFineEur?: number;
-  audioUrl?: string;
   affiliateUrl?: string;
   isVisited?: boolean;
   isSubscribed?: boolean;
@@ -49,7 +48,6 @@ interface Props {
   destinationLng?: number;
   onDismiss?: () => void;
   onQuizCorrect?: (points: number) => void;
-  onAudioPlay?: () => void;
 }
 
 export default function LandmarkCard({
@@ -59,7 +57,6 @@ export default function LandmarkCard({
   isRegulatory = false,
   regulatoryMessage = '',
   regulatoryFineEur = 0,
-  audioUrl = '',
   affiliateUrl = '',
   isVisited = false,
   isSubscribed = false,
@@ -76,7 +73,6 @@ export default function LandmarkCard({
   destinationLng,
   onDismiss,
   onQuizCorrect,
-  onAudioPlay,
 }: Props) {
   const [selectedOption, setSelectedOption] = useState(-1);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
@@ -218,24 +214,16 @@ export default function LandmarkCard({
         </View>
       )}
 
-      {/* Action buttons */}
-      {(audioUrl.length > 0 || affiliateUrl.length > 0) && (
+      {/* Book a Tour button */}
+      {affiliateUrl.length > 0 && (
         <View style={styles.actions}>
-          {audioUrl.length > 0 && (
-            <TouchableOpacity style={styles.outlineBtn} onPress={onAudioPlay}>
-              <Ionicons name="headset-outline" size={15} color="#1565C0" />
-              <Text style={styles.outlineBtnText}> Audio Guide</Text>
-            </TouchableOpacity>
-          )}
-          {affiliateUrl.length > 0 && (
-            <TouchableOpacity
-              style={styles.filledBtn}
-              onPress={() => Linking.openURL(affiliateUrl)}
-            >
-              <Ionicons name="ticket-outline" size={15} color="#fff" />
-              <Text style={styles.filledBtnText}> Book a Tour</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.filledBtn, { flex: 1 }]}
+            onPress={() => Linking.openURL(affiliateUrl)}
+          >
+            <Ionicons name="ticket-outline" size={15} color="#fff" />
+            <Text style={styles.filledBtnText}> Book a Tour</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -384,17 +372,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
   },
-  outlineBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#1565C0',
-    borderRadius: 8,
-    paddingVertical: 10,
-  },
-  outlineBtnText: { fontSize: 13, color: '#1565C0', fontWeight: '500' },
   filledBtn: {
     flex: 1,
     flexDirection: 'row',
