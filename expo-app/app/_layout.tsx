@@ -5,8 +5,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../src/firebase/config';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+// Remote push notifications require EAS development build (not Expo Go)
+// Local geofence notifications work in Expo Go foreground only
 import * as Notifications from 'expo-notifications';
-import * as Updates from 'expo-updates';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -22,22 +23,6 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [authReady, setAuthReady] = useState(false);
-
-  // Silently check for OTA updates on every launch (standalone builds only)
-  useEffect(() => {
-    if (__DEV__) return;
-    (async () => {
-      try {
-        const result = await Updates.checkForUpdateAsync();
-        if (result.isAvailable) {
-          await Updates.fetchUpdateAsync();
-          await Updates.reloadAsync();
-        }
-      } catch {
-        // Network unavailable — continue with cached bundle
-      }
-    })();
-  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, () => {
