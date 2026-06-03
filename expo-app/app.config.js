@@ -25,6 +25,7 @@ module.exports = {
         NSLocationAlwaysAndWhenInUseUsageDescription:
           'Tracks your location in the background for hands-free landmark alerts.',
         UIBackgroundModes: ['location', 'fetch'],
+        ITSAppUsesNonExemptEncryption: false,
       },
     },
     plugins: [
