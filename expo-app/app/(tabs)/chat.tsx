@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
+import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
@@ -84,6 +84,7 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
+  const [isListening, setIsListening] = useState(false);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -139,6 +140,29 @@ export default function ChatScreen() {
     }
   }, [chatPrefill, setChatPrefill]);
 
+  // ── Voice recognition setup ──────────────────────────────────────────────────
+  useEffect(() => {
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      const text = e.value?.[0] ?? '';
+      if (text) setInput(text);
+      setIsListening(false);
+    };
+    Voice.onSpeechError = (_e: SpeechErrorEvent) => setIsListening(false);
+    return () => { void Voice.destroy(); };
+  }, []);
+
+  const handleVoice = async () => {
+    if (isListening) {
+      await Voice.stop();
+      setIsListening(false);
+    } else {
+      setInput('');
+      setIsListening(true);
+      const lang = messages.some(m => /\b(je|vous|est|les|des)\b/i.test(m.content)) ? 'fr-FR' : 'es-ES';
+      await Voice.start(lang);
+    }
+  };
+
   // ── System prompt builder ────────────────────────────────────────────────────
   const buildSystemPrompt = (): string => {
     const lat = userLocation?.latitude ?? 0;
@@ -179,7 +203,8 @@ export default function ChatScreen() {
       `Cycling regulations: sidewalk riding = €500 fine, ` +
       `both earphones = €100 fine, Gothic Quarter = mandatory dismount zone.\n` +
       `Answer concisely and helpfully. If unsure, say so honestly. ` +
-      `Respond in the same language the user writes in.`
+      `Respond in the same language the user writes in. ` +
+      `Use plain text only — no markdown (no **, no ##, no ---, no > blocks). Emojis are fine.`
     );
   };
 
@@ -324,16 +349,14 @@ export default function ChatScreen() {
         {/* Input bar */}
         <View style={styles.inputBar}>
           <TouchableOpacity
-            style={styles.micBtn}
-            onPress={() =>
-              Alert.alert(
-                'Voice Input',
-                'Tap the 🎤 on your keyboard to dictate, or type your message.',
-                [{ text: 'OK' }],
-              )
-            }
+            style={[styles.micBtn, isListening && styles.micBtnActive]}
+            onPress={() => void handleVoice()}
           >
-            <Ionicons name="mic" size={20} color="#9E9E9E" />
+            <Ionicons
+              name={isListening ? 'stop-circle' : 'mic'}
+              size={20}
+              color={isListening ? '#EF5350' : '#9E9E9E'}
+            />
           </TouchableOpacity>
           <TextInput
             style={styles.input}
@@ -461,6 +484,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  micBtnActive: { backgroundColor: '#4A0000' },
   sendBtn: {
     width: 40,
     height: 40,

@@ -422,6 +422,11 @@ export default function MapScreen() {
   const fullRegFine = isTappedFull ? tappedLandmark.regulatoryFineEur : activeRegulatoryFineEur;
   const fullAudio = isTappedFull ? tappedLandmark.audioUrl : activeAudioUrl;
   const fullAffiliate = isTappedFull ? tappedLandmark.affiliateUrl : activeAffiliateUrl;
+  const activeLandmarkCoords = !isTappedFull && activeSlug
+    ? locations.find((l) => l.slug === activeSlug)?.coordinates
+    : undefined;
+  const fullLat = isTappedFull ? tappedLandmark.coordinates.latitude : activeLandmarkCoords?.latitude;
+  const fullLng = isTappedFull ? tappedLandmark.coordinates.longitude : activeLandmarkCoords?.longitude;
 
   const sheetVisible = showPreview || showFullCard;
 
@@ -432,17 +437,19 @@ export default function MapScreen() {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
-        mapType="none"
+        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        <UrlTile
-          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maximumZ={19}
-          flipY={false}
-          zIndex={-1}
-        />
+        {Platform.OS === 'android' && (
+          <UrlTile
+            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maximumZ={19}
+            flipY={false}
+            zIndex={-1}
+          />
+        )}
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
@@ -619,6 +626,8 @@ export default function MapScreen() {
                 faqQuestions={cardData?.faqQuestions ?? []}
                 faqAnswers={cardData?.faqAnswers ?? []}
                 faqIsPremium={cardData?.faqIsPremium ?? []}
+                destinationLat={fullLat}
+                destinationLng={fullLng}
                 onDismiss={handleDismissCard}
                 onQuizCorrect={handleQuizCorrect}
                 onAudioPlay={() => {

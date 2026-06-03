@@ -10,6 +10,7 @@ module.exports = {
     userInterfaceStyle: 'dark',
     android: {
       package: 'com.biketourguide.app',
+      permissions: ['RECORD_AUDIO'],
       config: {
         googleMaps: {
           // Read at build time from .env (never hardcoded)
@@ -24,6 +25,10 @@ module.exports = {
           'Used to alert you when near a landmark or cycling restriction.',
         NSLocationAlwaysAndWhenInUseUsageDescription:
           'Tracks your location in the background for hands-free landmark alerts.',
+        NSMicrophoneUsageDescription:
+          'Used to let you ask questions by voice.',
+        NSSpeechRecognitionUsageDescription:
+          'Used to convert your voice to text for the BikAI chat.',
         UIBackgroundModes: ['location', 'fetch'],
         ITSAppUsesNonExemptEncryption: false,
       },

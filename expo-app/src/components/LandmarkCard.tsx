@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Linking,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -44,6 +45,8 @@ interface Props {
   faqQuestions?: string[];
   faqAnswers?: string[];
   faqIsPremium?: boolean[];
+  destinationLat?: number;
+  destinationLng?: number;
   onDismiss?: () => void;
   onQuizCorrect?: (points: number) => void;
   onAudioPlay?: () => void;
@@ -69,6 +72,8 @@ export default function LandmarkCard({
   faqQuestions = [],
   faqAnswers = [],
   faqIsPremium = [],
+  destinationLat,
+  destinationLng,
   onDismiss,
   onQuizCorrect,
   onAudioPlay,
@@ -233,6 +238,22 @@ export default function LandmarkCard({
           )}
         </View>
       )}
+
+      {/* Directions button */}
+      {destinationLat !== undefined && destinationLng !== undefined && (
+        <TouchableOpacity
+          style={styles.directionsBtn}
+          onPress={() => {
+            const url = Platform.OS === 'ios'
+              ? `maps://maps.apple.com/?saddr=Current+Location&daddr=${destinationLat},${destinationLng}&dirflg=b`
+              : `https://www.google.com/maps/dir/?api=1&destination=${destinationLat},${destinationLng}&travelmode=bicycling`;
+            void Linking.openURL(url);
+          }}
+        >
+          <Ionicons name="navigate" size={15} color="#fff" />
+          <Text style={styles.directionsBtnText}>Get Directions</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -384,4 +405,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   filledBtnText: { fontSize: 13, color: '#fff', fontWeight: '500' },
+  directionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1565C0',
+    borderRadius: 10,
+    paddingVertical: 11,
+    gap: 6,
+    marginTop: 8,
+  },
+  directionsBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });
