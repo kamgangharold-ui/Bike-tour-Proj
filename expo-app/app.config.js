@@ -40,5 +40,10 @@ module.exports = {
     ],
     web: { bundler: 'metro' },
     experiments: { typedRoutes: true },
+    extra: {
+      eas: {
+        projectId: '1b99c3e7-2c7d-43bc-80f8-5b5bef6401d5',
+      },
+    },
   },
 };
