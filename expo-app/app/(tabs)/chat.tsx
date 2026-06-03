@@ -18,20 +18,10 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
-
-// Loaded at runtime — if native package absent the mic button is silently inactive
-type VoiceModule = {
-  start: (lang: string) => Promise<void>;
-  stop: () => Promise<void>;
-  destroy: () => Promise<void>;
-  onSpeechResults: ((e: { value?: string[] }) => void) | null;
-  onSpeechError: ((e: unknown) => void) | null;
-};
-let Voice: VoiceModule | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  Voice = (require('@react-native-voice/voice') as { default: VoiceModule }).default;
-} catch { /* not installed yet */ }
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,27 +145,22 @@ export default function ChatScreen() {
   }, [chatPrefill, setChatPrefill]);
 
   // ── Voice recognition setup ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!Voice) return;
-    Voice.onSpeechResults = (e: { value?: string[] }) => {
-      const text = e.value?.[0] ?? '';
-      if (text) setInput(text);
-      setIsListening(false);
-    };
-    Voice.onSpeechError = () => setIsListening(false);
-    return () => { void Voice?.destroy(); };
-  }, []);
+  useSpeechRecognitionEvent('result', (event) => {
+    const text = event.results[0]?.transcript ?? '';
+    if (text) setInput(text);
+  });
+  useSpeechRecognitionEvent('end', () => setIsListening(false));
+  useSpeechRecognitionEvent('error', () => setIsListening(false));
 
   const handleVoice = async () => {
-    if (!Voice) return;
     if (isListening) {
-      await Voice.stop();
+      ExpoSpeechRecognitionModule.stop();
       setIsListening(false);
     } else {
+      const lang = messages.some(m => /\b(je|vous|est|les|des)\b/i.test(m.content)) ? 'fr-FR' : 'es-ES';
       setInput('');
       setIsListening(true);
-      const lang = messages.some(m => /\b(je|vous|est|les|des)\b/i.test(m.content)) ? 'fr-FR' : 'es-ES';
-      await Voice.start(lang);
+      await ExpoSpeechRecognitionModule.start({ lang, interimResults: true });
     }
   };
 
