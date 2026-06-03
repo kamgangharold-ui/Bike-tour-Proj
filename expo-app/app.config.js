@@ -29,6 +29,7 @@ module.exports = {
     },
     plugins: [
       'expo-router',
+      'expo-updates',
       [
         'expo-location',
         {
@@ -38,6 +39,12 @@ module.exports = {
       ],
       ['expo-notifications', { sounds: [] }],
     ],
+    updates: {
+      url: 'https://u.expo.dev/1b99c3e7-2c7d-43bc-80f8-5b5bef6401d5',
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
     web: { bundler: 'metro' },
     experiments: { typedRoutes: true },
     extra: {
