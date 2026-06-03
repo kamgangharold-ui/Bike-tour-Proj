@@ -18,10 +18,6 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,7 +84,7 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
-  const [isListening, setIsListening] = useState(false);
+  const [isListening] = useState(false);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -144,25 +140,7 @@ export default function ChatScreen() {
     }
   }, [chatPrefill, setChatPrefill]);
 
-  // ── Voice recognition setup ──────────────────────────────────────────────────
-  useSpeechRecognitionEvent('result', (event) => {
-    const text = event.results[0]?.transcript ?? '';
-    if (text) setInput(text);
-  });
-  useSpeechRecognitionEvent('end', () => setIsListening(false));
-  useSpeechRecognitionEvent('error', () => setIsListening(false));
-
-  const handleVoice = async () => {
-    if (isListening) {
-      ExpoSpeechRecognitionModule.stop();
-      setIsListening(false);
-    } else {
-      const lang = messages.some(m => /\b(je|vous|est|les|des)\b/i.test(m.content)) ? 'fr-FR' : 'es-ES';
-      setInput('');
-      setIsListening(true);
-      await ExpoSpeechRecognitionModule.start({ lang, interimResults: true });
-    }
-  };
+  const handleVoice = () => { /* voice requires a native EAS build — not available in Expo Go */ };
 
   // ── System prompt builder ────────────────────────────────────────────────────
   const buildSystemPrompt = (): string => {
