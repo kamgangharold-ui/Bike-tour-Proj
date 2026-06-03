@@ -5,6 +5,7 @@ module.exports = {
     name: 'Bike Tour Guide',
     slug: 'bike-tour-guide',
     version: '1.0.0',
+    privacy: 'public',
     scheme: 'biketourguide',
     orientation: 'portrait',
     userInterfaceStyle: 'dark',
@@ -44,13 +45,6 @@ module.exports = {
         },
       ],
       ['expo-notifications', { sounds: [] }],
-      [
-        'expo-speech-recognition',
-        {
-          microphonePermission: 'Allow BikAI to use your microphone for voice input.',
-          speechRecognitionPermission: 'Allow BikAI to convert your voice to text.',
-        },
-      ],
     ],
     updates: {
       url: 'https://u.expo.dev/1b99c3e7-2c7d-43bc-80f8-5b5bef6401d5',
