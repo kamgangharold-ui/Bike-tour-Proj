@@ -9,7 +9,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -110,6 +110,8 @@ export default function MapScreen() {
   const [bicingRaw, setBicingRaw] = useState<Omit<BicingStation, 'distance'>[]>([]);
   const [bicingStations, setBicingStations] = useState<BicingStation[]>([]);
   const [showBicing, setShowBicing] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
+  const [locationsLoading, setLocationsLoading] = useState(true);
 
   // Sheet state (Feature 2)
   const [tappedLandmark, setTappedLandmark] = useState<LocationDoc | null>(null);
@@ -161,6 +163,7 @@ export default function MapScreen() {
   // ── Firestore: load landmarks ────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
+      try {
       const snap = await getDocs(
         query(collection(db, 'locations'), where('is_active', '==', true)),
       );
@@ -194,6 +197,11 @@ export default function MapScreen() {
         return true;
       });
       setLocations(deduplicated);
+      } catch (e) {
+        console.warn('[Map] Firestore fetch failed', e);
+      } finally {
+        setLocationsLoading(false);
+      }
     })();
   }, []);
 
@@ -423,10 +431,18 @@ export default function MapScreen() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+        provider={PROVIDER_DEFAULT}
+        mapType="none"
         showsUserLocation
+        onMapReady={() => setMapReady(true)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
+        <UrlTile
+          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maximumZ={19}
+          flipY={false}
+          zIndex={-1}
+        />
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
@@ -435,6 +451,7 @@ export default function MapScreen() {
               key={loc.id}
               coordinate={loc.coordinates}
               pinColor={CATEGORY_COLORS[loc.category] ?? '#1565C0'}
+              tracksViewChanges={false}
               onPress={() => handleLandmarkPress(loc)}
             />
           );
@@ -563,6 +580,14 @@ export default function MapScreen() {
               <Text style={styles.previewDetailsBtnText}>Full details →</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      )}
+
+      {/* Map loading overlay */}
+      {(locationsLoading || !mapReady) && (
+        <View style={styles.mapOverlay}>
+          <ActivityIndicator color="#00C853" size="large" />
+          <Text style={styles.mapLoadingText}>Loading Barcelona…</Text>
         </View>
       )}
 
@@ -774,4 +799,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  mapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#121212',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  mapLoadingText: { color: '#aaa', fontSize: 14 },
 });

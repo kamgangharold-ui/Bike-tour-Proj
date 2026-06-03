@@ -18,6 +18,21 @@ import {
 } from 'firebase/auth';
 import { auth } from '../src/firebase/config';
 
+function firebaseErrorMessage(e: unknown): string {
+  const code = (e as { code?: string }).code ?? '';
+  const map: Record<string, string> = {
+    'auth/network-request-failed': 'No internet connection. Check your network.',
+    'auth/too-many-requests': 'Too many attempts. Wait a minute and try again.',
+    'auth/invalid-api-key': 'App configuration error. Contact support.',
+    'auth/email-already-in-use': 'Email already registered. Try signing in.',
+    'auth/wrong-password': 'Wrong email or password.',
+    'auth/invalid-credential': 'Wrong email or password.',
+    'auth/user-not-found': 'No account found. Try signing up.',
+    'auth/weak-password': 'Password must be at least 6 characters.',
+  };
+  return map[code] ?? (e instanceof Error ? e.message : 'Something went wrong. Try again.');
+}
+
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +47,7 @@ export default function AuthScreen() {
       await signInAnonymously(auth);
       router.replace('/(tabs)/map');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed');
+      setError(firebaseErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -53,7 +68,7 @@ export default function AuthScreen() {
       }
       router.replace('/(tabs)/map');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Authentication failed');
+      setError(firebaseErrorMessage(e));
     } finally {
       setLoading(false);
     }
