@@ -7,6 +7,7 @@ import {
   Text,
   RefreshControl,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { filterParkingByDistance } from '../../src/utils/parkingFilter';
 import ParkingCard from '../../src/components/ParkingCard';
@@ -94,7 +95,11 @@ export default function ParkingScreen() {
       )}
       {!error && stations.length === 0 && (
         <View style={styles.centered}>
+          <Ionicons name="bicycle-outline" size={52} color="#444" />
           <Text style={styles.emptyText}>No bike parking within 500m</Text>
+          <Text style={styles.emptySubText}>
+            Move closer to the city centre or pull down to refresh
+          </Text>
         </View>
       )}
       <FlatList
@@ -135,8 +140,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  loadingText: { color: '#666', fontSize: 14 },
-  emptyText: { color: '#666', fontSize: 14 },
+  loadingText: { color: '#aaa', fontSize: 14 },
+  emptyText: {
+    color: '#BDBDBD',
+    fontSize: 17,
+    fontWeight: 'bold' as const,
+    textAlign: 'center' as const,
+    marginTop: 12,
+  },
+  emptySubText: {
+    color: '#555',
+    fontSize: 13,
+    textAlign: 'center' as const,
+    paddingHorizontal: 36,
+    marginTop: 6,
+  },
   error: {
     color: '#EF5350',
     fontSize: 13,

@@ -265,7 +265,7 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Header with speaker toggle */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Ask AI</Text>
+        <Text style={styles.headerTitle}>BikAI Guide</Text>
         <TouchableOpacity
           onPress={() => { setSpeakerOn((p) => !p); Speech.stop(); }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

@@ -475,12 +475,16 @@ export default function MapScreen() {
         <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
       </TouchableOpacity>
 
-      {/* Bicing toggle FAB */}
+      {/* Bicing toggle FAB — green when ON, dark when OFF */}
       <TouchableOpacity
-        style={[styles.bicingFab, sheetVisible && styles.bicingFabWithSheet]}
+        style={[
+          styles.bicingFab,
+          sheetVisible && styles.bicingFabWithSheet,
+          showBicing && { backgroundColor: '#00C853' },
+        ]}
         onPress={() => setShowBicing((p) => !p)}
       >
-        <Ionicons name="bicycle" size={20} color={showBicing ? '#fff' : '#888'} />
+        <Ionicons name="bicycle" size={20} color="#fff" />
       </TouchableOpacity>
 
       {/* Feature 2: Landmark preview sheet */}
