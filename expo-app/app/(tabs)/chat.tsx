@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +18,21 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
+
+// Loaded at runtime — if native package absent the mic button is silently inactive
+type VoiceModule = {
+  start: (lang: string) => Promise<void>;
+  stop: () => Promise<void>;
+  destroy: () => Promise<void>;
+  onSpeechResults: ((e: { value?: string[] }) => void) | null;
+  onSpeechError: ((e: unknown) => void) | null;
+};
+let Voice: VoiceModule | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Voice = (require('@react-native-voice/voice') as { default: VoiceModule }).default;
+} catch { /* not installed yet */ }
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -84,7 +98,7 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
-  const [isListening] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -140,12 +154,29 @@ export default function ChatScreen() {
     }
   }, [chatPrefill, setChatPrefill]);
 
-  const handleVoice = () => {
-    Alert.alert(
-      'Voice Input',
-      'Tap the microphone on your keyboard to dictate your message.',
-      [{ text: 'OK' }],
-    );
+  // ── Voice recognition setup ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!Voice) return;
+    Voice.onSpeechResults = (e: { value?: string[] }) => {
+      const text = e.value?.[0] ?? '';
+      if (text) setInput(text);
+      setIsListening(false);
+    };
+    Voice.onSpeechError = () => setIsListening(false);
+    return () => { void Voice?.destroy(); };
+  }, []);
+
+  const handleVoice = async () => {
+    if (!Voice) return;
+    if (isListening) {
+      await Voice.stop();
+      setIsListening(false);
+    } else {
+      setInput('');
+      setIsListening(true);
+      const lang = messages.some(m => /\b(je|vous|est|les|des)\b/i.test(m.content)) ? 'fr-FR' : 'es-ES';
+      await Voice.start(lang);
+    }
   };
 
   // ── System prompt builder ────────────────────────────────────────────────────
