@@ -427,16 +427,28 @@ export default function MapScreen() {
   const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
         { headers: { 'User-Agent': 'BikeTourGuide/1.0', Accept: 'application/json' } },
       );
       const data = await res.json() as {
         name?: string;
         display_name?: string;
-        address?: { road?: string; neighbourhood?: string; suburb?: string; city_district?: string };
+        address?: {
+          amenity?: string;
+          shop?: string;
+          tourism?: string;
+          attraction?: string;
+          leisure?: string;
+          historic?: string;
+          road?: string;
+          neighbourhood?: string;
+          suburb?: string;
+          city_district?: string;
+        };
       };
       const a = data.address;
-      return data.name ?? a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location';
+      const venue = data.name ?? a?.amenity ?? a?.shop ?? a?.tourism ?? a?.attraction ?? a?.leisure ?? a?.historic;
+      return venue ?? a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location';
     } catch {
       return 'This location';
     }
@@ -446,22 +458,13 @@ export default function MapScreen() {
     if (markerJustPressedRef.current) return;
     const { latitude, longitude } = e.nativeEvent.coordinate;
 
-    // Tap within 80 m of a landmark → treat as landmark tap (shows preview + Full details)
-    const nearby = locations.find(
-      (loc) => haversineMetres(latitude, longitude, loc.coordinates.latitude, loc.coordinates.longitude) < 80,
-    );
-    if (nearby) {
-      handleLandmarkPress(nearby);
-      return;
-    }
-
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
     setTappedMapPoint({ latitude, longitude, name: '…' });
     const name = await reverseGeocode(latitude, longitude);
     setTappedMapPoint({ latitude, longitude, name });
-  }, [locations, handleLandmarkPress]);
+  }, []);
 
   const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
     if (!userLocation) return;
