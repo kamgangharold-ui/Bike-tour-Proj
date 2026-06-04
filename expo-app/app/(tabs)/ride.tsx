@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
@@ -31,6 +32,7 @@ function fmtKm(m: number): string {
 }
 
 export default function RideScreen() {
+  const router = useRouter();
   const rideActive = useAppStore((s) => s.rideActive);
   const rideMode = useAppStore((s) => s.rideMode);
   const rideTourId = useAppStore((s) => s.rideTourId);
@@ -40,6 +42,7 @@ export default function RideScreen() {
   const rideDistanceMeters = useAppStore((s) => s.rideDistanceMeters);
   const rideStartedAt = useAppStore((s) => s.rideStartedAt);
   const startRide = useAppStore((s) => s.startRide);
+  const setTourPreview = useAppStore((s) => s.setTourPreview);
   const insets = useSafeAreaInsets();
 
   const [tours, setTours] = useState<Tour[]>([]);
@@ -140,9 +143,11 @@ export default function RideScreen() {
             />
           </View>
 
-          <Text style={styles.hint}>Open the Map tab for the live direction arrow.</Text>
-
           <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.mapBtn} onPress={() => router.push('/(tabs)/map')}>
+              <Ionicons name="map-outline" size={18} color="#000" />
+              <Text style={styles.mapBtnText}> View on Map</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
               <Ionicons name="stop-circle" size={18} color="#fff" />
               <Text style={styles.endText}> End Ride</Text>
@@ -175,7 +180,16 @@ export default function RideScreen() {
           <TouchableOpacity
             key={tour.id}
             style={styles.tourCard}
-            onPress={() => startRide({ mode: 'tour', tourId: tour.id, stops: tour.location_slugs })}
+            onPress={() => {
+              setTourPreview({
+                tourId: tour.id,
+                tourName: tour.name,
+                slugs: tour.location_slugs,
+                distanceKm: tour.distance_km,
+                estMinutes: tour.est_minutes,
+              });
+              router.push('/(tabs)/map');
+            }}
           >
             <View style={styles.tourHeader}>
               <Text style={styles.tourName}>{tour.name}</Text>
@@ -238,6 +252,16 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 11, color: '#666' },
   hint: { fontSize: 12, color: '#777', marginBottom: 20 },
   actionRow: { flexDirection: 'row', gap: 12 },
+  mapBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00C853',
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  mapBtnText: { fontSize: 14, fontWeight: '800', color: '#000' },
   endBtn: {
     flex: 1,
     flexDirection: 'row',
