@@ -28,6 +28,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   generate:
@@ -53,3 +54,24 @@ jobs:
           COUNT: ${{ github.event.inputs.count || '3' }}
           AUTOPUBLISH: ${{ github.event.inputs.autopublish || 'false' }}
           MAX_TOTAL: '250'
+
+      - name: Open failure-alert issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const title = `⚠️ Location generator failed — ${date}`;
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 20,
+            });
+            if (open.some(i => i.title === title)) return;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `The Barcelona location generator workflow failed.\n\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+            });
