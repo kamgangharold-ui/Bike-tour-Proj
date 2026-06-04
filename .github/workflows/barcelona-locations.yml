@@ -1,0 +1,55 @@
+name: Generate Barcelona locations
+
+# NOTE: the `schedule` trigger only runs from the repository's DEFAULT branch.
+# Until this file is merged to the default branch it will NOT run on a schedule —
+# but it can be tested any time from any branch via the "Run workflow" button.
+on:
+  schedule:
+    - cron: '0 */3 * * *' # every 3 hours (UTC)
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Max new locations to attempt (UP TO this; fewer/zero is fine)'
+        required: false
+        default: '3'
+      autopublish:
+        description: 'Publish immediately (is_active:true)? Default false = review first'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+# Never let two runs overlap (they share deterministic doc IDs).
+concurrency:
+  group: barcelona-locations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install script dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Generate locations
+        working-directory: scripts
+        run: node generate-locations.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CITY: barcelona
+          COUNT: ${{ github.event.inputs.count || '3' }}
+          AUTOPUBLISH: ${{ github.event.inputs.autopublish || 'false' }}
+          MAX_TOTAL: '250'
