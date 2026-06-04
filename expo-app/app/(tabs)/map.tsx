@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -173,6 +173,9 @@ export default function MapScreen() {
   const exitLandmark = useAppStore((s) => s.exitLandmark);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
   const setUserCoords = useAppStore((s) => s.setUserCoords);
+  const rideActive = useAppStore((s) => s.rideActive);
+  const rideMode = useAppStore((s) => s.rideMode);
+  const rideTourStops = useAppStore((s) => s.rideTourStops);
 
   useGeofencing();
 
@@ -594,6 +597,24 @@ export default function MapScreen() {
 
   const sheetVisible = showPreview || showFullCard;
 
+  // ── Curated-tour trajectory: green path connecting the tour's stops in order ──
+  const tourRouteCoords = useMemo<Coords[]>(() => {
+    if (!rideActive || rideMode !== 'tour' || rideTourStops.length < 2) return [];
+    return rideTourStops
+      .map((slug) => locations.find((l) => l.slug === slug)?.coordinates)
+      .filter((c): c is Coords => !!c && (!!c.latitude || !!c.longitude));
+  }, [rideActive, rideMode, rideTourStops, locations]);
+
+  // Fit the map to the whole tour path the moment it appears.
+  useEffect(() => {
+    if (tourRouteCoords.length >= 2 && mapReady) {
+      mapRef.current?.fitToCoordinates(tourRouteCoords, {
+        edgePadding: { top: 90, right: 60, bottom: 320, left: 60 },
+        animated: true,
+      });
+    }
+  }, [tourRouteCoords, mapReady]);
+
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
@@ -650,6 +671,15 @@ export default function MapScreen() {
             coordinates={routeCoords}
             strokeColor="#00C853"
             strokeWidth={4}
+          />
+        )}
+        {tourRouteCoords.length >= 2 && (
+          <Polyline
+            coordinates={tourRouteCoords}
+            strokeColor="#00C853"
+            strokeWidth={5}
+            lineCap="round"
+            lineJoin="round"
           />
         )}
       </MapView>

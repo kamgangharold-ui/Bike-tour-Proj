@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -159,7 +160,7 @@ export default function RideScreen() {
       <Text style={styles.heading}>Guided Ride</Text>
       <Text style={styles.subheading}>Hands-free landmark audio + turn-toward directions.</Text>
 
-      <TouchableOpacity style={styles.freeBtn} onPress={() => startRide({ mode: 'free' })}>
+      <TouchableOpacity style={styles.freeBtn} onPress={() => { startRide({ mode: 'free' }); router.push('/(tabs)/map'); }}>
         <Ionicons name="bicycle" size={20} color="#000" />
         <Text style={styles.freeBtnText}> Start free ride</Text>
       </TouchableOpacity>
@@ -175,7 +176,7 @@ export default function RideScreen() {
           <TouchableOpacity
             key={tour.id}
             style={styles.tourCard}
-            onPress={() => startRide({ mode: 'tour', tourId: tour.id, stops: tour.location_slugs })}
+            onPress={() => { startRide({ mode: 'tour', tourId: tour.id, stops: tour.location_slugs }); router.push('/(tabs)/map'); }}
           >
             <View style={styles.tourHeader}>
               <Text style={styles.tourName}>{tour.name}</Text>
