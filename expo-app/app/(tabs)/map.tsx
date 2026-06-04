@@ -270,8 +270,7 @@ export default function MapScreen() {
           query(
             collection(db, 'quizzes'),
             where('location_slug', '==', slug),
-            where('is_active', '==', true),
-            limit(1),
+            limit(5),
           ),
         ),
         getDocs(
@@ -312,8 +311,9 @@ export default function MapScreen() {
       let quizCorrectIndex = -1;
       let quizExplanation = '';
       let quizPoints = 0;
-      if (!quizSnap.empty) {
-        const q = quizSnap.docs[0].data();
+      const activeQuizDoc = quizSnap.docs.find(d => d.data()['is_active'] !== false);
+      if (activeQuizDoc) {
+        const q = activeQuizDoc.data();
         quizQuestion = (q['question'] as string) ?? '';
         quizOptions = (q['options'] as string[]) ?? [];
         quizCorrectIndex = (q['correct_option_index'] as number) ?? -1;
@@ -333,7 +333,7 @@ export default function MapScreen() {
         faqIsPremium: uniqueFaqs.map((d) => (d['is_premium'] as boolean) ?? false),
       });
     } catch (e) {
-      console.error('[fetchCardData] failed for slug', slug, e);
+      console.warn('[fetchCardData] failed', e);
     } finally {
       setLoadingCard(false);
     }
@@ -881,7 +881,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: 300,
+    maxHeight: '75%',
     paddingBottom: 12,
     paddingTop: 8,
     backgroundColor: '#121212',
