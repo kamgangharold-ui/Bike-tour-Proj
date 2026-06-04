@@ -117,7 +117,6 @@ export default function MapScreen() {
   const [showFullDetails, setShowFullDetails] = useState(false);
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [loadingCard, setLoadingCard] = useState(false);
-  const [debugInfo, setDebugInfo] = useState('');
 
   // Free-tap state (any map location)
   const [tappedMapPoint, setTappedMapPoint] = useState<{
@@ -283,8 +282,6 @@ export default function MapScreen() {
         ),
       ]);
 
-      setDebugInfo(`slug="${slug}" quizzes=${quizSnap.docs.length} faqs=${faqSnap.docs.length}`);
-
       const activeFaqs = faqSnap.docs
         .map((d) => d.data())
         .filter((d) => d['is_active'] !== false)
@@ -336,8 +333,6 @@ export default function MapScreen() {
         faqIsPremium: uniqueFaqs.map((d) => (d['is_premium'] as boolean) ?? false),
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setDebugInfo(`ERROR: ${msg}`);
       console.warn('[fetchCardData] failed', e);
     } finally {
       setLoadingCard(false);
@@ -695,13 +690,6 @@ export default function MapScreen() {
       {/* Full landmark card sheet */}
       {showFullCard && (
         <View style={styles.sheet}>
-          {debugInfo.length > 0 && (
-            <View style={{ backgroundColor: '#1a1a00', padding: 8, marginHorizontal: 12, marginTop: 8, borderRadius: 6 }}>
-              <Text style={{ color: '#FFD600', fontSize: 11, fontFamily: 'monospace' }}>
-                {`[DEBUG] desc_len=${fullDesc.length} | ${debugInfo}`}
-              </Text>
-            </View>
-          )}
           {loadingCard ? (
             <View style={styles.sheetLoading}>
               <ActivityIndicator color="#00C853" />
