@@ -40,6 +40,7 @@ export default function TabsLayout() {
         name="chat"
         options={{
           title: 'BikAI',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
           ),
