@@ -170,12 +170,12 @@ export default function ChatScreen() {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
         const { recording: rec } = await Audio.Recording.createAsync({
           android: {
-            extension: '.wav',
-            outputFormat: Audio.AndroidOutputFormat.DEFAULT,
-            audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
+            extension: '.amr',
+            outputFormat: Audio.AndroidOutputFormat.AMR_WB,
+            audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
             sampleRate: 16000,
             numberOfChannels: 1,
-            bitRate: 256000,
+            bitRate: 23850,
           },
           ios: {
             extension: '.wav',
@@ -213,7 +213,7 @@ export default function ChatScreen() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             config: {
-              encoding: 'LINEAR16',
+              encoding: Platform.OS === 'android' ? 'AMR_WB' : 'LINEAR16',
               sampleRateHertz: 16000,
               languageCode: 'en-US',
               alternativeLanguageCodes: ['es-ES', 'fr-FR'],
