@@ -120,17 +120,29 @@ async function fetchPlaceInfo(lat: number, lng: number): Promise<{
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
   if (apiKey) {
     try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=80&key=${apiKey}`,
-        { headers: { Accept: 'application/json' } },
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=60&key=${apiKey}`,
+        { headers: { Accept: 'application/json' }, signal: controller.signal },
       );
+      clearTimeout(tid);
       const data = await res.json() as {
         status: string;
-        results: Array<{ name: string; types: string[]; rating?: number; vicinity?: string }>;
+        results: Array<{
+          name: string; types: string[]; rating?: number; vicinity?: string;
+          geometry: { location: { lat: number; lng: number } };
+        }>;
       };
       if (data.status === 'OK') {
-        // Skip city/admin results — find first actual venue
-        const place = data.results.find((r) => !r.types.every((t) => ADMIN_TYPES.has(t)));
+        // Filter admins then sort by actual distance from tap — nearest specific venue wins
+        const place = data.results
+          .filter((r) => !r.types.every((t) => ADMIN_TYPES.has(t)))
+          .sort((a, b) => {
+            const dA = haversineMetres(lat, lng, a.geometry.location.lat, a.geometry.location.lng);
+            const dB = haversineMetres(lat, lng, b.geometry.location.lat, b.geometry.location.lng);
+            return dA - dB;
+          })[0];
         if (place) {
           const type = place.types.find((t) => PLACE_TYPE_LABELS[t]) ?? place.types[0];
           return { name: place.name, type, rating: place.rating, vicinity: place.vicinity, hasPlace: true };
@@ -549,18 +561,21 @@ export default function MapScreen() {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
-        mapType="none"
+        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+        showsPointsOfInterest={false}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-          maximumZ={18}
-          flipY={false}
-          zIndex={-1}
-        />
+        {Platform.OS === 'android' && (
+          <UrlTile
+            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+            maximumZ={18}
+            flipY={false}
+            zIndex={-1}
+          />
+        )}
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
