@@ -6,10 +6,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  Linking,
   Platform,
 } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, UrlTile, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -117,6 +116,8 @@ export default function MapScreen() {
   const [showFullDetails, setShowFullDetails] = useState(false);
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [loadingCard, setLoadingCard] = useState(false);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
 
   // Free-tap state (any map location)
   const [tappedMapPoint, setTappedMapPoint] = useState<{
@@ -370,6 +371,8 @@ export default function MapScreen() {
   );
 
   const handleDismissPreview = useCallback(() => {
+    setRouteCoords([]);
+    setRouteInfo(null);
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
@@ -377,6 +380,8 @@ export default function MapScreen() {
   }, []);
 
   const handleDismissCard = useCallback(() => {
+    setRouteCoords([]);
+    setRouteInfo(null);
     if (tappedLandmark) {
       setTappedLandmark(null);
       setShowFullDetails(false);
@@ -454,6 +459,33 @@ export default function MapScreen() {
     setTappedMapPoint({ latitude, longitude, name });
   }, [locations, handleLandmarkPress]);
 
+  const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
+    if (!userLocation) return;
+    setRouteCoords([]);
+    setRouteInfo(null);
+    try {
+      const { latitude: srcLat, longitude: srcLng } = userLocation;
+      const url = `https://router.project-osrm.org/route/v1/cycling/${srcLng},${srcLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json() as {
+        routes?: Array<{
+          geometry: { coordinates: [number, number][] };
+          distance: number;
+          duration: number;
+        }>;
+      };
+      const route = data.routes?.[0];
+      if (!route) return;
+      setRouteCoords(route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng })));
+      setRouteInfo({
+        distance: `${(route.distance / 1000).toFixed(1)} km`,
+        duration: `${Math.round(route.duration / 60)} min`,
+      });
+    } catch (e) {
+      console.warn('[fetchRoute]', e);
+    }
+  }, [userLocation]);
+
   // ── Derived state for which sheet to show ────────────────────────────────────
   const showPreview = tappedLandmark !== null && !showFullDetails;
   const showFullCard =
@@ -529,6 +561,13 @@ export default function MapScreen() {
             </View>
           </Marker>
         ))}
+        {routeCoords.length > 0 && (
+          <Polyline
+            coordinates={routeCoords}
+            strokeColor="#00C853"
+            strokeWidth={4}
+          />
+        )}
       </MapView>
 
       {/* Re-centre FAB */}
@@ -665,12 +704,7 @@ export default function MapScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.previewDetailsBtn}
-              onPress={() => {
-                const url = Platform.OS === 'ios'
-                  ? `maps://maps.apple.com/?saddr=Current+Location&daddr=${tappedMapPoint.latitude},${tappedMapPoint.longitude}&dirflg=b`
-                  : `https://www.google.com/maps/dir/?api=1&destination=${tappedMapPoint.latitude},${tappedMapPoint.longitude}&travelmode=bicycling`;
-                void Linking.openURL(url);
-              }}
+              onPress={() => void fetchRoute(tappedMapPoint.latitude, tappedMapPoint.longitude)}
             >
               <Ionicons name="navigate" size={14} color="#fff" />
               <Text style={styles.previewDetailsBtnText}> Directions</Text>
@@ -684,6 +718,16 @@ export default function MapScreen() {
         <View style={styles.mapOverlay}>
           <ActivityIndicator color="#00C853" size="large" />
           <Text style={styles.mapLoadingText}>Loading Barcelona…</Text>
+        </View>
+      )}
+
+      {routeInfo && (
+        <View style={styles.routeBanner}>
+          <Ionicons name="bicycle" size={16} color="#fff" />
+          <Text style={styles.routeText}>{routeInfo.distance} · {routeInfo.duration} by bike</Text>
+          <TouchableOpacity onPress={() => { setRouteCoords([]); setRouteInfo(null); }}>
+            <Ionicons name="close-circle" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -718,6 +762,9 @@ export default function MapScreen() {
                 destinationLng={fullLng}
                 onDismiss={handleDismissCard}
                 onQuizCorrect={handleQuizCorrect}
+                onGetDirections={fullLat !== undefined && fullLng !== undefined
+                  ? () => void fetchRoute(fullLat, fullLng)
+                  : undefined}
               />
             </ScrollView>
           )}
@@ -901,4 +948,23 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   mapLoadingText: { color: '#aaa', fontSize: 14 },
+  routeBanner: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    right: 16,
+    backgroundColor: '#1B5E20',
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  routeText: { color: '#fff', fontSize: 13, fontWeight: '600', flex: 1 },
 });

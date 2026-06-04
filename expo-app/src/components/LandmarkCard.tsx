@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Linking,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -48,6 +47,7 @@ interface Props {
   destinationLng?: number;
   onDismiss?: () => void;
   onQuizCorrect?: (points: number) => void;
+  onGetDirections?: () => void;
 }
 
 export default function LandmarkCard({
@@ -73,6 +73,7 @@ export default function LandmarkCard({
   destinationLng,
   onDismiss,
   onQuizCorrect,
+  onGetDirections,
 }: Props) {
   const [selectedOption, setSelectedOption] = useState(-1);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
@@ -231,12 +232,7 @@ export default function LandmarkCard({
       {destinationLat !== undefined && destinationLng !== undefined && (
         <TouchableOpacity
           style={styles.directionsBtn}
-          onPress={() => {
-            const url = Platform.OS === 'ios'
-              ? `maps://maps.apple.com/?saddr=Current+Location&daddr=${destinationLat},${destinationLng}&dirflg=b`
-              : `https://www.google.com/maps/dir/?api=1&destination=${destinationLat},${destinationLng}&travelmode=bicycling`;
-            void Linking.openURL(url);
-          }}
+          onPress={() => onGetDirections?.()}
         >
           <Ionicons name="navigate" size={15} color="#fff" />
           <Text style={styles.directionsBtnText}>Get Directions</Text>
