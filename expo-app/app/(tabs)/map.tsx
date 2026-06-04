@@ -996,7 +996,7 @@ const styles = StyleSheet.create({
   mapLoadingText: { color: '#aaa', fontSize: 14 },
   routeBanner: {
     position: 'absolute',
-    top: 12,
+    top: 60,
     left: 16,
     right: 16,
     backgroundColor: '#1B5E20',
