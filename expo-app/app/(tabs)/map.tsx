@@ -99,6 +99,7 @@ const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeT
 
 export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
+  const markerJustPressedRef = useRef(false);
   const router = useRouter();
 
   // Location (Feature 4)
@@ -350,6 +351,8 @@ export default function MapScreen() {
 
   // ── Feature 2: Landmark marker tap ───────────────────────────────────────────
   const handleLandmarkPress = useCallback((loc: LocationDoc) => {
+    markerJustPressedRef.current = true;
+    setTimeout(() => { markerJustPressedRef.current = false; }, 300);
     setTappedMapPoint(null);
     setTappedLandmark(loc);
     setShowFullDetails(false);
@@ -440,6 +443,7 @@ export default function MapScreen() {
   };
 
   const handleMapPress = useCallback(async (e: { nativeEvent: { coordinate: Coords } }) => {
+    if (markerJustPressedRef.current) return;
     const { latitude, longitude } = e.nativeEvent.coordinate;
 
     // Tap within 80 m of a landmark → treat as landmark tap (shows preview + Full details)
