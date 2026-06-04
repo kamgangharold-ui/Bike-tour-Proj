@@ -770,17 +770,6 @@ export default function MapScreen() {
         <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
       </TouchableOpacity>
 
-      {/* Cycling routes FAB — opens BikAI pre-filled with a cycling route question */}
-      <TouchableOpacity
-        style={[styles.bicingFab, sheetVisible && styles.bicingFabWithSheet, { backgroundColor: '#00C853' }]}
-        onPress={() => {
-          setChatPrefill('What are the best cycling routes and bike lanes near my current location in Barcelona?');
-          router.push('/(tabs)/chat');
-        }}
-      >
-        <Ionicons name="bicycle" size={20} color="#fff" />
-      </TouchableOpacity>
-
       {/* Feature 2: Landmark preview sheet */}
       {showPreview && tappedLandmark && (
         <View style={styles.previewSheet}>
@@ -1007,24 +996,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   aiFabWithSheet: { bottom: 372 },
-
-  bicingFab: {
-    position: 'absolute',
-    bottom: 128,
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1E1E1E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  bicingFabWithSheet: { bottom: 424 },
 
   pinHitArea: {
     width: 36,
