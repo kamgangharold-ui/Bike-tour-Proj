@@ -108,13 +108,13 @@ const PLACE_TYPE_LABELS: Record<string, string> = {
 };
 
 async function fetchPlaceInfo(lat: number, lng: number): Promise<{
-  name: string; type?: string; rating?: number; vicinity?: string;
+  name: string; type?: string; rating?: number; vicinity?: string; hasPlace: boolean;
 }> {
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
   if (apiKey) {
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=100&key=${apiKey}`,
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=80&rankby=prominence&key=${apiKey}`,
         { headers: { Accept: 'application/json' } },
       );
       const data = await res.json() as {
@@ -124,29 +124,13 @@ async function fetchPlaceInfo(lat: number, lng: number): Promise<{
       if (data.status === 'OK' && data.results.length > 0) {
         const place = data.results[0];
         const type = place.types.find((t) => PLACE_TYPE_LABELS[t]) ?? place.types[0];
-        return { name: place.name, type, rating: place.rating, vicinity: place.vicinity };
+        return { name: place.name, type, rating: place.rating, vicinity: place.vicinity, hasPlace: true };
       }
     } catch (e) {
       console.warn('[Places]', e);
     }
   }
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
-      { headers: { 'User-Agent': 'BikeTourGuide/1.0', Accept: 'application/json' } },
-    );
-    const data = await res.json() as {
-      name?: string; display_name?: string;
-      address?: { amenity?: string; shop?: string; tourism?: string; attraction?: string;
-        leisure?: string; historic?: string; road?: string; neighbourhood?: string;
-        suburb?: string; city_district?: string };
-    };
-    const a = data.address;
-    const venue = data.name ?? a?.amenity ?? a?.shop ?? a?.tourism ?? a?.attraction ?? a?.leisure ?? a?.historic;
-    return { name: venue ?? a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location' };
-  } catch {
-    return { name: 'This location' };
-  }
+  return { name: '', hasPlace: false };
 }
 
 const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_information.json';
@@ -491,9 +475,11 @@ export default function MapScreen() {
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
-    setTappedMapPoint({ latitude, longitude, name: '…' });
+    setTappedMapPoint(null);
     const info = await fetchPlaceInfo(latitude, longitude);
-    setTappedMapPoint({ latitude, longitude, ...info });
+    if (info.hasPlace) {
+      setTappedMapPoint({ latitude, longitude, ...info });
+    }
   }, []);
 
   const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
@@ -569,14 +555,19 @@ export default function MapScreen() {
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
+          const pinColor = CATEGORY_COLORS[loc.category] ?? '#1565C0';
           return (
             <Marker
               key={loc.id}
               coordinate={loc.coordinates}
-              pinColor={CATEGORY_COLORS[loc.category] ?? '#1565C0'}
               tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 0.5 }}
               onPress={() => handleLandmarkPress(loc)}
-            />
+            >
+              <View style={styles.pinHitArea}>
+                <View style={[styles.pin, { backgroundColor: pinColor }]} />
+              </View>
+            </Marker>
           );
         })}
 
@@ -878,6 +869,24 @@ const styles = StyleSheet.create({
   },
   bicingFabWithSheet: { bottom: 424 },
 
+  pinHitArea: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pin: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.5,
+    shadowRadius: 2,
+    elevation: 4,
+  },
   bicingMarker: {
     width: 22,
     height: 22,
