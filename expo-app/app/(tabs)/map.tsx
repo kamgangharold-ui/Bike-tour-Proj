@@ -112,6 +112,20 @@ const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_informa
 const BICING_STATUS = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_status.json';
 const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeTourGuide/1.0' } };
 
+// Free on-device reverse geocode (no Google Places billing) — used for long-press drops.
+async function reverseGeocodeName(lat: number, lng: number): Promise<{ name: string; vicinity: string } | null> {
+  try {
+    const [a] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    if (!a) return null;
+    const street = a.street ? (a.streetNumber ? `${a.street}, ${a.streetNumber}` : a.street) : '';
+    const name = a.name || street || 'Dropped pin';
+    const vicinity = [street && street !== name ? street : '', a.postalCode, a.city].filter(Boolean).join(', ');
+    return { name, vicinity };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
@@ -511,6 +525,25 @@ export default function MapScreen() {
     [activeSlug, exitLandmark],
   );
 
+  // Long-press drops a pin and reverse-geocodes it (free, on-device). Single taps
+  // stay clean: empty taps do nothing; pins and Android POI labels handle their own taps.
+  const handleMapLongPress = useCallback(async (e: { nativeEvent: { coordinate: Coords } }) => {
+    const { latitude, longitude } = e.nativeEvent.coordinate;
+    setTappedLandmark(null);
+    setShowFullDetails(false);
+    setCardData(null);
+    if (activeSlug) exitLandmark(activeSlug);
+    setTappedMapPoint({ latitude, longitude, name: 'Dropped pin' });
+    const addr = await reverseGeocodeName(latitude, longitude);
+    if (addr) {
+      setTappedMapPoint((prev) =>
+        prev && prev.latitude === latitude && prev.longitude === longitude
+          ? { latitude, longitude, name: addr.name, vicinity: addr.vicinity }
+          : prev,
+      );
+    }
+  }, [activeSlug, exitLandmark]);
+
   const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
     if (!userLocation) return;
     setRouteCoords([]);
@@ -571,6 +604,7 @@ export default function MapScreen() {
         mapType="standard"
         showsPointsOfInterest
         onPoiClick={handlePoiClick}
+        onLongPress={(e) => void handleMapLongPress(e)}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
