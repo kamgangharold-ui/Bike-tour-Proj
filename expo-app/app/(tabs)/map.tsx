@@ -113,45 +113,99 @@ const ADMIN_TYPES = new Set([
   'sublocality', 'sublocality_level_1', 'neighborhood',
 ]);
 
-async function fetchPlaceInfo(lat: number, lng: number): Promise<{
-  name: string; type?: string; rating?: number; vicinity?: string; hasPlace: boolean;
-}> {
-  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
-  if (apiKey) {
-    try {
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=60&key=${apiKey}`,
-        { headers: { Accept: 'application/json' }, signal: controller.signal },
-      );
-      clearTimeout(tid);
-      const data = await res.json() as {
-        status: string;
-        results: Array<{
-          name: string; types: string[]; rating?: number; vicinity?: string;
-          geometry: { location: { lat: number; lng: number } };
-        }>;
-      };
-      if (data.status === 'OK') {
-        // Filter admins then sort by actual distance from tap — nearest specific venue wins
-        const place = data.results
-          .filter((r) => !r.types.every((t) => ADMIN_TYPES.has(t)))
-          .sort((a, b) => {
-            const dA = haversineMetres(lat, lng, a.geometry.location.lat, a.geometry.location.lng);
-            const dB = haversineMetres(lat, lng, b.geometry.location.lat, b.geometry.location.lng);
-            return dA - dB;
-          })[0];
-        if (place) {
-          const type = place.types.find((t) => PLACE_TYPE_LABELS[t]) ?? place.types[0];
-          return { name: place.name, type, rating: place.rating, vicinity: place.vicinity, hasPlace: true };
-        }
-      }
-    } catch (e) {
-      console.warn('[Places]', e);
-    }
+// ─── Places resolution (identity-based, not proximity-based) ──────────────────
+// The native map already localises a tapped place perfectly. To attach its
+// category / rating / address we resolve the SAME place by its canonical
+// identity — never the "nearest" venue — so the details can't drift to a
+// neighbour. place_id (Android/Google Maps) is exact; on iOS (Apple Maps) we
+// match by name biased to the tapped coordinate and reject anything too far.
+
+const PLACES_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+
+interface GPlace {
+  name: string;
+  types?: string[];
+  rating?: number;
+  vicinity?: string;
+  formatted_address?: string;
+  geometry?: { location: { lat: number; lng: number } };
+  place_id?: string;
+}
+
+interface PlaceResult {
+  name: string;
+  type?: string;
+  rating?: number;
+  vicinity?: string;
+  lat: number;
+  lng: number;
+}
+
+function pickType(types: string[] = []): string | undefined {
+  return types.find((t) => PLACE_TYPE_LABELS[t]) ?? types[0];
+}
+
+function toResult(p: GPlace): PlaceResult | null {
+  if (!p.geometry) return null;
+  return {
+    name: p.name,
+    type: pickType(p.types),
+    rating: p.rating,
+    vicinity: p.formatted_address ?? p.vicinity,
+    lat: p.geometry.location.lat,
+    lng: p.geometry.location.lng,
+  };
+}
+
+async function placesJson(url: string): Promise<unknown> {
+  if (!PLACES_KEY) return null;
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    clearTimeout(tid);
+    return await res.json();
+  } catch (e) {
+    console.warn('[Places]', e);
+    return null;
   }
-  return { name: '', hasPlace: false };
+}
+
+// Exact place by Google place_id (Android onPoiClick provides a real place_id).
+async function placeDetailsById(placeId: string): Promise<PlaceResult | null> {
+  const data = await placesJson(
+    `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}` +
+      `&fields=name,types,rating,formatted_address,geometry&key=${PLACES_KEY}`,
+  ) as { status?: string; result?: GPlace } | null;
+  return data?.status === 'OK' && data.result ? toResult(data.result) : null;
+}
+
+// Exact place by name, biased to the tapped point (iOS Apple Maps fallback).
+async function findPlaceByText(name: string, lat: number, lng: number): Promise<PlaceResult | null> {
+  if (!name) return null;
+  const data = await placesJson(
+    `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(name)}` +
+      `&inputtype=textquery&locationbias=point:${lat},${lng}` +
+      `&fields=name,types,rating,formatted_address,geometry&key=${PLACES_KEY}`,
+  ) as { status?: string; candidates?: GPlace[] } | null;
+  const cand = data?.status === 'OK' ? data.candidates?.[0] : undefined;
+  const result = cand ? toResult(cand) : null;
+  // Reject a same-name match that isn't actually where the user tapped.
+  if (result && haversineMetres(lat, lng, result.lat, result.lng) > 200) return null;
+  return result;
+}
+
+// Nearest specific venue to an arbitrary point (blank-map free tap only).
+async function nearestPlace(lat: number, lng: number): Promise<PlaceResult | null> {
+  const data = await placesJson(
+    `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=50&key=${PLACES_KEY}`,
+  ) as { status?: string; results?: GPlace[] } | null;
+  if (data?.status !== 'OK' || !data.results) return null;
+  const nearest = data.results
+    .filter((r) => r.geometry && !(r.types ?? []).every((t) => ADMIN_TYPES.has(t)))
+    .map((r) => ({ r, d: haversineMetres(lat, lng, r.geometry!.location.lat, r.geometry!.location.lng) }))
+    .sort((a, b) => a.d - b.d)[0]?.r;
+  return nearest ? toResult(nearest) : null;
 }
 
 const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_information.json';
@@ -497,19 +551,29 @@ export default function MapScreen() {
     setShowFullDetails(false);
     setCardData(null);
     setTappedMapPoint(null);
-    const info = await fetchPlaceInfo(latitude, longitude);
-    if (info.hasPlace) {
-      setTappedMapPoint({ latitude, longitude, ...info });
+    // Blank-map tap: snap to the nearest specific venue, shown at its real location.
+    const place = await nearestPlace(latitude, longitude);
+    if (place) {
+      setTappedMapPoint({
+        latitude: place.lat,
+        longitude: place.lng,
+        name: place.name,
+        type: place.type,
+        rating: place.rating,
+        vicinity: place.vicinity,
+      });
     }
   }, []);
 
-  // ── Instant native POI tap (Google Maps-style — zero network latency) ─────────
-  // Fired the moment a labelled place on the map is tapped. The provider hands us
-  // the name + coordinate synchronously, so the sheet opens instantly; we only
-  // hit the Places API afterwards to layer on category/rating (never blocking).
+  // ── Instant native POI tap (Google-Maps-grade precision) ──────────────────────
+  // The provider localises the tapped place perfectly and hands us its name +
+  // coordinate synchronously, so the sheet opens instantly. We then resolve the
+  // EXACT same place by identity — Google place_id on Android, name+location on
+  // iOS — so category / rating / address can never drift to a neighbouring venue,
+  // and we snap the coordinate to the canonical place for precise directions.
   const handlePoiClick = useCallback(
     (e: { nativeEvent: { placeId?: string; name?: string; coordinate: Coords } }) => {
-      const { coordinate, name } = e.nativeEvent;
+      const { coordinate, name, placeId } = e.nativeEvent;
       const { latitude, longitude } = coordinate;
       markerJustPressedRef.current = true;
       setTimeout(() => { markerJustPressedRef.current = false; }, 300);
@@ -517,14 +581,25 @@ export default function MapScreen() {
       setShowFullDetails(false);
       setCardData(null);
       if (activeSlug) exitLandmark(activeSlug);
-      setTappedMapPoint({ latitude, longitude, name: (name ?? 'Place').split('\n')[0] });
-      // Background enrichment — keep the native POI name, just add type/rating
+      const instantName = (name ?? 'Place').split('\n')[0];
+      setTappedMapPoint({ latitude, longitude, name: instantName });
       void (async () => {
-        const info = await fetchPlaceInfo(latitude, longitude);
-        if (!info.hasPlace) return;
+        // place_id is exact (Google/Android); else match by name near the tap (Apple/iOS).
+        const byId = placeId ? await placeDetailsById(placeId) : null;
+        const exact = byId ?? (await findPlaceByText(instantName, latitude, longitude));
+        if (!exact) return;
         setTappedMapPoint((prev) =>
           prev && prev.latitude === latitude && prev.longitude === longitude
-            ? { ...prev, type: info.type, rating: info.rating, vicinity: info.vicinity }
+            ? {
+                ...prev,
+                // Keep the tapped label on the iOS path; trust place_id's name on Android.
+                name: byId ? exact.name : prev.name,
+                type: exact.type,
+                rating: exact.rating,
+                vicinity: exact.vicinity,
+                latitude: exact.lat,
+                longitude: exact.lng,
+              }
             : prev,
         );
       })();
