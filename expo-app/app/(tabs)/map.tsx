@@ -108,134 +108,6 @@ const PLACE_TYPE_LABELS: Record<string, string> = {
   point_of_interest: 'Place', establishment: 'Place',
 };
 
-const ADMIN_TYPES = new Set([
-  'locality', 'political', 'administrative_area_level_1', 'administrative_area_level_2',
-  'administrative_area_level_3', 'administrative_area_level_4', 'administrative_area_level_5',
-  'country', 'route', 'postal_code', 'postal_town', 'colloquial_area', 'continent',
-  'sublocality', 'sublocality_level_1', 'neighborhood',
-]);
-
-// ─── Places resolution (identity-based, not proximity-based) ──────────────────
-// The native map already localises a tapped place perfectly. To attach its
-// category / rating / address we resolve the SAME place by its canonical
-// identity — never the "nearest" venue — so the details can't drift to a
-// neighbour. place_id (Android/Google Maps) is exact; on iOS (Apple Maps) we
-// match by name biased to the tapped coordinate and reject anything too far.
-
-const PLACES_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
-
-interface GPlace {
-  name: string;
-  types?: string[];
-  rating?: number;
-  vicinity?: string;
-  formatted_address?: string;
-  geometry?: { location: { lat: number; lng: number } };
-  place_id?: string;
-}
-
-interface PlaceResult {
-  name: string;
-  type?: string;
-  rating?: number;
-  vicinity?: string;
-  lat: number;
-  lng: number;
-  distance?: number;
-}
-
-function pickType(types: string[] = []): string | undefined {
-  return types.find((t) => PLACE_TYPE_LABELS[t]) ?? types[0];
-}
-
-function toResult(p: GPlace): PlaceResult | null {
-  if (!p.geometry) return null;
-  return {
-    name: p.name,
-    type: pickType(p.types),
-    rating: p.rating,
-    vicinity: p.formatted_address ?? p.vicinity,
-    lat: p.geometry.location.lat,
-    lng: p.geometry.location.lng,
-  };
-}
-
-async function placesJson(url: string): Promise<unknown> {
-  if (!PLACES_KEY) return null;
-  try {
-    const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 3500);
-    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
-    clearTimeout(tid);
-    return await res.json();
-  } catch (e) {
-    console.warn('[Places]', e);
-    return null;
-  }
-}
-
-// Exact place by Google place_id (Android onPoiClick provides a real place_id).
-async function placeDetailsById(placeId: string): Promise<PlaceResult | null> {
-  const data = await placesJson(
-    `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}` +
-      `&fields=name,types,rating,formatted_address,geometry&key=${PLACES_KEY}`,
-  ) as { status?: string; result?: GPlace } | null;
-  return data?.status === 'OK' && data.result ? toResult(data.result) : null;
-}
-
-// Exact place by name, biased to the tapped point (iOS Apple Maps fallback).
-async function findPlaceByText(name: string, lat: number, lng: number): Promise<PlaceResult | null> {
-  if (!name) return null;
-  const data = await placesJson(
-    `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(name)}` +
-      `&inputtype=textquery&locationbias=point:${lat},${lng}` +
-      `&fields=name,types,rating,formatted_address,geometry&key=${PLACES_KEY}`,
-  ) as { status?: string; candidates?: GPlace[] } | null;
-  const cand = data?.status === 'OK' ? data.candidates?.[0] : undefined;
-  const result = cand ? toResult(cand) : null;
-  // Reject a same-name match that isn't actually where the user tapped.
-  if (result && haversineMetres(lat, lng, result.lat, result.lng) > 200) return null;
-  return result;
-}
-
-// Nearest specific venue within `radiusM` of a point (blank-map / iOS coordinate tap).
-async function nearestPlace(lat: number, lng: number, radiusM: number): Promise<PlaceResult | null> {
-  const data = await placesJson(
-    `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${Math.round(radiusM)}&key=${PLACES_KEY}`,
-  ) as { status?: string; results?: GPlace[] } | null;
-  if (data?.status !== 'OK' || !data.results) return null;
-  const nearest = data.results
-    .filter((r) => r.geometry && !(r.types ?? []).every((t) => ADMIN_TYPES.has(t)))
-    .map((r) => ({ r, d: haversineMetres(lat, lng, r.geometry!.location.lat, r.geometry!.location.lng) }))
-    .sort((a, b) => a.d - b.d)[0];
-  if (!nearest) return null;
-  const res = toResult(nearest.r);
-  return res ? { ...res, distance: nearest.d } : null;
-}
-
-// A tap should select whatever venue sits within ~a fingertip of it on SCREEN.
-// A fingertip is a roughly constant pixel size, so its real-world radius scales
-// with zoom — a few metres zoomed in, more when zoomed out. This keeps taps
-// precise without forcing a wrong neighbour when the map is zoomed out.
-function acceptRadiusM(latitudeDelta: number): number {
-  return Math.max(25, Math.min(140, latitudeDelta * 111000 * 0.045));
-}
-
-// Dropped-pin fallback: reverse-geocode to an address with the on-device geocoder
-// (no API key / no extra billing) when no specific venue is under the finger.
-async function reverseGeocodeName(lat: number, lng: number): Promise<{ name: string; vicinity: string } | null> {
-  try {
-    const [a] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-    if (!a) return null;
-    const street = a.street ? (a.streetNumber ? `${a.street}, ${a.streetNumber}` : a.street) : '';
-    const name = a.name || street || 'Dropped pin';
-    const vicinity = [street && street !== name ? street : '', a.postalCode, a.city].filter(Boolean).join(', ');
-    return { name, vicinity };
-  } catch {
-    return null;
-  }
-}
-
 const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_information.json';
 const BICING_STATUS = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_status.json';
 const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeTourGuide/1.0' } };
@@ -244,8 +116,6 @@ const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeT
 
 export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
-  const markerJustPressedRef = useRef(false);
-  const regionDeltaRef = useRef(0.02); // current map zoom (latitudeDelta), for tap precision
   const router = useRouter();
 
   // Location (Feature 4)
@@ -505,8 +375,6 @@ export default function MapScreen() {
 
   // ── Feature 2: Landmark marker tap ───────────────────────────────────────────
   const handleLandmarkPress = useCallback((loc: LocationDoc) => {
-    markerJustPressedRef.current = true;
-    setTimeout(() => { markerJustPressedRef.current = false; }, 300);
     setTappedMapPoint(null);
     setTappedLandmark(loc);
     setShowFullDetails(false);
@@ -587,75 +455,18 @@ export default function MapScreen() {
     });
   };
 
-  // ── Free-tap: any map location ────────────────────────────────────────────────
-  const handleMapPress = useCallback(async (e: { nativeEvent: { coordinate: Coords } }) => {
-    if (markerJustPressedRef.current) return;
-    const { latitude, longitude } = e.nativeEvent.coordinate;
-    setTappedLandmark(null);
-    setShowFullDetails(false);
-    setCardData(null);
-    if (activeSlug) exitLandmark(activeSlug);
-    // Instant feedback while we work out what sits under the finger.
-    setTappedMapPoint({ latitude, longitude, name: 'Locating…' });
-
-    // 1) Nearest specific venue within a fingertip of the tap (gate scales with zoom).
-    const gate = acceptRadiusM(regionDeltaRef.current);
-    const place = await nearestPlace(latitude, longitude, gate);
-    if (place && (place.distance ?? Infinity) <= gate) {
-      setTappedMapPoint((prev) =>
-        prev && prev.latitude === latitude && prev.longitude === longitude
-          ? { latitude: place.lat, longitude: place.lng, name: place.name, type: place.type, rating: place.rating, vicinity: place.vicinity }
-          : prev,
-      );
-      return;
-    }
-    // 2) Nothing specific under the finger → dropped-pin behaviour (address only).
-    const addr = await reverseGeocodeName(latitude, longitude);
-    setTappedMapPoint((prev) =>
-      prev && prev.latitude === latitude && prev.longitude === longitude
-        ? (addr ? { latitude, longitude, name: addr.name, vicinity: addr.vicinity } : null)
-        : prev,
-    );
-  }, [activeSlug, exitLandmark]);
-
-  // ── Instant native POI tap (Google-Maps-grade precision) ──────────────────────
-  // The provider localises the tapped place perfectly and hands us its name +
-  // coordinate synchronously, so the sheet opens instantly. We then resolve the
-  // EXACT same place by identity — Google place_id on Android, name+location on
-  // iOS — so category / rating / address can never drift to a neighbouring venue,
-  // and we snap the coordinate to the canonical place for precise directions.
+  // Native POI tap — fires on Android Google Maps only (Apple Maps does NOT expose
+  // POI-label taps). Shows the place straight from the native event's name +
+  // coordinate. No Places API, no billing.
   const handlePoiClick = useCallback(
-    (e: { nativeEvent: { placeId?: string; name?: string; coordinate: Coords } }) => {
-      const { coordinate, name, placeId } = e.nativeEvent;
+    (e: { nativeEvent: { name?: string; coordinate: Coords } }) => {
+      const { coordinate, name } = e.nativeEvent;
       const { latitude, longitude } = coordinate;
-      markerJustPressedRef.current = true;
-      setTimeout(() => { markerJustPressedRef.current = false; }, 300);
       setTappedLandmark(null);
       setShowFullDetails(false);
       setCardData(null);
       if (activeSlug) exitLandmark(activeSlug);
-      const instantName = (name ?? 'Place').split('\n')[0];
-      setTappedMapPoint({ latitude, longitude, name: instantName });
-      void (async () => {
-        // place_id is exact (Google/Android); else match by name near the tap (Apple/iOS).
-        const byId = placeId ? await placeDetailsById(placeId) : null;
-        const exact = byId ?? (await findPlaceByText(instantName, latitude, longitude));
-        if (!exact) return;
-        setTappedMapPoint((prev) =>
-          prev && prev.latitude === latitude && prev.longitude === longitude
-            ? {
-                ...prev,
-                // Keep the tapped label on the iOS path; trust place_id's name on Android.
-                name: byId ? exact.name : prev.name,
-                type: exact.type,
-                rating: exact.rating,
-                vicinity: exact.vicinity,
-                latitude: exact.lat,
-                longitude: exact.lng,
-              }
-            : prev,
-        );
-      })();
+      setTappedMapPoint({ latitude, longitude, name: (name ?? 'Place').split('\n')[0] });
     },
     [activeSlug, exitLandmark],
   );
@@ -751,8 +562,6 @@ export default function MapScreen() {
         onPoiClick={handlePoiClick}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
-        onRegionChangeComplete={(r) => { regionDeltaRef.current = r.latitudeDelta; }}
-        onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
         {/* Landmark markers */}
