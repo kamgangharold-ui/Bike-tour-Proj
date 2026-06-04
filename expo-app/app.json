@@ -4,28 +4,45 @@
     "name": "Bike Tour Guide",
     "slug": "bike-tour-guide",
     "version": "1.0.0",
+    "privacy": "public",
     "scheme": "biketourguide",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android"],
     "android": {
-      "package": "com.biketourguide.app"
+      "package": "com.biketourguide.app",
+      "permissions": ["RECORD_AUDIO"]
     },
     "ios": {
       "bundleIdentifier": "com.biketourguide.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Used to alert you when near a landmark or cycling restriction.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Tracks your location in the background for hands-free landmark alerts.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "NSMicrophoneUsageDescription": "Used to let you ask questions by voice.",
+        "NSSpeechRecognitionUsageDescription": "Used to convert your voice to text for the BikAI chat.",
+        "UIBackgroundModes": ["location", "fetch"],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "plugins": [
       "expo-router",
+      "expo-updates",
       ["expo-location", {
         "locationAlwaysAndWhenInUsePermission": "Used to alert you near landmarks while riding."
       }],
       ["expo-notifications", { "sounds": [] }]
     ],
-    "web": { "bundler": "metro" },
-    "experiments": { "typedRoutes": true }
+    "updates": {
+      "url": "https://u.expo.dev/486226d7-7af6-43df-ba8d-41d919f57d87"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "experiments": { "typedRoutes": true },
+    "extra": {
+      "eas": {
+        "projectId": "486226d7-7af6-43df-ba8d-41d919f57d87"
+      }
+    }
   }
 }
