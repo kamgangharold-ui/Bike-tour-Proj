@@ -124,6 +124,26 @@ npx expo run:ios                 # needs Xcode (Mac only)
 
 ---
 
+## External Distribution Policy (fixed — do NOT change or reinvent)
+
+This project ships Android and iOS differently. There is NO Apple Developer account — never attempt an iOS standalone build, signing, or TestFlight.
+
+- **Android** → a standalone **APK** that users install from a **direct download link** (produced by `eas build`, internal distribution). NOT the Play Store.
+- **iOS** → **Expo Go**, opened via a **QR code** or the **EAS Update link** from the Expo account. JS updates only.
+
+**How to ship depends on WHAT changed — decide and state it before publishing:**
+- **JS / assets / layout only** (no new native module, no permission or app.config native change, no SDK bump): publish over-the-air with `eas update` to the project's existing channel (the one the `android/stable` build and `ios/stable-expo-go` point at). This reaches BOTH the installed Android APK (OTA) and iOS Expo Go (via the QR / update link). No reinstall.
+- **Any NATIVE change** (new native dependency, new permission, `UIBackgroundModes`/Info.plist/Android manifest/config-plugin change, Expo SDK bump): OTA is NOT enough and can CRASH the installed Android APK. You MUST run a **new `eas build` for Android** and provide a **new APK link** (users reinstall). iOS Expo Go cannot run native changes at all — note this; those only work in a real build, which we don't do for iOS.
+
+**Before distributing, confirm and state:** "JS-only → OTA" vs "native changed → rebuild Android". Ensure the `eas update` targets the correct channel and a **matching runtimeVersion** (a mismatch means the update is silently ignored and never reaches devices).
+
+**Hand back to the user:**
+- **Android:** the APK install link — and say clearly whether it's an OTA update to the existing app or a NEW APK that requires reinstall.
+- **iOS:** the **QR code** and/or **Expo Go update link** to open.
+- A one-line summary: what was published, to which channel, and the runtimeVersion.
+
+---
+
 ## Development Conventions
 
 - Branch for all work: `claude/elegant-shannon-Ybnzo`
