@@ -112,19 +112,20 @@ export default function ChatScreen() {
   const activeRegulatoryMessage = useAppStore((s) => s.activeRegulatoryMessage);
   const activeRegulatoryFineEur = useAppStore((s) => s.activeRegulatoryFineEur);
 
-  // Location
+  // Location — continuous tracking so coordinates are never stale
   useEffect(() => {
+    let sub: Location.LocationSubscription | null = null;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      setUserLocation({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
+      const initial = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLocation({ latitude: initial.coords.latitude, longitude: initial.coords.longitude });
+      sub = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
+        (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      );
     })();
+    return () => { sub?.remove(); };
   }, []);
 
   // Load landmarks for context
@@ -304,18 +305,23 @@ export default function ChatScreen() {
       nearbyStr = nearby.length > 0 ? nearby.join('\n') : 'None within 500 m';
     }
 
-    const activeLandmark = activeSlug
-      ? `${activeName} [${activeCategory}]: ${activeDescription}` +
+    const geofenceSection = activeSlug
+      ? `CURRENT LOCATION (geofence confirmed): ${activeName} [${activeCategory}]\n` +
+        `Description: ${activeDescription}\n` +
         (activeIsRegulatory
-          ? ` ⚠️ Fine: €${activeRegulatoryFineEur} — ${activeRegulatoryMessage}`
+          ? `⚠️ Regulatory alert: €${activeRegulatoryFineEur} fine — ${activeRegulatoryMessage}\n`
           : '')
-      : 'None';
+      : '';
 
     return (
-      `You are a cycling guide assistant for bike tourists in Barcelona. ` +
-      `The user is at [${lat.toFixed(5)}, ${lng.toFixed(5)}].\n` +
+      `You are BikAI, a cycling guide assistant for bike tourists in Barcelona.\n` +
+      (geofenceSection
+        ? `${geofenceSection}\n`
+        : `The user's GPS position: [${lat.toFixed(5)}, ${lng.toFixed(5)}].\n`) +
       `Nearby landmarks within 500 m:\n${nearbyStr}\n` +
-      `Active landmark (user inside geofence): ${activeLandmark}\n` +
+      (activeSlug
+        ? `The geofence confirms the user is physically at ${activeName}. Treat this as their definitive location.\n`
+        : '') +
       `Cycling regulations: sidewalk riding = €500 fine, ` +
       `both earphones = €100 fine, Gothic Quarter = mandatory dismount zone.\n` +
       `Answer concisely and helpfully. If unsure, say so honestly. ` +
