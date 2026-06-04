@@ -64,6 +64,9 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
       const desc = (loc['short_description'] as string) ?? '';
       await voice.speak(`${name}. ${desc}`, { lang });
     }
+
+    // If a guided ride is active, record the visit (and advance the tour target).
+    useAppStore.getState().markRideVisited(slug);
   } else if (eventType === Location.GeofencingEventType.Exit) {
     useAppStore.getState().exitLandmark(slug);
   }
