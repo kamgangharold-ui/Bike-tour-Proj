@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import {
@@ -160,11 +159,6 @@ export default function MapScreen() {
   const exitLandmark = useAppStore((s) => s.exitLandmark);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
   const setUserCoords = useAppStore((s) => s.setUserCoords);
-  const rideActive = useAppStore((s) => s.rideActive);
-  const rideMode = useAppStore((s) => s.rideMode);
-  const rideTargetSlug = useAppStore((s) => s.rideTargetSlug);
-  const rideVisited = useAppStore((s) => s.rideVisited);
-  const insets = useSafeAreaInsets();
 
   useGeofencing();
 
@@ -567,42 +561,6 @@ export default function MapScreen() {
 
   const sheetVisible = showPreview || showFullCard;
 
-  // ── Green direction indicator (straight line toward the focused target) ───────
-  // Simple bearing-style line, NOT street routing (full turn-by-turn would need the
-  // optional OpenRouteService integration). It points at whatever place is in focus:
-  // a tapped pinned landmark, a tapped Android POI, or the active ride target.
-  const rideTargetCoords = useMemo<Coords | null>(() => {
-    if (!rideActive || !userLocation) return null;
-    if (rideMode === 'tour') {
-      const t = locations.find((l) => l.slug === rideTargetSlug);
-      return t && (t.coordinates.latitude || t.coordinates.longitude) ? t.coordinates : null;
-    }
-    // Free roam: nearest landmark not yet visited this ride.
-    let best: Coords | null = null;
-    let bestDist = Infinity;
-    for (const l of locations) {
-      if (!l.coordinates.latitude && !l.coordinates.longitude) continue;
-      if (rideVisited.includes(l.slug)) continue;
-      const d = haversineMetres(userLocation.latitude, userLocation.longitude, l.coordinates.latitude, l.coordinates.longitude);
-      if (d < bestDist) { bestDist = d; best = l.coordinates; }
-    }
-    return best;
-  }, [rideActive, rideMode, rideTargetSlug, rideVisited, locations, userLocation]);
-
-  // A tapped pinned landmark / tapped POI takes priority, else the active ride target.
-  const focusTargetCoords: Coords | null =
-    tappedLandmark?.coordinates ??
-    (tappedMapPoint ? { latitude: tappedMapPoint.latitude, longitude: tappedMapPoint.longitude } : null) ??
-    rideTargetCoords;
-
-  const [showDirectionPath, setShowDirectionPath] = useState(true);
-  const targetKey = focusTargetCoords ? `${focusTargetCoords.latitude},${focusTargetCoords.longitude}` : '';
-  // Re-show the path whenever the focused target changes (new pin / POI / ride stop).
-  useEffect(() => { if (targetKey) setShowDirectionPath(true); }, [targetKey]);
-
-  const directionPathVisible =
-    showDirectionPath && userLocation !== null && focusTargetCoords !== null;
-
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
@@ -660,15 +618,6 @@ export default function MapScreen() {
             strokeWidth={4}
           />
         )}
-        {directionPathVisible && userLocation && focusTargetCoords && (
-          <Polyline
-            coordinates={[userLocation, focusTargetCoords]}
-            strokeColor="#00C853"
-            strokeWidth={5}
-            lineDashPattern={[14, 10]}
-            lineCap="round"
-          />
-        )}
       </MapView>
 
       {/* Re-centre FAB */}
@@ -686,20 +635,6 @@ export default function MapScreen() {
       >
         <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
       </TouchableOpacity>
-
-      {/* Clear the guided-ride direction path */}
-      {directionPathVisible && (
-        <View style={[styles.clearRouteWrap, { top: insets.top + 56 }]} pointerEvents="box-none">
-          <TouchableOpacity
-            style={styles.clearRouteBtn}
-            onPress={() => setShowDirectionPath(false)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="close" size={14} color="#fff" />
-            <Text style={styles.clearRouteText}> Clear route</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Feature 2: Landmark preview sheet */}
       {showPreview && tappedLandmark && (
@@ -1084,19 +1019,4 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   routeText: { color: '#fff', fontSize: 13, fontWeight: '600', flex: 1 },
-  clearRouteWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  clearRouteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1B5E20',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  clearRouteText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 });
