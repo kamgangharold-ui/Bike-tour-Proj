@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
-import * as Location from 'expo-location';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -32,9 +31,11 @@ interface ChatMessage {
 
 interface LandmarkInfo {
   name: string;
+  slug?: string;
   short_description?: string;
   category?: string;
   coordinates?: { latitude: number; longitude: number };
+  geofence_radius_metres?: number;
   regulatory_alert?: { message?: string; fine_eur?: number };
 }
 
@@ -90,10 +91,6 @@ export default function ChatScreen() {
   const [isListening, setIsListening] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [transcribing, setTranscribing] = useState(false);
-  const [userLocation, setUserLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
   const [landmarks, setLandmarks] = useState<LandmarkInfo[]>([]);
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
@@ -108,22 +105,8 @@ export default function ChatScreen() {
   const activeIsRegulatory = useAppStore((s) => s.activeIsRegulatory);
   const activeRegulatoryMessage = useAppStore((s) => s.activeRegulatoryMessage);
   const activeRegulatoryFineEur = useAppStore((s) => s.activeRegulatoryFineEur);
-
-  // Location — continuous tracking so coordinates are never stale
-  useEffect(() => {
-    let sub: Location.LocationSubscription | null = null;
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const initial = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setUserLocation({ latitude: initial.coords.latitude, longitude: initial.coords.longitude });
-      sub = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
-        (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-      );
-    })();
-    return () => { sub?.remove(); };
-  }, []);
+  const userLat = useAppStore((s) => s.userLat);
+  const userLng = useAppStore((s) => s.userLng);
 
   // Load landmarks for context
   useEffect(() => {
@@ -259,49 +242,57 @@ export default function ChatScreen() {
   };
 
   // ── System prompt builder ────────────────────────────────────────────────────
+  // Built fresh on every send from the SAME store the map/geofence uses: the live
+  // position (userLat/userLng) and the confirmed active landmark (activeSlug).
   const buildSystemPrompt = (): string => {
-    const lat = userLocation?.latitude ?? 0;
-    const lng = userLocation?.longitude ?? 0;
+    const hasPos = userLat !== null && userLng !== null;
+    const lat = userLat ?? 0;
+    const lng = userLng ?? 0;
 
-    let nearbyStr: string;
-    if (!userLocation) {
-      nearbyStr = 'Location unavailable';
-    } else {
+    // Distance-sorted nearby landmarks, excluding the confirmed current one.
+    let nearbyStr = 'GPS position not available yet.';
+    if (hasPos) {
       const nearby = landmarks
         .map((loc) => {
           const c = loc.coordinates;
-          if (!c) return null;
+          if (!c || loc.slug === activeSlug) return null;
           const dist = Math.round(haversineMetres(lat, lng, c.latitude, c.longitude));
-          const regNote = loc.regulatory_alert?.message
-            ? ` ⚠️ ${loc.regulatory_alert.message}`
-            : '';
+          const regNote = loc.regulatory_alert?.message ? ` ⚠️ ${loc.regulatory_alert.message}` : '';
           return { name: loc.name, dist, desc: loc.short_description ?? '', regNote };
         })
         .filter((l): l is NonNullable<typeof l> => l !== null && l.dist <= 500)
         .sort((a, b) => a.dist - b.dist)
-        .map((l) => `- ${l.name} (${l.dist}m)${l.regNote}: ${l.desc}`);
+        .map((l) => `- ${l.name} (${l.dist} m)${l.regNote}: ${l.desc}`);
       nearbyStr = nearby.length > 0 ? nearby.join('\n') : 'None within 500 m';
     }
 
-    const geofenceSection = activeSlug
-      ? `CURRENT LOCATION (geofence confirmed): ${activeName} [${activeCategory}]\n` +
-        `Description: ${activeDescription}\n` +
+    // GROUND TRUTH first: the geofence's confirmed current landmark.
+    let current: string;
+    if (activeSlug) {
+      const active = landmarks.find((l) => l.slug === activeSlug);
+      const radius = active?.geofence_radius_metres ?? 40;
+      current =
+        `CURRENT LOCATION — CONFIRMED by the app's GPS geofencing: the user is RIGHT NOW at ` +
+        `"${activeName}" [${activeCategory}], inside its ${radius} m geofence. ` +
+        `Treat this as their exact location — do NOT contradict it or claim they are somewhere else.\n` +
+        `About it: ${activeDescription}\n` +
         (activeIsRegulatory
-          ? `⚠️ Regulatory alert: €${activeRegulatoryFineEur} fine — ${activeRegulatoryMessage}\n`
-          : '')
-      : '';
+          ? `⚠️ Regulatory alert here: €${activeRegulatoryFineEur} fine — ${activeRegulatoryMessage}\n`
+          : '');
+    } else if (hasPos) {
+      current =
+        `CURRENT LOCATION: no geofence is active — the user is NOT confirmed at any landmark. ` +
+        `Their GPS position is [${lat.toFixed(5)}, ${lng.toFixed(5)}]. Use the nearest landmarks below for context.\n`;
+    } else {
+      current = `CURRENT LOCATION: GPS position is not available yet.\n`;
+    }
 
     return (
       `You are BikAI, a cycling guide assistant for bike tourists in Barcelona.\n` +
-      (geofenceSection
-        ? `${geofenceSection}\n`
-        : `The user's GPS position: [${lat.toFixed(5)}, ${lng.toFixed(5)}].\n`) +
-      `Nearby landmarks within 500 m:\n${nearbyStr}\n` +
-      (activeSlug
-        ? `The geofence confirms the user is physically at ${activeName}. Treat this as their definitive location.\n`
-        : '') +
-      `Cycling regulations: sidewalk riding = €500 fine, ` +
-      `both earphones = €100 fine, Gothic Quarter = mandatory dismount zone.\n` +
+      current +
+      `\nNearby landmarks within 500 m (distance-sorted):\n${nearbyStr}\n\n` +
+      `Cycling regulations: sidewalk riding = €500 fine, both earphones = €100 fine, ` +
+      `Gothic Quarter = mandatory dismount zone.\n` +
       `Answer concisely and helpfully. If unsure, say so honestly. ` +
       `Respond in the same language the user writes in. ` +
       `Use plain text only — no markdown (no **, no ##, no ---, no > blocks). Emojis are fine.`

@@ -43,6 +43,7 @@ interface LocationDoc {
   category: string;
   description: string;
   coordinates: Coords;
+  geofenceRadius: number;
   isRegulatory: boolean;
   regulatoryMessage: string;
   regulatoryFineEur: number;
@@ -158,6 +159,7 @@ export default function MapScreen() {
   const isSubscribed = useAppStore((s) => s.isSubscribed);
   const exitLandmark = useAppStore((s) => s.exitLandmark);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
+  const setUserCoords = useAppStore((s) => s.setUserCoords);
   const rideActive = useAppStore((s) => s.rideActive);
   const rideMode = useAppStore((s) => s.rideMode);
   const rideTargetSlug = useAppStore((s) => s.rideTargetSlug);
@@ -191,6 +193,49 @@ export default function MapScreen() {
     return () => { sub?.remove(); };
   }, []);
 
+  // Mirror the live position into the store so the AI chat reads the SAME
+  // position the map uses (single source of truth).
+  useEffect(() => {
+    if (userLocation) setUserCoords(userLocation.latitude, userLocation.longitude);
+  }, [userLocation, setUserCoords]);
+
+  // Foreground geofence: keep activeSlug in sync with the live position using the
+  // SAME Haversine + per-landmark radius as the native geofence, so the map and
+  // the AI agree even in Expo Go (where the native geofence task does not fire).
+  useEffect(() => {
+    if (!userLocation || locations.length === 0) return;
+    let inside: LocationDoc | null = null;
+    let insideDist = Infinity;
+    for (const loc of locations) {
+      if (!loc.coordinates.latitude && !loc.coordinates.longitude) continue;
+      const d = haversineMetres(userLocation.latitude, userLocation.longitude, loc.coordinates.latitude, loc.coordinates.longitude);
+      if (d <= loc.geofenceRadius && d < insideDist) { insideDist = d; inside = loc; }
+    }
+    const store = useAppStore.getState();
+    if (inside) {
+      if (inside.slug !== store.activeSlug) {
+        store.enterLandmark({
+          activeSlug: inside.slug,
+          activeName: inside.name,
+          activeDescription: inside.description,
+          activeCategory: inside.category,
+          activeIsRegulatory: inside.isRegulatory,
+          activeRegulatoryMessage: inside.regulatoryMessage,
+          activeRegulatoryFineEur: inside.regulatoryFineEur,
+          activeAffiliateUrl: inside.affiliateUrl,
+          activeAudioUrl: inside.audioUrl,
+        });
+      }
+    } else if (store.activeSlug) {
+      // Hysteresis: only exit once clearly outside the active landmark's radius.
+      const act = locations.find((l) => l.slug === store.activeSlug);
+      const stillNear = act
+        ? haversineMetres(userLocation.latitude, userLocation.longitude, act.coordinates.latitude, act.coordinates.longitude) <= act.geofenceRadius + 25
+        : false;
+      if (!stillNear) store.exitLandmark(store.activeSlug);
+    }
+  }, [userLocation, locations]);
+
   // ── Firestore: load landmarks ────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -214,6 +259,7 @@ export default function MapScreen() {
             latitude: rawCoords?.latitude ?? 0,
             longitude: rawCoords?.longitude ?? 0,
           },
+          geofenceRadius: (data['geofence_radius_metres'] as number) ?? 40,
           isRegulatory: !!reg,
           regulatoryMessage: (reg?.['message'] as string) ?? '',
           regulatoryFineEur: (reg?.['fine_eur'] as number) ?? 0,

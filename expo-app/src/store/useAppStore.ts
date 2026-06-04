@@ -38,12 +38,16 @@ interface AppState extends LandmarkData, RideState, RideActions {
   biciboxJson: string;
   biciparkJson: string;
   chatPrefill: string;
+  // Live GPS position — single source of truth shared by the map + AI chat.
+  userLat: number | null;
+  userLng: number | null;
   enterLandmark: (data: LandmarkData) => void;
   exitLandmark: (slug: string) => void;
   setSubscribed: (val: boolean) => void;
   setBiciboxJson: (json: string) => void;
   setBiciparkJson: (json: string) => void;
   setChatPrefill: (msg: string) => void;
+  setUserCoords: (lat: number, lng: number) => void;
 }
 
 const CLEARED: LandmarkData = {
@@ -76,6 +80,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   biciboxJson: '',
   biciparkJson: '',
   chatPrefill: '',
+  userLat: null,
+  userLng: null,
   enterLandmark: (data) => set(data),
   exitLandmark: (slug) => {
     if (get().activeSlug === slug) set(CLEARED);
@@ -84,6 +90,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setBiciboxJson: (json) => set({ biciboxJson: json }),
   setBiciparkJson: (json) => set({ biciparkJson: json }),
   setChatPrefill: (msg) => set({ chatPrefill: msg }),
+  setUserCoords: (lat, lng) => set({ userLat: lat, userLng: lng }),
 
   startRide: (opts) =>
     set({
