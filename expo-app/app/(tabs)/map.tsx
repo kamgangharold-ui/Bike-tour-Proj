@@ -6,9 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  Platform,
 } from 'react-native';
-import MapView, { Marker, UrlTile, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -504,6 +503,35 @@ export default function MapScreen() {
     }
   }, []);
 
+  // ── Instant native POI tap (Google Maps-style — zero network latency) ─────────
+  // Fired the moment a labelled place on the map is tapped. The provider hands us
+  // the name + coordinate synchronously, so the sheet opens instantly; we only
+  // hit the Places API afterwards to layer on category/rating (never blocking).
+  const handlePoiClick = useCallback(
+    (e: { nativeEvent: { placeId?: string; name?: string; coordinate: Coords } }) => {
+      const { coordinate, name } = e.nativeEvent;
+      const { latitude, longitude } = coordinate;
+      markerJustPressedRef.current = true;
+      setTimeout(() => { markerJustPressedRef.current = false; }, 300);
+      setTappedLandmark(null);
+      setShowFullDetails(false);
+      setCardData(null);
+      if (activeSlug) exitLandmark(activeSlug);
+      setTappedMapPoint({ latitude, longitude, name: (name ?? 'Place').split('\n')[0] });
+      // Background enrichment — keep the native POI name, just add type/rating
+      void (async () => {
+        const info = await fetchPlaceInfo(latitude, longitude);
+        if (!info.hasPlace) return;
+        setTappedMapPoint((prev) =>
+          prev && prev.latitude === latitude && prev.longitude === longitude
+            ? { ...prev, type: info.type, rating: info.rating, vicinity: info.vicinity }
+            : prev,
+        );
+      })();
+    },
+    [activeSlug, exitLandmark],
+  );
+
   const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
     if (!userLocation) return;
     setRouteCoords([]);
@@ -561,21 +589,14 @@ export default function MapScreen() {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
-        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
-        showsPointsOfInterest={false}
+        mapType="standard"
+        showsPointsOfInterest
+        onPoiClick={handlePoiClick}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        {Platform.OS === 'android' && (
-          <UrlTile
-            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-            maximumZ={18}
-            flipY={false}
-            zIndex={-1}
-          />
-        )}
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
