@@ -332,6 +332,8 @@ export default function MapScreen() {
         faqAnswers: uniqueFaqs.map((d) => (d['answer'] as string) ?? ''),
         faqIsPremium: uniqueFaqs.map((d) => (d['is_premium'] as boolean) ?? false),
       });
+    } catch (e) {
+      console.error('[fetchCardData] failed for slug', slug, e);
     } finally {
       setLoadingCard(false);
     }
