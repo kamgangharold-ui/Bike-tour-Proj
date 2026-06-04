@@ -1,7 +1,6 @@
-// Dynamic config — reads environment variables at build/prebuild time.
-// app.json is kept as a static fallback; this file takes precedence.
 module.exports = {
   expo: {
+    owner: 'haroldou',
     name: 'Bike Tour Guide',
     slug: 'bike-tour-guide',
     version: '1.0.0',
@@ -9,15 +8,13 @@ module.exports = {
     scheme: 'biketourguide',
     orientation: 'portrait',
     userInterfaceStyle: 'dark',
+    platforms: ['ios', 'android'],
     android: {
       package: 'com.biketourguide.app',
       permissions: ['RECORD_AUDIO'],
-      config: {
-        googleMaps: {
-          // Read at build time from .env (never hardcoded)
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
-        },
-      },
+      ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+        ? { config: { googleMaps: { apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY } } }
+        : {}),
     },
     ios: {
       bundleIdentifier: 'com.biketourguide.app',
@@ -50,9 +47,8 @@ module.exports = {
       url: 'https://u.expo.dev/1b99c3e7-2c7d-43bc-80f8-5b5bef6401d5',
     },
     runtimeVersion: {
-      policy: 'appVersion',
+      policy: 'sdkVersion',
     },
-    web: { bundler: 'metro' },
     experiments: { typedRoutes: true },
     extra: {
       eas: {

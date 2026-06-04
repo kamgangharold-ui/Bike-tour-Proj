@@ -109,7 +109,6 @@ export default function MapScreen() {
   const [locations, setLocations] = useState<LocationDoc[]>([]);
   const [bicingRaw, setBicingRaw] = useState<Omit<BicingStation, 'distance'>[]>([]);
   const [bicingStations, setBicingStations] = useState<BicingStation[]>([]);
-  const [showBicing, setShowBicing] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const [locationsLoading, setLocationsLoading] = useState(true);
 
@@ -333,6 +332,8 @@ export default function MapScreen() {
         faqAnswers: uniqueFaqs.map((d) => (d['answer'] as string) ?? ''),
         faqIsPremium: uniqueFaqs.map((d) => (d['is_premium'] as boolean) ?? false),
       });
+    } catch (e) {
+      console.error('[fetchCardData] failed for slug', slug, e);
     } finally {
       setLoadingCard(false);
     }
@@ -422,26 +423,36 @@ export default function MapScreen() {
         { headers: { 'User-Agent': 'BikeTourGuide/1.0', Accept: 'application/json' } },
       );
       const data = await res.json() as {
+        name?: string;
         display_name?: string;
         address?: { road?: string; neighbourhood?: string; suburb?: string; city_district?: string };
       };
       const a = data.address;
-      return a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location';
+      return data.name ?? a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location';
     } catch {
       return 'This location';
     }
   };
 
   const handleMapPress = useCallback(async (e: { nativeEvent: { coordinate: Coords } }) => {
-    // Dismiss landmark cards; show place info for the tapped point
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
     const { latitude, longitude } = e.nativeEvent.coordinate;
+
+    // Prefer own landmark name if tap is within 50 m of a known location
+    const nearby = locations.find(
+      (loc) => haversineMetres(latitude, longitude, loc.coordinates.latitude, loc.coordinates.longitude) < 50,
+    );
+    if (nearby) {
+      setTappedMapPoint({ latitude, longitude, name: nearby.name });
+      return;
+    }
+
     setTappedMapPoint({ latitude, longitude, name: '…' });
     const name = await reverseGeocode(latitude, longitude);
     setTappedMapPoint({ latitude, longitude, name });
-  }, []);
+  }, [locations]);
 
   // ── Derived state for which sheet to show ────────────────────────────────────
   const showPreview = tappedLandmark !== null && !showFullDetails;
@@ -502,7 +513,7 @@ export default function MapScreen() {
         })}
 
         {/* Bicing station markers */}
-        {showBicing && bicingStations.map((station) => (
+        {bicingStations.map((station) => (
           <Marker
             key={`bicing-${station.station_id}`}
             coordinate={{ latitude: station.lat, longitude: station.lon }}
@@ -536,14 +547,13 @@ export default function MapScreen() {
         <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
       </TouchableOpacity>
 
-      {/* Bicing toggle FAB — green when ON, dark when OFF */}
+      {/* Cycling routes FAB — opens BikAI pre-filled with a cycling route question */}
       <TouchableOpacity
-        style={[
-          styles.bicingFab,
-          sheetVisible && styles.bicingFabWithSheet,
-          showBicing && { backgroundColor: '#00C853' },
-        ]}
-        onPress={() => setShowBicing((p) => !p)}
+        style={[styles.bicingFab, sheetVisible && styles.bicingFabWithSheet, { backgroundColor: '#00C853' }]}
+        onPress={() => {
+          setChatPrefill('What are the best cycling routes and bike lanes near my current location in Barcelona?');
+          router.push('/(tabs)/chat');
+        }}
       >
         <Ionicons name="bicycle" size={20} color="#fff" />
       </TouchableOpacity>

@@ -22,7 +22,7 @@ service cloud.firestore {
     // Fields that only Cloud Functions / Stripe webhooks may write
     function isProtectedUserField() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['stripe_customer_id', 'subscription_status', 'subscription_expires_at', 'total_points']);
+        .hasAny(['stripe_customer_id', 'subscription_status', 'subscription_expires_at']);
     }
 
     // ─── LOCATIONS (public read, admin write) ─────────────────────────────────
