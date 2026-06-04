@@ -1,6 +1,6 @@
 module.exports = {
   expo: {
-    owner: 'haroldou',
+    owner: 'hari237',
     name: 'Bike Tour Guide',
     slug: 'bike-tour-guide',
     version: '1.0.0',
@@ -44,7 +44,7 @@ module.exports = {
       ['expo-notifications', { sounds: [] }],
     ],
     updates: {
-      url: 'https://u.expo.dev/1b99c3e7-2c7d-43bc-80f8-5b5bef6401d5',
+      url: 'https://u.expo.dev/486226d7-7af6-43df-ba8d-41d919f57d87',
     },
     runtimeVersion: {
       policy: 'sdkVersion',
@@ -52,7 +52,7 @@ module.exports = {
     experiments: { typedRoutes: true },
     extra: {
       eas: {
-        projectId: '1b99c3e7-2c7d-43bc-80f8-5b5bef6401d5',
+        projectId: '486226d7-7af6-43df-ba8d-41d919f57d87',
       },
     },
   },
