@@ -401,7 +401,7 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Header with speaker toggle */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>BikAI Guide</Text>
+        <Text style={styles.headerTitle}>BikAI</Text>
         <TouchableOpacity
           onPress={() => { setSpeakerOn((p) => !p); Speech.stop(); }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -523,8 +523,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
   },
   headerTitle: { color: '#fff', fontSize: 17, fontWeight: '600' },
 
