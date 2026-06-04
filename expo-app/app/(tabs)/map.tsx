@@ -553,21 +553,19 @@ export default function MapScreen() {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
-        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
-        showsPointsOfInterest={false}
+        mapType="none"
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        {Platform.OS === 'android' && (
-          <UrlTile
-            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-            maximumZ={18}
-            flipY={false}
-            zIndex={-1}
-          />
-        )}
+        <UrlTile
+          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+          maximumZ={18}
+          flipY={false}
+          zIndex={-1}
+          shouldReplaceMapContent
+        />
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
