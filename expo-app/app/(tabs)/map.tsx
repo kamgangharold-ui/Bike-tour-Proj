@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  PanResponder,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -541,6 +542,16 @@ export default function MapScreen() {
     }
   }, [tappedLandmark, exitLandmark, activeSlug]);
 
+  // Swipe down on the card's grab handle to dismiss it (ref keeps the latest dismiss).
+  const dismissCardRef = useRef(handleDismissCard);
+  dismissCardRef.current = handleDismissCard;
+  const sheetPan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderRelease: (_, g) => { if (g.dy > 50) dismissCardRef.current(); },
+    }),
+  ).current;
+
   // ── Quiz correct ──────────────────────────────────────────────────────────────
   const effectiveSlug =
     tappedLandmark && showFullDetails ? tappedLandmark.slug : activeSlug;
@@ -915,6 +926,9 @@ export default function MapScreen() {
       {/* Full landmark card sheet */}
       {showFullCard && (
         <View style={styles.sheet}>
+          <View style={styles.sheetHandleArea} {...sheetPan.panHandlers}>
+            <View style={styles.sheetHandle} />
+          </View>
           {loadingCard ? (
             <View style={styles.sheetLoading}>
               <ActivityIndicator color="#00C853" />
@@ -1109,13 +1123,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: '75%',
+    maxHeight: '50%',
     paddingBottom: 12,
-    paddingTop: 8,
+    paddingTop: 4,
     backgroundColor: '#121212',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
+  sheetHandleArea: { alignItems: 'center', paddingTop: 6, paddingBottom: 10 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#555' },
   sheetLoading: {
     height: 120,
     alignItems: 'center',
