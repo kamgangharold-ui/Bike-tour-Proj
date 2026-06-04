@@ -50,6 +50,14 @@ const SUGGESTED = [
   'What are the cycling rules here?',
 ];
 
+// Domain phrase hints that boost speech-to-text accuracy for cycling terms.
+// Landmark names are appended dynamically from Firestore (kept city-agnostic).
+const SPEECH_HINTS = [
+  'bike lane', 'bike lanes', 'cycle lane', 'cycling route', 'bike parking',
+  'park my bike', 'Bicing', 'Bicibox', 'Bicipark', 'dismount', 'dismount zone',
+  'sidewalk', 'fine', 'earphones', 'helmet', "what's near me", 'where am I',
+];
+
 // Direct fetch wrapper — avoids Node.js built-ins in @anthropic-ai/sdk
 async function callAnthropic(
   system: string,
@@ -210,9 +218,21 @@ export default function ChatScreen() {
               encoding: Platform.OS === 'android' ? 'AMR_WB' : 'LINEAR16',
               sampleRateHertz: 16000,
               languageCode: 'en-US',
-              alternativeLanguageCodes: ['es-ES', 'fr-FR'],
+              alternativeLanguageCodes: ['es-ES', 'ca-ES', 'fr-FR'],
               model: 'latest_long',
+              useEnhanced: true,
               enableAutomaticPunctuation: true,
+              speechContexts: [
+                {
+                  phrases: [...landmarks.map((l) => l.name).filter(Boolean), ...SPEECH_HINTS],
+                  boost: 15,
+                },
+              ],
+              metadata: {
+                interactionType: 'DICTATION',
+                microphoneDistance: 'NEARFIELD',
+                recordingDeviceType: 'SMARTPHONE',
+              },
             },
             audio: { content: base64 },
           }),
