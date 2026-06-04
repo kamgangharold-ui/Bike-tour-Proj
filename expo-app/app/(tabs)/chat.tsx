@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,10 +19,8 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +88,8 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
   const [isListening, setIsListening] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -144,24 +145,103 @@ export default function ChatScreen() {
     }
   }, [chatPrefill, setChatPrefill]);
 
-  // ── Voice recognition setup ──────────────────────────────────────────────────
-  useSpeechRecognitionEvent('result', (event: unknown) => {
-    const e = event as { results?: { transcript?: string }[] };
-    const text = e.results?.[0]?.transcript ?? '';
-    if (text) setInput(text);
-  });
-  useSpeechRecognitionEvent('end', () => setIsListening(false));
-  useSpeechRecognitionEvent('error', () => setIsListening(false));
-
+  // ── Voice recording + Google STT ─────────────────────────────────────────────
   const handleVoice = async () => {
     if (isListening) {
-      ExpoSpeechRecognitionModule.stop();
       setIsListening(false);
+      if (recording) {
+        try {
+          await recording.stopAndUnloadAsync();
+          const uri = recording.getURI();
+          setRecording(null);
+          if (uri) void transcribeAudio(uri);
+        } catch (e) {
+          console.warn('[Voice] stop failed', e);
+          setRecording(null);
+        }
+      }
     } else {
-      const lang = messages.some(m => /\b(je|vous|est|les|des)\b/i.test(m.content)) ? 'fr-FR' : 'es-ES';
-      setInput('');
-      setIsListening(true);
-      await ExpoSpeechRecognitionModule.start({ lang, interimResults: true });
+      try {
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Microphone access is required for voice input.');
+          return;
+        }
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const { recording: rec } = await Audio.Recording.createAsync({
+          android: {
+            extension: '.wav',
+            outputFormat: Audio.AndroidOutputFormat.DEFAULT,
+            audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
+            sampleRate: 16000,
+            numberOfChannels: 1,
+            bitRate: 256000,
+          },
+          ios: {
+            extension: '.wav',
+            outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+            audioQuality: Audio.IOSAudioQuality.HIGH,
+            sampleRate: 16000,
+            numberOfChannels: 1,
+            bitRate: 256000,
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+          },
+          web: { mimeType: 'audio/webm', bitsPerSecond: 128000 },
+        });
+        setRecording(rec);
+        setIsListening(true);
+      } catch (e) {
+        console.warn('[Voice] start failed', e);
+      }
+    }
+  };
+
+  const transcribeAudio = async (uri: string) => {
+    const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+    if (!apiKey) return;
+    setTranscribing(true);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const res = await fetch(
+        `https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            config: {
+              encoding: 'LINEAR16',
+              sampleRateHertz: 16000,
+              languageCode: 'en-US',
+              alternativeLanguageCodes: ['es-ES', 'fr-FR'],
+            },
+            audio: { content: base64 },
+          }),
+        },
+      );
+      const data = await res.json() as {
+        results?: Array<{ alternatives: Array<{ transcript: string }> }>;
+        error?: { message: string; status: string };
+      };
+      if (data.error) {
+        if (data.error.status === 'PERMISSION_DENIED' || data.error.status === 'REQUEST_DENIED') {
+          Alert.alert(
+            'Speech API not enabled',
+            'Go to Google Cloud Console → APIs & Services → Enable "Cloud Speech-to-Text API" for your project, then try again.',
+          );
+        }
+        return;
+      }
+      const transcript = data.results?.[0]?.alternatives?.[0]?.transcript ?? '';
+      if (transcript) setInput(transcript);
+    } catch (e) {
+      console.warn('[Voice] transcribe failed', e);
+    } finally {
+      setTranscribing(false);
+      await FileSystem.deleteAsync(uri, { idempotent: true });
     }
   };
 
@@ -353,12 +433,17 @@ export default function ChatScreen() {
           <TouchableOpacity
             style={[styles.micBtn, isListening && styles.micBtnActive]}
             onPress={() => void handleVoice()}
+            disabled={transcribing}
           >
-            <Ionicons
-              name={isListening ? 'stop-circle' : 'mic'}
-              size={20}
-              color={isListening ? '#EF5350' : '#9E9E9E'}
-            />
+            {transcribing ? (
+              <ActivityIndicator size="small" color="#9E9E9E" />
+            ) : (
+              <Ionicons
+                name={isListening ? 'stop-circle' : 'mic'}
+                size={20}
+                color={isListening ? '#EF5350' : '#9E9E9E'}
+              />
+            )}
           </TouchableOpacity>
           <TextInput
             style={styles.input}
