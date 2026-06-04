@@ -4,6 +4,7 @@ module.exports = {
     name: 'Bike Tour Guide',
     slug: 'bike-tour-guide',
     version: '1.0.0',
+    privacy: 'public',
     scheme: 'biketourguide',
     orientation: 'portrait',
     userInterfaceStyle: 'dark',
