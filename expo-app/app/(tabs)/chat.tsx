@@ -98,6 +98,9 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const meterInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const speakingStarted = useRef(false);
+  const lastSpokeAt = useRef(0);
 
   const chatPrefill = useAppStore((s) => s.chatPrefill);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
@@ -148,10 +151,8 @@ export default function ChatScreen() {
 
   // ── Voice recording + Google STT ─────────────────────────────────────────────
   const stopAndTranscribe = async (rec: Audio.Recording) => {
-    if (recordingTimer.current) {
-      clearTimeout(recordingTimer.current);
-      recordingTimer.current = null;
-    }
+    if (recordingTimer.current) { clearTimeout(recordingTimer.current); recordingTimer.current = null; }
+    if (meterInterval.current) { clearInterval(meterInterval.current); meterInterval.current = null; }
     setIsListening(false);
     try {
       await rec.stopAndUnloadAsync();
@@ -176,6 +177,7 @@ export default function ChatScreen() {
         }
         await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
         const { recording: rec } = await Audio.Recording.createAsync({
+          isMeteringEnabled: true,
           android: {
             extension: '.amr',
             outputFormat: Audio.AndroidOutputFormat.AMR_WB,
@@ -199,8 +201,25 @@ export default function ChatScreen() {
         });
         setRecording(rec);
         setIsListening(true);
-        // Auto-stop after 30 seconds
-        recordingTimer.current = setTimeout(() => void stopAndTranscribe(rec), 30000);
+        // VAD: auto-stop after 1.5s of silence following speech
+        speakingStarted.current = false;
+        lastSpokeAt.current = 0;
+        meterInterval.current = setInterval(async () => {
+          try {
+            const status = await rec.getStatusAsync();
+            if (!status.isRecording) return;
+            const level = (status as { metering?: number }).metering ?? -160;
+            if (level > -40) {
+              speakingStarted.current = true;
+              lastSpokeAt.current = Date.now();
+            } else if (speakingStarted.current && Date.now() - lastSpokeAt.current > 1500) {
+              if (meterInterval.current) { clearInterval(meterInterval.current); meterInterval.current = null; }
+              void stopAndTranscribe(rec);
+            }
+          } catch { /* ignore */ }
+        }, 200);
+        // Hard 45s fallback
+        recordingTimer.current = setTimeout(() => void stopAndTranscribe(rec), 45000);
       } catch (e) {
         console.warn('[Voice] start failed', e);
         Alert.alert('Mic error', `Could not start recording: ${String(e)}`);

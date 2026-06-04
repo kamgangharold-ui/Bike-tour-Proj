@@ -91,6 +91,64 @@ const CATEGORY_LABELS: Record<string, string> = {
   viewpoint: 'Viewpoint',
 };
 
+const PLACE_TYPE_COLORS: Record<string, string> = {
+  restaurant: '#E65100', cafe: '#6D4C41', bar: '#4A148C',
+  tourist_attraction: '#1565C0', museum: '#1565C0', park: '#2E7D32',
+  lodging: '#1A237E', store: '#880E4F', bakery: '#6D4C41',
+  supermarket: '#2E7D32', hospital: '#B71C1C', pharmacy: '#1B5E20',
+};
+
+const PLACE_TYPE_LABELS: Record<string, string> = {
+  restaurant: 'Restaurant', cafe: 'Café', bar: 'Bar', food: 'Food',
+  tourist_attraction: 'Attraction', museum: 'Museum', park: 'Park',
+  lodging: 'Hotel', store: 'Store', shopping_mall: 'Mall',
+  bakery: 'Bakery', supermarket: 'Supermarket', hospital: 'Hospital',
+  pharmacy: 'Pharmacy', gym: 'Gym', bank: 'Bank', church: 'Church',
+  point_of_interest: 'Place', establishment: 'Place',
+};
+
+async function fetchPlaceInfo(lat: number, lng: number): Promise<{
+  name: string; type?: string; rating?: number; vicinity?: string;
+}> {
+  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+  if (apiKey) {
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=50&key=${apiKey}`,
+        { headers: { Accept: 'application/json' } },
+      );
+      const data = await res.json() as {
+        status: string;
+        results: Array<{ name: string; types: string[]; rating?: number; vicinity?: string }>;
+      };
+      if (data.status === 'OK' && data.results.length > 0) {
+        const place = data.results[0];
+        const type = place.types.find((t) => PLACE_TYPE_LABELS[t]) ?? place.types[0];
+        return { name: place.name, type, rating: place.rating, vicinity: place.vicinity };
+      }
+    } catch (e) {
+      console.warn('[Places]', e);
+    }
+  }
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
+      { headers: { 'User-Agent': 'BikeTourGuide/1.0', Accept: 'application/json' } },
+    );
+    const data = await res.json() as {
+      name?: string; display_name?: string;
+      address?: { amenity?: string; shop?: string; tourism?: string; attraction?: string;
+        leisure?: string; historic?: string; road?: string; neighbourhood?: string;
+        suburb?: string; city_district?: string };
+    };
+    const a = data.address;
+    const venue = data.name ?? a?.amenity ?? a?.shop ?? a?.tourism ?? a?.attraction ?? a?.leisure ?? a?.historic;
+    return { name: venue ?? a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location' };
+  } catch {
+    return { name: 'This location' };
+  }
+}
+
 const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_information.json';
 const BICING_STATUS = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_status.json';
 const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeTourGuide/1.0' } };
@@ -125,6 +183,9 @@ export default function MapScreen() {
     latitude: number;
     longitude: number;
     name: string;
+    type?: string;
+    rating?: number;
+    vicinity?: string;
   } | null>(null);
 
   // Zustand
@@ -424,46 +485,15 @@ export default function MapScreen() {
   };
 
   // ── Free-tap: any map location ────────────────────────────────────────────────
-  const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
-        { headers: { 'User-Agent': 'BikeTourGuide/1.0', Accept: 'application/json' } },
-      );
-      const data = await res.json() as {
-        name?: string;
-        display_name?: string;
-        address?: {
-          amenity?: string;
-          shop?: string;
-          tourism?: string;
-          attraction?: string;
-          leisure?: string;
-          historic?: string;
-          road?: string;
-          neighbourhood?: string;
-          suburb?: string;
-          city_district?: string;
-        };
-      };
-      const a = data.address;
-      const venue = data.name ?? a?.amenity ?? a?.shop ?? a?.tourism ?? a?.attraction ?? a?.leisure ?? a?.historic;
-      return venue ?? a?.road ?? a?.neighbourhood ?? a?.suburb ?? a?.city_district ?? data.display_name ?? 'This location';
-    } catch {
-      return 'This location';
-    }
-  };
-
   const handleMapPress = useCallback(async (e: { nativeEvent: { coordinate: Coords } }) => {
     if (markerJustPressedRef.current) return;
     const { latitude, longitude } = e.nativeEvent.coordinate;
-
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
     setTappedMapPoint({ latitude, longitude, name: '…' });
-    const name = await reverseGeocode(latitude, longitude);
-    setTappedMapPoint({ latitude, longitude, name });
+    const info = await fetchPlaceInfo(latitude, longitude);
+    setTappedMapPoint({ latitude, longitude, ...info });
   }, []);
 
   const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
@@ -523,18 +553,21 @@ export default function MapScreen() {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
-        mapType="none"
+        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+        showsPointsOfInterest={false}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-          maximumZ={18}
-          flipY={false}
-          zIndex={-1}
-        />
+        {Platform.OS === 'android' && (
+          <UrlTile
+            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+            maximumZ={18}
+            flipY={false}
+            zIndex={-1}
+          />
+        )}
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
@@ -682,41 +715,49 @@ export default function MapScreen() {
       )}
 
       {/* Free-tap location sheet */}
-      {tappedMapPoint !== null && tappedLandmark === null && activeSlug.length === 0 && (
-        <View style={styles.previewSheet}>
-          <View style={styles.previewHeader}>
-            <View style={[styles.chip, { backgroundColor: '#E3F2FD', borderColor: '#1565C0' }]}>
-              <Text style={[styles.chipText, { color: '#1565C0' }]}>Location</Text>
+      {tappedMapPoint !== null && tappedLandmark === null && activeSlug.length === 0 && (() => {
+        const pt = tappedMapPoint;
+        const typeColor = PLACE_TYPE_COLORS[pt.type ?? ''] ?? '#1565C0';
+        const typeLabel = PLACE_TYPE_LABELS[pt.type ?? ''] ?? 'Location';
+        return (
+          <View style={styles.previewSheet}>
+            <View style={styles.previewHeader}>
+              <View style={[styles.chip, { backgroundColor: typeColor + '22', borderColor: typeColor }]}>
+                <Text style={[styles.chipText, { color: typeColor }]}>{typeLabel}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setTappedMapPoint(null)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={22} color="#9E9E9E" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => setTappedMapPoint(null)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Ionicons name="close" size={22} color="#9E9E9E" />
-            </TouchableOpacity>
+            <Text style={styles.previewTitle}>{pt.name}</Text>
+            {pt.rating !== undefined
+              ? <Text style={styles.previewDist}>⭐ {pt.rating.toFixed(1)}{pt.vicinity ? ` · ${pt.vicinity}` : ''}</Text>
+              : pt.vicinity
+                ? <Text style={styles.previewDist} numberOfLines={1}>{pt.vicinity}</Text>
+                : <Text style={styles.previewDist}>{pt.latitude.toFixed(5)}, {pt.longitude.toFixed(5)}</Text>
+            }
+            <View style={styles.previewActions}>
+              <TouchableOpacity
+                style={styles.previewAIBtn}
+                onPress={() => handleAskAI(pt.name)}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={14} color="#00C853" />
+                <Text style={styles.previewAIBtnText}> Ask AI about this</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.previewDetailsBtn}
+                onPress={() => void fetchRoute(pt.latitude, pt.longitude)}
+              >
+                <Ionicons name="navigate" size={14} color="#fff" />
+                <Text style={styles.previewDetailsBtnText}> Directions</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={styles.previewTitle}>{tappedMapPoint.name}</Text>
-          <Text style={styles.previewDist}>
-            {tappedMapPoint.latitude.toFixed(5)}, {tappedMapPoint.longitude.toFixed(5)}
-          </Text>
-          <View style={styles.previewActions}>
-            <TouchableOpacity
-              style={styles.previewAIBtn}
-              onPress={() => handleAskAI(tappedMapPoint.name)}
-            >
-              <Ionicons name="chatbubble-ellipses-outline" size={14} color="#00C853" />
-              <Text style={styles.previewAIBtnText}> Ask AI about this</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.previewDetailsBtn}
-              onPress={() => void fetchRoute(tappedMapPoint.latitude, tappedMapPoint.longitude)}
-            >
-              <Ionicons name="navigate" size={14} color="#fff" />
-              <Text style={styles.previewDetailsBtnText}> Directions</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+        );
+      })()}
 
       {/* Map loading overlay */}
       {(locationsLoading || !mapReady) && (
