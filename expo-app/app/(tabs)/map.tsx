@@ -440,24 +440,24 @@ export default function MapScreen() {
   };
 
   const handleMapPress = useCallback(async (e: { nativeEvent: { coordinate: Coords } }) => {
-    setTappedLandmark(null);
-    setShowFullDetails(false);
-    setCardData(null);
     const { latitude, longitude } = e.nativeEvent.coordinate;
 
-    // Prefer own landmark name if tap is within 50 m of a known location
+    // Tap within 80 m of a landmark → treat as landmark tap (shows preview + Full details)
     const nearby = locations.find(
-      (loc) => haversineMetres(latitude, longitude, loc.coordinates.latitude, loc.coordinates.longitude) < 50,
+      (loc) => haversineMetres(latitude, longitude, loc.coordinates.latitude, loc.coordinates.longitude) < 80,
     );
     if (nearby) {
-      setTappedMapPoint({ latitude, longitude, name: nearby.name });
+      handleLandmarkPress(nearby);
       return;
     }
 
+    setTappedLandmark(null);
+    setShowFullDetails(false);
+    setCardData(null);
     setTappedMapPoint({ latitude, longitude, name: '…' });
     const name = await reverseGeocode(latitude, longitude);
     setTappedMapPoint({ latitude, longitude, name });
-  }, [locations]);
+  }, [locations, handleLandmarkPress]);
 
   // ── Derived state for which sheet to show ────────────────────────────────────
   const showPreview = tappedLandmark !== null && !showFullDetails;
