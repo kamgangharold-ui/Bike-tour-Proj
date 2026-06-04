@@ -4,7 +4,6 @@ import * as Notifications from 'expo-notifications';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAppStore } from '../store/useAppStore';
-import * as voice from '../utils/voice';
 
 export const GEOFENCE_TASK = 'BIKE_TOUR_GEOFENCE';
 
@@ -50,20 +49,6 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
       },
       trigger: null,
     });
-
-    // Hands-free voice guidance (respects the Profile "Voice guidance" toggle).
-    // Regulatory zones speak an URGENT, queue-preempting warning.
-    const name = (loc['name'] as string) ?? 'Landmark';
-    const lang = voice.getLang();
-    if (isRegulatory) {
-      const message = (regAlert?.['message'] as string) ?? '';
-      const fine = (regAlert?.['fine_eur'] as number) ?? 0;
-      const fineText = fine > 0 ? ` Fine ${Math.round(fine)} euros.` : '';
-      await voice.speak(`Warning: ${name}. ${message}${fineText}`, { lang, priority: 'high' });
-    } else {
-      const desc = (loc['short_description'] as string) ?? '';
-      await voice.speak(`${name}. ${desc}`, { lang });
-    }
 
     // If a guided ride is active, record the visit (and advance the tour target).
     useAppStore.getState().markRideVisited(slug);

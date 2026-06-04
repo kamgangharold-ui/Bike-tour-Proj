@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  Switch,
 } from 'react-native';
 import { router } from 'expo-router';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
@@ -14,13 +13,11 @@ import { doc, onSnapshot, collection, query, where, DocumentData } from 'firebas
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
-import * as voice from '../../src/utils/voice';
 
 export default function ProfileScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<DocumentData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [voiceOn, setVoiceOn] = useState(true);
   const [rides, setRides] = useState<{ count: number; km: number }>({ count: 0, km: 0 });
   const setSubscribed = useAppStore((s) => s.setSubscribed);
 
@@ -38,15 +35,9 @@ export default function ProfileScreen() {
       const data = snap.data() ?? null;
       setProfile(data);
       setSubscribed((data?.['subscription_status'] as string) === 'active');
-      const lang = data?.['preferred_language'] as string | undefined;
-      if (lang) void voice.setLang(lang);
     });
     return unsub;
   }, [user, setSubscribed]);
-
-  useEffect(() => {
-    void voice.isGuidanceEnabled().then(setVoiceOn);
-  }, []);
 
   useEffect(() => {
     if (!user) { setRides({ count: 0, km: 0 }); return; }
@@ -62,11 +53,6 @@ export default function ProfileScreen() {
     );
     return unsub;
   }, [user]);
-
-  const toggleVoice = (val: boolean) => {
-    setVoiceOn(val);
-    void voice.setGuidanceEnabled(val);
-  };
 
   const handleSignOut = async () => {
     await signOut(auth);
@@ -144,20 +130,6 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Settings */}
-      <View style={styles.settingRow}>
-        <View style={styles.settingLabelWrap}>
-          <Ionicons name="volume-high" size={18} color="#00C853" />
-          <Text style={styles.settingLabel}>Voice guidance</Text>
-        </View>
-        <Switch
-          value={voiceOn}
-          onValueChange={toggleVoice}
-          trackColor={{ false: '#444', true: '#00C85388' }}
-          thumbColor={voiceOn ? '#00C853' : '#888'}
-        />
-      </View>
-
       {/* Upgrade */}
       {!isPremium && (
         <TouchableOpacity style={styles.upgradeBtn}>
@@ -210,19 +182,6 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 28, fontWeight: '700' },
   statLabel: { fontSize: 12, color: '#666' },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1E1E1E',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    width: '100%',
-    marginBottom: 16,
-  },
-  settingLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  settingLabel: { fontSize: 15, color: '#fff', fontWeight: '600' },
   upgradeBtn: {
     flexDirection: 'row',
     alignItems: 'center',

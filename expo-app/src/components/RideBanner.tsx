@@ -3,7 +3,6 @@
 // every screen while a ride is active — except the Ride tab, which shows its own
 // dashboard. Returning null still keeps the hook alive (it runs before the return).
 
-import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname } from 'expo-router';
@@ -11,7 +10,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { useRideGuidance } from '../hooks/useRideGuidance';
 import { endRideAndSave } from '../utils/rides';
-import * as voice from '../utils/voice';
 
 const HIT = { top: 10, bottom: 10, left: 10, right: 10 };
 
@@ -28,23 +26,12 @@ export default function RideBanner() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const guidance = useRideGuidance(); // must run unconditionally while mounted
-  const [muted, setMuted] = useState(false);
-
-  useEffect(() => {
-    void voice.getMuted().then(setMuted);
-  }, [rideActive]);
 
   // Hide the UI on the Ride tab (own dashboard) and when no ride is active —
   // the hook above keeps running regardless.
   if (!rideActive || (pathname?.includes('/ride') ?? false)) return null;
 
-  const toggleMute = () => {
-    const next = !muted;
-    setMuted(next);
-    void voice.setMuted(next);
-  };
   const handleEnd = () => {
-    voice.stop();
     void endRideAndSave();
   };
 
@@ -71,9 +58,6 @@ export default function RideBanner() {
               : `${fmtElapsed(guidance.elapsedSec)} · ${fmtDist(guidance.distanceTraveledM)} ridden · ${guidance.visitedCount} seen`}
           </Text>
         </View>
-        <TouchableOpacity onPress={toggleMute} style={styles.iconBtn} hitSlop={HIT}>
-          <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={20} color={muted ? '#cfd8dc' : '#fff'} />
-        </TouchableOpacity>
         <TouchableOpacity onPress={handleEnd} style={styles.endBtn} hitSlop={HIT}>
           <Text style={styles.endText}>End</Text>
         </TouchableOpacity>
@@ -109,7 +93,6 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   target: { color: '#fff', fontSize: 15, fontWeight: '700' },
   sub: { color: '#E8F5E9', fontSize: 12, marginTop: 1 },
-  iconBtn: { padding: 4 },
   endBtn: { backgroundColor: '#ffffff22', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   endText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 });

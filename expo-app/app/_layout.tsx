@@ -8,7 +8,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Remote push notifications require EAS development build (not Expo Go)
 // Local geofence notifications work in Expo Go foreground only
 import * as Notifications from 'expo-notifications';
-import { Audio } from 'expo-av';
 import RideBanner from '../src/components/RideBanner';
 
 Notifications.setNotificationHandler({
@@ -32,27 +31,6 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     });
     return unsub;
-  }, []);
-
-  // Let voice guidance play through the iOS silent switch and (in a dev build)
-  // keep going with the screen off. The full background mode isn't available in
-  // Expo Go, so fall back to a foreground-only audio mode there.
-  useEffect(() => {
-    void (async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-        });
-      } catch {
-        try {
-          await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: true });
-        } catch {
-          // non-fatal
-        }
-      }
-    })();
   }, []);
 
   if (!authReady) return null;

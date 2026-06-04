@@ -27,7 +27,7 @@ module.exports = {
           'Used to let you ask questions by voice.',
         NSSpeechRecognitionUsageDescription:
           'Used to convert your voice to text for the BikAI chat.',
-        UIBackgroundModes: ['location', 'fetch', 'audio'],
+        UIBackgroundModes: ['location', 'fetch'],
         ITSAppUsesNonExemptEncryption: false,
       },
     },

@@ -12,7 +12,6 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { endRideAndSave } from '../../src/utils/rides';
-import * as voice from '../../src/utils/voice';
 
 interface Tour {
   id: string;
@@ -45,7 +44,6 @@ export default function RideScreen() {
   const [locNames, setLocNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
-  const [muted, setMuted] = useState(false);
 
   // Load curated tours + landmark names from Firestore.
   useEffect(() => {
@@ -85,10 +83,6 @@ export default function RideScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    void voice.getMuted().then(setMuted);
-  }, [rideActive]);
-
   // Elapsed ticker while active.
   useEffect(() => {
     if (!rideActive) { setElapsed(0); return; }
@@ -104,12 +98,7 @@ export default function RideScreen() {
     [tours, rideTourId],
   );
 
-  const toggleMute = () => {
-    const next = !muted;
-    setMuted(next);
-    void voice.setMuted(next);
-  };
-  const handleEnd = () => { voice.stop(); void endRideAndSave(); };
+  const handleEnd = () => { void endRideAndSave(); };
 
   // ── Active ride dashboard ─────────────────────────────────────────────────────
   if (rideActive) {
@@ -152,12 +141,6 @@ export default function RideScreen() {
           <Text style={styles.hint}>Open the Map tab for the live direction arrow.</Text>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.muteBtn} onPress={toggleMute}>
-              <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={18} color={muted ? '#888' : '#00C853'} />
-              <Text style={[styles.muteText, { color: muted ? '#888' : '#00C853' }]}>
-                {muted ? ' Muted' : ' Voice on'}
-              </Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
               <Ionicons name="stop-circle" size={18} color="#fff" />
               <Text style={styles.endText}> End Ride</Text>
@@ -252,17 +235,6 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 11, color: '#666' },
   hint: { fontSize: 12, color: '#777', marginBottom: 20 },
   actionRow: { flexDirection: 'row', gap: 12 },
-  muteBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 12,
-    paddingVertical: 14,
-  },
-  muteText: { fontSize: 14, fontWeight: '700' },
   endBtn: {
     flex: 1,
     flexDirection: 'row',
