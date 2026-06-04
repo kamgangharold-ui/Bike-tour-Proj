@@ -10,6 +10,7 @@ import { usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { useRideGuidance } from '../hooks/useRideGuidance';
+import { endRideAndSave } from '../utils/rides';
 import * as voice from '../utils/voice';
 
 const HIT = { top: 10, bottom: 10, left: 10, right: 10 };
@@ -24,7 +25,6 @@ function fmtElapsed(s: number): string {
 
 export default function RideBanner() {
   const rideActive = useAppStore((s) => s.rideActive);
-  const endRide = useAppStore((s) => s.endRide);
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const guidance = useRideGuidance(); // must run unconditionally while mounted
@@ -45,7 +45,7 @@ export default function RideBanner() {
   };
   const handleEnd = () => {
     voice.stop();
-    endRide();
+    void endRideAndSave();
   };
 
   const hasTarget = guidance.targetName != null;

@@ -1,0 +1,75 @@
+{
+  "_collection": "tours",
+  "_description": "An ordered, curated route built from existing location slugs. Read by the Ride tab to offer guided tours. City-agnostic via city_slug.",
+
+  "_document_id": "slug (deterministic) — e.g. gaudi-highlights",
+
+  "fields": {
+    "name": {
+      "type": "String",
+      "required": true,
+      "example": "Gaudí Highlights"
+    },
+    "slug": {
+      "type": "String",
+      "required": true,
+      "example": "gaudi-highlights",
+      "note": "URL-safe lowercase ID; also used as the document ID"
+    },
+    "city_slug": {
+      "type": "String",
+      "required": true,
+      "example": "barcelona",
+      "note": "Keeps tours city-agnostic"
+    },
+    "description": {
+      "type": "String",
+      "required": false,
+      "example": "Casa Batlló, the Sagrada Família and Park Güell in one ride."
+    },
+    "location_slugs": {
+      "type": "Array<String>",
+      "required": true,
+      "example": ["casa-batllo", "sagrada-familia", "park-guell"],
+      "note": "ORDERED list of location slugs — the ride advances through them in order"
+    },
+    "distance_km": {
+      "type": "Number",
+      "required": false,
+      "example": 6.5
+    },
+    "est_minutes": {
+      "type": "Number",
+      "required": false,
+      "example": 90
+    },
+    "is_active": {
+      "type": "Boolean",
+      "required": true,
+      "example": true,
+      "note": "Set false to hide without deleting"
+    },
+    "created_at": {
+      "type": "Timestamp",
+      "required": true,
+      "note": "Set server-side with FieldValue.serverTimestamp()"
+    },
+    "updated_at": {
+      "type": "Timestamp",
+      "required": true
+    }
+  },
+
+  "_example_document": {
+    "name": "Gaudí Highlights",
+    "slug": "gaudi-highlights",
+    "city_slug": "barcelona",
+    "description": "Casa Batlló, the Sagrada Família and Park Güell — Gaudí's three essentials in one ride.",
+    "location_slugs": ["casa-batllo", "sagrada-familia", "park-guell"],
+    "distance_km": 6.5,
+    "est_minutes": 90,
+    "is_active": true,
+    "created_at": "SERVER_TIMESTAMP",
+    "updated_at": "SERVER_TIMESTAMP"
+  }
+}

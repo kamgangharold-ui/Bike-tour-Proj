@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
+import { endRideAndSave } from '../../src/utils/rides';
 import * as voice from '../../src/utils/voice';
 
 interface Tour {
@@ -39,7 +40,6 @@ export default function RideScreen() {
   const rideDistanceMeters = useAppStore((s) => s.rideDistanceMeters);
   const rideStartedAt = useAppStore((s) => s.rideStartedAt);
   const startRide = useAppStore((s) => s.startRide);
-  const endRide = useAppStore((s) => s.endRide);
 
   const [tours, setTours] = useState<Tour[]>([]);
   const [locNames, setLocNames] = useState<Map<string, string>>(new Map());
@@ -109,7 +109,7 @@ export default function RideScreen() {
     setMuted(next);
     void voice.setMuted(next);
   };
-  const handleEnd = () => { voice.stop(); endRide(); };
+  const handleEnd = () => { voice.stop(); void endRideAndSave(); };
 
   // ── Active ride dashboard ─────────────────────────────────────────────────────
   if (rideActive) {

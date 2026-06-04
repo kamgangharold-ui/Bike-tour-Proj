@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, DocumentData } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -21,6 +21,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<DocumentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [rides, setRides] = useState<{ count: number; km: number }>({ count: 0, km: 0 });
   const setSubscribed = useAppStore((s) => s.setSubscribed);
 
   useEffect(() => {
@@ -46,6 +47,21 @@ export default function ProfileScreen() {
   useEffect(() => {
     void voice.isGuidanceEnabled().then(setVoiceOn);
   }, []);
+
+  useEffect(() => {
+    if (!user) { setRides({ count: 0, km: 0 }); return; }
+    const ridesQuery = query(collection(db, 'rides'), where('user_uid', '==', user.uid));
+    const unsub = onSnapshot(
+      ridesQuery,
+      (snap) => {
+        let km = 0;
+        snap.docs.forEach((d) => { km += (d.data()['distance_km'] as number) ?? 0; });
+        setRides({ count: snap.size, km: Math.round(km * 10) / 10 });
+      },
+      (e) => console.warn('[Profile] rides listener', e),
+    );
+    return unsub;
+  }, [user]);
 
   const toggleVoice = (val: boolean) => {
     setVoiceOn(val);
@@ -111,6 +127,20 @@ export default function ProfileScreen() {
           <Ionicons name="location" size={28} color="#1565C0" />
           <Text style={[styles.statValue, { color: '#1565C0' }]}>{visited}</Text>
           <Text style={styles.statLabel}>Visited</Text>
+        </View>
+      </View>
+
+      {/* Ride history */}
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Ionicons name="bicycle" size={28} color="#00C853" />
+          <Text style={[styles.statValue, { color: '#00C853' }]}>{rides.count}</Text>
+          <Text style={styles.statLabel}>Rides</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Ionicons name="speedometer" size={28} color="#1565C0" />
+          <Text style={[styles.statValue, { color: '#1565C0' }]}>{rides.km}</Text>
+          <Text style={styles.statLabel}>km ridden</Text>
         </View>
       </View>
 

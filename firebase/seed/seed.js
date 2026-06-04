@@ -870,6 +870,34 @@ const moreFaqs = [
   },
 ];
 
+// ─── CURATED TOURS ────────────────────────────────────────────────────────────
+const tours = [
+  {
+    _id: 'gaudi-highlights',
+    slug: 'gaudi-highlights',
+    name: 'Gaudí Highlights',
+    city_slug: 'barcelona',
+    description:
+      "Casa Batlló, the Sagrada Família and Park Güell — Gaudí's three essentials in one ride.",
+    location_slugs: ['casa-batllo', 'sagrada-familia', 'park-guell'],
+    distance_km: 6.5,
+    est_minutes: 90,
+    is_active: true,
+  },
+  {
+    _id: 'old-town-seafront',
+    slug: 'old-town-seafront',
+    name: 'Old Town & Seafront',
+    city_slug: 'barcelona',
+    description:
+      'From La Boqueria market down La Rambla, through the Gothic Quarter to the Barceloneta beachfront and Olympic Port.',
+    location_slugs: ['la-boqueria', 'la-rambla', 'gothic-quarter', 'barceloneta', 'port-olimpic'],
+    distance_km: 5.0,
+    est_minutes: 75,
+    is_active: true,
+  },
+];
+
 async function addMoreLandmarks() {
   console.log('\n🗺️  Adding 5 new landmarks...');
   await seed('locations', moreLocations);
@@ -891,12 +919,14 @@ async function main() {
     await seed('faqs', faqs);
     await seed('logistics', logistics);
     await addMoreLandmarks();
+    await seed('tours', tours);
     console.log('\n✅  All done! Your Firestore database is fully seeded.');
     console.log('    Collections seeded:');
     console.log(`    • locations  → ${locations.length} documents`);
     console.log(`    • quizzes   → ${quizzes.length} documents`);
     console.log(`    • faqs      → ${faqs.length} documents`);
     console.log(`    • logistics → ${logistics.length} documents`);
+    console.log(`    • tours     → ${tours.length} documents`);
   } catch (err) {
     console.error('\n❌  Seeding failed:', err.message);
   } finally {

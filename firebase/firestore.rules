@@ -65,5 +65,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ─── TOURS (signed-in read, admin write) ──────────────────────────────────
+    match /tours/{tourId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── RIDES (owner read/write own only) ────────────────────────────────────
+    match /rides/{rideId} {
+      allow read: if isSignedIn() && isOwner(resource.data.user_uid);
+      allow create: if isSignedIn() && isOwner(request.resource.data.user_uid);
+      allow update, delete: if false;
+    }
+
   }
 }
