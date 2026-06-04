@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -39,6 +40,7 @@ export default function RideScreen() {
   const rideDistanceMeters = useAppStore((s) => s.rideDistanceMeters);
   const rideStartedAt = useAppStore((s) => s.rideStartedAt);
   const startRide = useAppStore((s) => s.startRide);
+  const insets = useSafeAreaInsets();
 
   const [tours, setTours] = useState<Tour[]>([]);
   const [locNames, setLocNames] = useState<Map<string, string>>(new Map());
@@ -107,7 +109,7 @@ export default function RideScreen() {
         ? locNames.get(rideTargetSlug) ?? rideTargetSlug
         : null;
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.inner}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.inner, { paddingTop: insets.top + 20 }]}>
         <View style={styles.activeCard}>
           <View style={styles.activeHeader}>
             <Ionicons name="bicycle" size={22} color="#00C853" />
@@ -153,7 +155,7 @@ export default function RideScreen() {
 
   // ── Start screen ──────────────────────────────────────────────────────────────
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.inner}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.inner, styles.innerCentered, { paddingTop: insets.top + 20 }]}>
       <Text style={styles.heading}>Guided Ride</Text>
       <Text style={styles.subheading}>Hands-free landmark audio + turn-toward directions.</Text>
 
@@ -205,6 +207,7 @@ function Metric({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   inner: { padding: 20 },
+  innerCentered: { flexGrow: 1, justifyContent: 'center' },
   heading: { fontSize: 26, fontWeight: '800', color: '#fff', marginBottom: 6 },
   subheading: { fontSize: 14, color: '#9E9E9E', marginBottom: 24, lineHeight: 20 },
   freeBtn: {
