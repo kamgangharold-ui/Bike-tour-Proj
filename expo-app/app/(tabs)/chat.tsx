@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -115,6 +115,22 @@ export default function ChatScreen() {
   const activeRegulatoryFineEur = useAppStore((s) => s.activeRegulatoryFineEur);
   const userLat = useAppStore((s) => s.userLat);
   const userLng = useAppStore((s) => s.userLng);
+
+  // Context-aware suggested questions: when the geofence confirms the rider is at
+  // a landmark (the same activeSlug/activeName the AI uses), build chips from its
+  // name; otherwise fall back to the generic prompts. Pure string templates — no
+  // API calls, no token cost.
+  const suggestions = useMemo(() => {
+    if (activeSlug && activeName) {
+      return [
+        `Tell me about ${activeName}`,
+        `Is it safe to cycle at ${activeName}?`,
+        `Where can I park near ${activeName}?`,
+        `What are the cycling rules at ${activeName}?`,
+      ];
+    }
+    return SUGGESTED;
+  }, [activeSlug, activeName]);
 
   // Load landmarks for context
   useEffect(() => {
@@ -413,6 +429,14 @@ export default function ChatScreen() {
           />
         </TouchableOpacity>
       </View>
+
+      {/* Context pill — shows the landmark the AI is using as ground truth */}
+      {activeSlug ? (
+        <View style={styles.locationPill}>
+          <Text style={styles.locationPillText}>📍 You&apos;re at {activeName}</Text>
+        </View>
+      ) : null}
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -424,7 +448,7 @@ export default function ChatScreen() {
             <Ionicons name="chatbubble-ellipses-outline" size={52} color="#444" />
             <Text style={styles.emptyTitle}>Ask me anything about your ride</Text>
             <View style={styles.suggestionList}>
-              {SUGGESTED.map((q) => (
+              {suggestions.map((q) => (
                 <TouchableOpacity
                   key={q}
                   style={styles.suggestionBtn}
@@ -525,6 +549,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   headerTitle: { color: '#fff', fontSize: 17, fontWeight: '600' },
+
+  locationPill: {
+    alignSelf: 'flex-start',
+    marginHorizontal: 16,
+    marginTop: 10,
+    backgroundColor: '#10301C',
+    borderColor: '#1B5E20',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  locationPillText: { color: '#00C853', fontSize: 12, fontWeight: '600' },
 
   emptyState: {
     flex: 1,
