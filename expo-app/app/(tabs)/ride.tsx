@@ -109,7 +109,7 @@ export default function RideScreen() {
         ? locNames.get(rideTargetSlug) ?? rideTargetSlug
         : null;
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.inner, { paddingTop: insets.top + 20 }]}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.inner, styles.innerCentered, { paddingTop: insets.top + 20 }]}>
         <View style={styles.activeCard}>
           <View style={styles.activeHeader}>
             <Ionicons name="bicycle" size={22} color="#00C853" />

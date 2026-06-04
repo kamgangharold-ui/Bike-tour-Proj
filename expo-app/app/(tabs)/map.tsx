@@ -567,9 +567,10 @@ export default function MapScreen() {
 
   const sheetVisible = showPreview || showFullCard;
 
-  // ── Guided-ride direction indicator (straight line toward the active target) ──
-  // Simple bearing-style indicator, NOT street routing (full turn-by-turn would
-  // need the optional OpenRouteService integration).
+  // ── Green direction indicator (straight line toward the focused target) ───────
+  // Simple bearing-style line, NOT street routing (full turn-by-turn would need the
+  // optional OpenRouteService integration). It points at whatever place is in focus:
+  // a tapped pinned landmark, a tapped Android POI, or the active ride target.
   const rideTargetCoords = useMemo<Coords | null>(() => {
     if (!rideActive || !userLocation) return null;
     if (rideMode === 'tour') {
@@ -588,13 +589,19 @@ export default function MapScreen() {
     return best;
   }, [rideActive, rideMode, rideTargetSlug, rideVisited, locations, userLocation]);
 
+  // A tapped pinned landmark / tapped POI takes priority, else the active ride target.
+  const focusTargetCoords: Coords | null =
+    tappedLandmark?.coordinates ??
+    (tappedMapPoint ? { latitude: tappedMapPoint.latitude, longitude: tappedMapPoint.longitude } : null) ??
+    rideTargetCoords;
+
   const [showDirectionPath, setShowDirectionPath] = useState(true);
-  const targetKey = rideTargetCoords ? `${rideTargetCoords.latitude},${rideTargetCoords.longitude}` : '';
-  // Re-show the path whenever the target changes (new ride / advanced stop).
+  const targetKey = focusTargetCoords ? `${focusTargetCoords.latitude},${focusTargetCoords.longitude}` : '';
+  // Re-show the path whenever the focused target changes (new pin / POI / ride stop).
   useEffect(() => { if (targetKey) setShowDirectionPath(true); }, [targetKey]);
 
   const directionPathVisible =
-    rideActive && showDirectionPath && userLocation !== null && rideTargetCoords !== null;
+    showDirectionPath && userLocation !== null && focusTargetCoords !== null;
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -653,9 +660,9 @@ export default function MapScreen() {
             strokeWidth={4}
           />
         )}
-        {directionPathVisible && userLocation && rideTargetCoords && (
+        {directionPathVisible && userLocation && focusTargetCoords && (
           <Polyline
-            coordinates={[userLocation, rideTargetCoords]}
+            coordinates={[userLocation, focusTargetCoords]}
             strokeColor="#00C853"
             strokeWidth={5}
             lineDashPattern={[14, 10]}
