@@ -9,7 +9,9 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
+
+const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -467,26 +469,27 @@ export default function MapScreen() {
   const sheetVisible = showPreview || showFullCard;
 
   // ── Render ────────────────────────────────────────────────────────────────────
+  const androidNoKey = Platform.OS === 'android' && !GOOGLE_MAPS_KEY && !__DEV__;
+
   return (
     <View style={styles.container}>
-      <MapView
+      {androidNoKey ? (
+        <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }]}>
+          <Text style={{ color: '#666', textAlign: 'center', padding: 24 }}>
+            Map unavailable — GOOGLE_MAPS_API_KEY not configured.
+          </Text>
+        </View>
+      ) : null}
+      {!androidNoKey && <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_DEFAULT}
-        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+        mapType="standard"
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        {Platform.OS === 'android' && (
-          <UrlTile
-            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maximumZ={19}
-            flipY={false}
-            zIndex={-1}
-          />
-        )}
         {/* Landmark markers */}
         {locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
@@ -518,7 +521,7 @@ export default function MapScreen() {
             </View>
           </Marker>
         ))}
-      </MapView>
+      </MapView>}
 
       {/* Re-centre FAB */}
       <TouchableOpacity

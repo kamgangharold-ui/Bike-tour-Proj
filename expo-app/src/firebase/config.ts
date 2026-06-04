@@ -1,15 +1,15 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { initializeAuth, type Persistence } from 'firebase/auth';
+import { initializeAuth, getAuth, type Persistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// getReactNativePersistence lives in @firebase/auth's react-native bundle.
-// metro.config.js adds 'react-native' to unstable_conditionNames so Metro
-// resolves firebase/auth to that bundle — then require() picks it up correctly.
+// getReactNativePersistence is in the RN bundle but absent from TS types.
+// We access it via require() and guard against undefined so Android doesn't
+// crash when the wrong bundle is resolved at runtime.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { getReactNativePersistence } = require('firebase/auth') as {
-  getReactNativePersistence: (storage: unknown) => Persistence;
-};
+const _authModule = require('firebase/auth') as Record<string, unknown>;
+const getReactNativePersistence = _authModule['getReactNativePersistence'] as
+  ((storage: unknown) => Persistence) | undefined;
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? '',
@@ -22,6 +22,14 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 export const db = getFirestore(app);
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+export const auth = (() => {
+  try {
+    const persistence = getReactNativePersistence?.(AsyncStorage);
+    return initializeAuth(app, persistence ? { persistence } : undefined);
+  } catch {
+    // Already initialized (Fast Refresh) — return existing instance
+    try { return getAuth(app); } catch { /* fall through */ }
+    // Last resort: no persistence
+    return initializeAuth(app);
+  }
+})();

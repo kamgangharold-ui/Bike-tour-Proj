@@ -40,11 +40,22 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    // Fallback: if Firebase auth hangs (e.g. Android cold start), unblock after 5 s
+    const timeout = setTimeout(() => {
+      setAuthReady(true);
+      SplashScreen.hideAsync();
+    }, 5000);
+
     const unsub = onAuthStateChanged(auth, () => {
+      clearTimeout(timeout);
       setAuthReady(true);
       SplashScreen.hideAsync();
     });
-    return unsub;
+
+    return () => {
+      clearTimeout(timeout);
+      unsub();
+    };
   }, []);
 
   if (!authReady) return null;
