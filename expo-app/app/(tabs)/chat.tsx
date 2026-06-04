@@ -18,10 +18,12 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
+// expo-speech-recognition not installed — stub so the bundle doesn't crash
+const ExpoSpeechRecognitionModule = {
+  start: async (_opts?: unknown) => {},
+  stop: () => {},
+};
+const useSpeechRecognitionEvent = (_event: string, _cb: (e: unknown) => void) => {};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,8 +147,9 @@ export default function ChatScreen() {
   }, [chatPrefill, setChatPrefill]);
 
   // ── Voice recognition setup ──────────────────────────────────────────────────
-  useSpeechRecognitionEvent('result', (event) => {
-    const text = event.results[0]?.transcript ?? '';
+  useSpeechRecognitionEvent('result', (event: unknown) => {
+    const e = event as { results?: { transcript?: string }[] };
+    const text = e.results?.[0]?.transcript ?? '';
     if (text) setInput(text);
   });
   useSpeechRecognitionEvent('end', () => setIsListening(false));
