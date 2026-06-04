@@ -18,12 +18,10 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
-// expo-speech-recognition not installed — stub so the bundle doesn't crash
-const ExpoSpeechRecognitionModule = {
-  start: async (_opts?: unknown) => {},
-  stop: () => {},
-};
-const useSpeechRecognitionEvent = (_event: string, _cb: (e: unknown) => void) => {};
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
