@@ -114,7 +114,7 @@ async function fetchPlaceInfo(lat: number, lng: number): Promise<{
   if (apiKey) {
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=50&key=${apiKey}`,
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=100&key=${apiKey}`,
         { headers: { Accept: 'application/json' } },
       );
       const data = await res.json() as {
