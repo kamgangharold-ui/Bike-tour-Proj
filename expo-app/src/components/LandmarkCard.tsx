@@ -121,8 +121,9 @@ export default function LandmarkCard({
       {/* Description */}
       <Text style={styles.description}>{description}</Text>
 
-      {/* Quiz */}
-      {quizQuestion.length > 0 && !quizAlreadyCompleted && (
+      {/* Quiz — stay visible after answering in-session so the feedback shows;
+          hidden only on a fresh re-open (answered resets on remount). */}
+      {quizQuestion.length > 0 && (!quizAlreadyCompleted || answered) && (
         <View style={styles.quizBox}>
           <View style={styles.quizHeaderRow}>
             <Ionicons name="help-circle-outline" size={15} color="#5C6BC0" />
