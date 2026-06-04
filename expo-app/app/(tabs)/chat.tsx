@@ -116,21 +116,33 @@ export default function ChatScreen() {
   const userLat = useAppStore((s) => s.userLat);
   const userLng = useAppStore((s) => s.userLng);
 
-  // Context-aware suggested questions: when the geofence confirms the rider is at
-  // a landmark (the same activeSlug/activeName the AI uses), build chips from its
-  // name; otherwise fall back to the generic prompts. Pure string templates — no
-  // API calls, no token cost.
+  const nearestLandmark = useMemo((): LandmarkInfo | null => {
+    if (userLat == null || userLng == null || landmarks.length === 0) return null;
+    let best: LandmarkInfo | null = null;
+    let bestDist = 1000;
+    for (const lm of landmarks) {
+      const coords = lm.coordinates;
+      if (!coords) continue;
+      const d = haversineMetres(userLat, userLng, coords.latitude, coords.longitude);
+      if (d < bestDist) { bestDist = d; best = lm; }
+    }
+    return best;
+  }, [userLat, userLng, landmarks]);
+
+  const contextName = activeName || nearestLandmark?.name || null;
+  const contextIsActive = Boolean(activeSlug);
+
   const suggestions = useMemo(() => {
-    if (activeSlug && activeName) {
+    if (contextName) {
       return [
-        `Tell me about ${activeName}`,
-        `Is it safe to cycle at ${activeName}?`,
-        `Where can I park near ${activeName}?`,
-        `What are the cycling rules at ${activeName}?`,
+        `Tell me about ${contextName}`,
+        `Is it safe to cycle at ${contextName}?`,
+        `Where can I park near ${contextName}?`,
+        `What are the cycling rules at ${contextName}?`,
       ];
     }
     return SUGGESTED;
-  }, [activeSlug, activeName]);
+  }, [contextName]);
 
   // Load landmarks for context
   useEffect(() => {
@@ -430,10 +442,11 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Context pill — shows the landmark the AI is using as ground truth */}
-      {activeSlug ? (
+      {contextName ? (
         <View style={styles.locationPill}>
-          <Text style={styles.locationPillText}>📍 You&apos;re at {activeName}</Text>
+          <Text style={styles.locationPillText}>
+            {contextIsActive ? `📍 At ${contextName}` : `📍 Near ${contextName}`}
+          </Text>
         </View>
       ) : null}
 
