@@ -36,6 +36,13 @@ import { haversineMetres } from '../../src/utils/haversine';
 
 type Coords = { latitude: number; longitude: number };
 
+interface TourStop {
+  slug: string;
+  name: string;
+  coordinates: Coords;
+  index: number; // 0-based tour order
+}
+
 interface LocationDoc {
   id: string;
   name: string;
@@ -151,6 +158,12 @@ export default function MapScreen() {
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
 
+  // Tour preview / active tour state
+  const [tourStops, setTourStops] = useState<TourStop[]>([]);
+  const [tourRouteCoords, setTourRouteCoords] = useState<Coords[]>([]);
+  const [tourRouteMeta, setTourRouteMeta] = useState<{ distance: string; duration: string } | null>(null);
+  const hasFittedTourRef = useRef(false);
+
   // Free-tap state (any map location)
   const [tappedMapPoint, setTappedMapPoint] = useState<{
     latitude: number;
@@ -174,6 +187,14 @@ export default function MapScreen() {
   const exitLandmark = useAppStore((s) => s.exitLandmark);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
   const setUserCoords = useAppStore((s) => s.setUserCoords);
+  const tourPreview = useAppStore((s) => s.tourPreview);
+  const clearTourPreview = useAppStore((s) => s.clearTourPreview);
+  const startRide = useAppStore((s) => s.startRide);
+  const rideActive = useAppStore((s) => s.rideActive);
+  const rideMode = useAppStore((s) => s.rideMode);
+  const rideTourStops = useAppStore((s) => s.rideTourStops);
+  const rideTargetSlug = useAppStore((s) => s.rideTargetSlug);
+  const rideVisited = useAppStore((s) => s.rideVisited);
 
   useGeofencing();
 
@@ -571,6 +592,75 @@ export default function MapScreen() {
     }
   }, [userLocation]);
 
+  const fetchTourRoute = useCallback(async (stops: TourStop[]) => {
+    if (stops.length < 2) return;
+    setTourRouteCoords([]);
+    setTourRouteMeta(null);
+    try {
+      const waypoints = stops
+        .map((s) => `${s.coordinates.longitude},${s.coordinates.latitude}`)
+        .join(';');
+      const url = `https://router.project-osrm.org/route/v1/cycling/${waypoints}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json() as {
+        routes?: Array<{
+          geometry: { coordinates: [number, number][] };
+          distance: number;
+          duration: number;
+        }>;
+      };
+      const route = data.routes?.[0];
+      if (!route) return;
+      setTourRouteCoords(
+        route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
+      );
+      setTourRouteMeta({
+        distance: `${(route.distance / 1000).toFixed(1)} km`,
+        duration: `${Math.round(route.duration / 60)} min`,
+      });
+    } catch (e) {
+      console.warn('[fetchTourRoute]', e);
+    }
+  }, []);
+
+  // Resolve tour stop slugs → TourStop objects whenever tourPreview or active tour changes.
+  useEffect(() => {
+    const slugs =
+      rideActive && rideMode === 'tour' ? rideTourStops :
+      tourPreview ? tourPreview.slugs : [];
+    if (slugs.length === 0 || locations.length === 0) {
+      setTourStops([]);
+      setTourRouteCoords([]);
+      setTourRouteMeta(null);
+      return;
+    }
+    const resolved = slugs
+      .map((slug, i) => {
+        const loc = locations.find((l) => l.slug === slug);
+        return loc
+          ? { slug, name: loc.name, coordinates: loc.coordinates, index: i }
+          : null;
+      })
+      .filter((s): s is TourStop => s !== null);
+    setTourStops(resolved);
+  }, [tourPreview, rideActive, rideMode, rideTourStops, locations]);
+
+  // Fetch multi-waypoint OSRM route when stops are resolved.
+  useEffect(() => {
+    if (tourStops.length >= 2) void fetchTourRoute(tourStops);
+  }, [tourStops, fetchTourRoute]);
+
+  // Fit camera to all tour stop pins once when the route first loads.
+  useEffect(() => {
+    if (tourStops.length === 0) { hasFittedTourRef.current = false; return; }
+    if (!tourRouteCoords.length || !mapReady || hasFittedTourRef.current) return;
+    hasFittedTourRef.current = true;
+    mapRef.current?.fitToCoordinates(
+      tourStops.map((s) => s.coordinates),
+      { edgePadding: { top: 100, right: 40, bottom: 280, left: 40 }, animated: true },
+    );
+  }, [tourStops, tourRouteCoords, mapReady]);
+
   // ── Derived state for which sheet to show ────────────────────────────────────
   const showPreview = tappedLandmark !== null && !showFullDetails;
   const showFullCard =
@@ -609,8 +699,30 @@ export default function MapScreen() {
         onMapReady={() => setMapReady(true)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
-        {/* Landmark markers */}
-        {locations.map((loc) => {
+        {/* Tour stop pins — shown during preview or active tour */}
+        {tourStops.map((stop) => {
+          const visited = rideActive && rideVisited.includes(stop.slug);
+          const isTarget = rideActive && stop.slug === rideTargetSlug;
+          return (
+            <Marker
+              key={`tour-${stop.slug}`}
+              coordinate={stop.coordinates}
+              tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 0.5 }}
+              zIndex={10}
+            >
+              <View style={[
+                styles.tourPin,
+                visited ? styles.tourPinDone : isTarget ? styles.tourPinTarget : styles.tourPinPending,
+              ]}>
+                <Text style={styles.tourPinNum}>{visited ? '✓' : stop.index + 1}</Text>
+              </View>
+            </Marker>
+          );
+        })}
+
+        {/* Regular landmark pins — hidden while a tour is displayed */}
+        {tourStops.length === 0 && locations.map((loc) => {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
           const pinColor = CATEGORY_COLORS[loc.category] ?? '#1565C0';
           return (
@@ -645,7 +757,17 @@ export default function MapScreen() {
             </View>
           </Marker>
         ))}
-        {routeCoords.length > 0 && (
+        {/* Tour route — full multi-stop green line */}
+        {tourRouteCoords.length > 0 && (
+          <Polyline
+            coordinates={tourRouteCoords}
+            strokeColor="#00C853"
+            strokeWidth={5}
+            zIndex={5}
+          />
+        )}
+        {/* Single-leg directions — only when no tour is active */}
+        {routeCoords.length > 0 && tourStops.length === 0 && (
           <Polyline
             coordinates={routeCoords}
             strokeColor="#00C853"
@@ -802,6 +924,48 @@ export default function MapScreen() {
         </View>
       )}
 
+      {/* Tour preview banner */}
+      {tourPreview && tourStops.length > 0 && !rideActive && (
+        <View style={styles.tourBanner}>
+          <View style={styles.tourBannerRow}>
+            <Text style={styles.tourBannerTitle} numberOfLines={1}>{tourPreview.tourName}</Text>
+            <TouchableOpacity
+              onPress={() => { clearTourPreview(); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={20} color="#9E9E9E" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.tourBannerMeta}>
+            {tourStops.length} stops · {tourRouteMeta?.distance ?? '…'} · {tourRouteMeta?.duration ?? '…'} by bike
+          </Text>
+          <TouchableOpacity
+            style={styles.tourStartBtn}
+            onPress={() => {
+              startRide({ mode: 'tour', tourId: tourPreview.tourId, stops: tourPreview.slugs });
+              clearTourPreview();
+            }}
+          >
+            <Ionicons name="play" size={16} color="#000" />
+            <Text style={styles.tourStartBtnText}>Start Tour</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Active tour status banner */}
+      {rideActive && rideMode === 'tour' && tourStops.length > 0 && (
+        <View style={styles.tourBanner}>
+          <Text style={styles.tourBannerTitle}>
+            {`Stop ${Math.min(rideVisited.length + 1, rideTourStops.length)}/${rideTourStops.length}`}
+          </Text>
+          <Text style={styles.tourBannerMeta}>
+            {rideTargetSlug
+              ? `Next: ${tourStops.find((s) => s.slug === rideTargetSlug)?.name ?? rideTargetSlug}`
+              : 'Tour complete 🎉'}
+          </Text>
+        </View>
+      )}
+
       {routeInfo && (
         <View style={styles.routeBanner}>
           <Ionicons name="bicycle" size={16} color="#fff" />
@@ -928,6 +1092,60 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   bicingMarkerLabel: { color: '#fff', fontSize: 10, fontWeight: '800' },
+
+  // Tour stop pins
+  tourPin: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 2,
+  },
+  tourPinPending: { backgroundColor: '#C62828' },
+  tourPinTarget: { backgroundColor: '#FF6F00', transform: [{ scale: 1.2 }] },
+  tourPinDone: { backgroundColor: '#00C853' },
+  tourPinNum: { color: '#fff', fontSize: 11, fontWeight: '800' },
+
+  // Tour banner
+  tourBanner: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  tourBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  tourBannerTitle: { color: '#fff', fontSize: 17, fontWeight: '700', flex: 1, marginRight: 8 },
+  tourBannerMeta: { color: '#9E9E9E', fontSize: 13, marginBottom: 12 },
+  tourStartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00C853',
+    borderRadius: 10,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  tourStartBtnText: { color: '#000', fontSize: 15, fontWeight: '800' },
 
   // Preview sheet (Feature 2)
   previewSheet: {

@@ -14,6 +14,14 @@ interface LandmarkData {
 
 export type RideMode = 'tour' | 'free';
 
+export interface TourPreview {
+  tourId: string;
+  tourName: string;
+  slugs: string[];
+  distanceKm: number;
+  estMinutes: number;
+}
+
 interface RideState {
   rideActive: boolean;
   rideStartedAt: number;       // epoch ms
@@ -41,6 +49,8 @@ interface AppState extends LandmarkData, RideState, RideActions {
   // Live GPS position — single source of truth shared by the map + AI chat.
   userLat: number | null;
   userLng: number | null;
+  // Tour preview: set when tapping a tour card; map reads this to show the route.
+  tourPreview: TourPreview | null;
   enterLandmark: (data: LandmarkData) => void;
   exitLandmark: (slug: string) => void;
   setSubscribed: (val: boolean) => void;
@@ -48,6 +58,8 @@ interface AppState extends LandmarkData, RideState, RideActions {
   setBiciparkJson: (json: string) => void;
   setChatPrefill: (msg: string) => void;
   setUserCoords: (lat: number, lng: number) => void;
+  setTourPreview: (p: TourPreview) => void;
+  clearTourPreview: () => void;
 }
 
 const CLEARED: LandmarkData = {
@@ -82,6 +94,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   chatPrefill: '',
   userLat: null,
   userLng: null,
+  tourPreview: null,
   enterLandmark: (data) => set(data),
   exitLandmark: (slug) => {
     if (get().activeSlug === slug) set(CLEARED);
@@ -91,6 +104,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setBiciparkJson: (json) => set({ biciparkJson: json }),
   setChatPrefill: (msg) => set({ chatPrefill: msg }),
   setUserCoords: (lat, lng) => set({ userLat: lat, userLng: lng }),
+  setTourPreview: (p) => set({ tourPreview: p }),
+  clearTourPreview: () => set({ tourPreview: null }),
 
   startRide: (opts) =>
     set({

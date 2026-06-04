@@ -172,6 +172,20 @@
     }
   ],
 
+  "tours": [
+    {
+      "_suggested_id": "gaudi-highlights",
+      "name": "Gaudí Highlights",
+      "slug": "gaudi-highlights",
+      "city_slug": "barcelona",
+      "description": "Sagrada Família, Casa Milà and Park Güell — Gaudí's three essentials in one ride.",
+      "location_slugs": ["sagrada-familia", "casa-mila-la-pedrera", "park-guell"],
+      "distance_km": 7,
+      "est_minutes": 60,
+      "is_active": true
+    }
+  ],
+
   "logistics": [
     {
       "_suggested_id": "bicibox-placa-catalunya",

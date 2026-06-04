@@ -1,0 +1,15 @@
+{
+  "name": "barcelona-location-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GitHub Actions script: generate real Barcelona cycling locations with Claude and write them to Firestore (Admin SDK).",
+  "main": "generate-locations.mjs",
+  "scripts": {
+    "generate": "node generate-locations.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
+    "firebase-admin": "^13.10.0"
+  }
+}
