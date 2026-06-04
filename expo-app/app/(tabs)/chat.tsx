@@ -20,7 +20,7 @@ import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { haversineMetres } from '../../src/utils/haversine';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,6 +97,7 @@ export default function ChatScreen() {
   const [landmarks, setLandmarks] = useState<LandmarkInfo[]>([]);
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
+  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const chatPrefill = useAppStore((s) => s.chatPrefill);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
@@ -146,20 +147,26 @@ export default function ChatScreen() {
   }, [chatPrefill, setChatPrefill]);
 
   // ── Voice recording + Google STT ─────────────────────────────────────────────
+  const stopAndTranscribe = async (rec: Audio.Recording) => {
+    if (recordingTimer.current) {
+      clearTimeout(recordingTimer.current);
+      recordingTimer.current = null;
+    }
+    setIsListening(false);
+    try {
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
+      setRecording(null);
+      if (uri) void transcribeAudio(uri);
+    } catch (e) {
+      console.warn('[Voice] stop failed', e);
+      setRecording(null);
+    }
+  };
+
   const handleVoice = async () => {
     if (isListening) {
-      setIsListening(false);
-      if (recording) {
-        try {
-          await recording.stopAndUnloadAsync();
-          const uri = recording.getURI();
-          setRecording(null);
-          if (uri) void transcribeAudio(uri);
-        } catch (e) {
-          console.warn('[Voice] stop failed', e);
-          setRecording(null);
-        }
-      }
+      if (recording) void stopAndTranscribe(recording);
     } else {
       try {
         const { status } = await Audio.requestPermissionsAsync();
@@ -192,15 +199,21 @@ export default function ChatScreen() {
         });
         setRecording(rec);
         setIsListening(true);
+        // Auto-stop after 30 seconds
+        recordingTimer.current = setTimeout(() => void stopAndTranscribe(rec), 30000);
       } catch (e) {
         console.warn('[Voice] start failed', e);
+        Alert.alert('Mic error', `Could not start recording: ${String(e)}`);
       }
     }
   };
 
   const transcribeAudio = async (uri: string) => {
     const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
-    if (!apiKey) return;
+    if (!apiKey) {
+      Alert.alert('Missing API key', 'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set.');
+      return;
+    }
     setTranscribing(true);
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -217,6 +230,8 @@ export default function ChatScreen() {
               sampleRateHertz: 16000,
               languageCode: 'en-US',
               alternativeLanguageCodes: ['es-ES', 'fr-FR'],
+              model: 'latest_short',
+              enableAutomaticPunctuation: true,
             },
             audio: { content: base64 },
           }),
@@ -227,18 +242,18 @@ export default function ChatScreen() {
         error?: { message: string; status: string };
       };
       if (data.error) {
-        if (data.error.status === 'PERMISSION_DENIED' || data.error.status === 'REQUEST_DENIED') {
-          Alert.alert(
-            'Speech API not enabled',
-            'Go to Google Cloud Console → APIs & Services → Enable "Cloud Speech-to-Text API" for your project, then try again.',
-          );
-        }
+        Alert.alert('Speech API error', `${data.error.status}: ${data.error.message}`);
         return;
       }
       const transcript = data.results?.[0]?.alternatives?.[0]?.transcript ?? '';
-      if (transcript) setInput(transcript);
+      if (transcript) {
+        setInput(transcript);
+      } else {
+        Alert.alert('No speech detected', 'Nothing was heard. Speak clearly and try again.');
+      }
     } catch (e) {
       console.warn('[Voice] transcribe failed', e);
+      Alert.alert('Transcription failed', String(e));
     } finally {
       setTranscribing(false);
       await FileSystem.deleteAsync(uri, { idempotent: true });
