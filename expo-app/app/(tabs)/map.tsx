@@ -272,8 +272,7 @@ export default function MapScreen() {
           query(
             collection(db, 'quizzes'),
             where('location_slug', '==', slug),
-            where('is_active', '==', true),
-            limit(1),
+            limit(5),
           ),
         ),
         getDocs(
@@ -284,6 +283,10 @@ export default function MapScreen() {
           ),
         ),
       ]);
+
+      const activeQuizDocs = quizSnap.docs
+        .map((d) => d.data())
+        .filter((d) => d['is_active'] !== false);
 
       const activeFaqs = faqSnap.docs
         .map((d) => d.data())
@@ -314,8 +317,8 @@ export default function MapScreen() {
       let quizCorrectIndex = -1;
       let quizExplanation = '';
       let quizPoints = 0;
-      if (!quizSnap.empty) {
-        const q = quizSnap.docs[0].data();
+      if (activeQuizDocs.length > 0) {
+        const q = activeQuizDocs[0];
         quizQuestion = (q['question'] as string) ?? '';
         quizOptions = (q['options'] as string[]) ?? [];
         quizCorrectIndex = (q['correct_option_index'] as number) ?? -1;
