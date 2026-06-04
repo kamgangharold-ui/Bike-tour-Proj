@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Remote push notifications require EAS development build (not Expo Go)
 // Local geofence notifications work in Expo Go foreground only
 import * as Notifications from 'expo-notifications';
+import RideBanner from '../src/components/RideBanner';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -48,6 +49,7 @@ export default function RootLayout() {
         <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />
       </Stack>
+      <RideBanner />
     </SafeAreaProvider>
   );
 }

@@ -23,6 +23,16 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="ride"
+        options={{
+          title: 'Ride',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bicycle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="parking"
         options={{ href: null }}
       />
