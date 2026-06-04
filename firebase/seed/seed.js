@@ -34,6 +34,7 @@ async function seed(collectionName, docs, useSlugAsId = false) {
 
 const locations = [
   {
+    _id: 'sagrada-familia',
     name: 'Sagrada Família',
     slug: 'sagrada-familia',
     category: 'landmark',
@@ -49,6 +50,7 @@ const locations = [
     is_active: true,
   },
   {
+    _id: 'park-guell',
     name: 'Park Güell',
     slug: 'park-guell',
     category: 'landmark',
@@ -69,6 +71,7 @@ const locations = [
     is_active: true,
   },
   {
+    _id: 'gothic-quarter',
     name: 'Gothic Quarter (Barri Gòtic)',
     slug: 'gothic-quarter',
     category: 'dismount_zone',
@@ -89,6 +92,7 @@ const locations = [
     is_active: true,
   },
   {
+    _id: 'camp-nou',
     name: 'Camp Nou',
     slug: 'camp-nou',
     category: 'landmark',
@@ -104,6 +108,7 @@ const locations = [
     is_active: true,
   },
   {
+    _id: 'barceloneta',
     name: 'La Barceloneta Beach',
     slug: 'barceloneta',
     category: 'landmark',
@@ -124,6 +129,7 @@ const locations = [
     is_active: true,
   },
   {
+    _id: 'palau-musica',
     name: 'Palau de la Música Catalana',
     slug: 'palau-musica',
     category: 'landmark',
@@ -139,6 +145,7 @@ const locations = [
     is_active: true,
   },
   {
+    _id: 'casa-batllo',
     name: 'Casa Batlló',
     slug: 'casa-batllo',
     category: 'landmark',
@@ -154,6 +161,7 @@ const locations = [
     is_active: true,
   },
   {
+    _id: 'la-rambla',
     name: 'La Rambla',
     slug: 'la-rambla',
     category: 'dismount_zone',
@@ -178,6 +186,7 @@ const locations = [
 const quizzes = [
   // Sagrada Família
   {
+    _id: 'quiz-sagrada-familia-1',
     location_slug: 'sagrada-familia',
     question: 'In what year did Gaudí die, leaving the Sagrada Família unfinished?',
     options: ['1916', '1926', '1936', '1946'],
@@ -188,6 +197,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-sagrada-familia-2',
     location_slug: 'sagrada-familia',
     question: 'How many towers will the Sagrada Família have when fully complete?',
     options: ['12', '16', '18', '20'],
@@ -198,6 +208,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-sagrada-familia-3',
     location_slug: 'sagrada-familia',
     question: 'In which year did construction of the Sagrada Família begin?',
     options: ['1872', '1882', '1892', '1902'],
@@ -208,6 +219,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-sagrada-familia-4',
     location_slug: 'sagrada-familia',
     question: 'The Sagrada Família is classified as which type of church?',
     options: ['Cathedral', 'Basilica', 'Chapel', 'Monastery'],
@@ -218,6 +230,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-sagrada-familia-5',
     location_slug: 'sagrada-familia',
     question: 'What style is the Sagrada Família primarily built in?',
     options: ['Gothic Revival', 'Baroque', 'Catalan Modernisme', 'Art Deco'],
@@ -229,6 +242,7 @@ const quizzes = [
   },
   // Park Güell
   {
+    _id: 'quiz-park-guell-1',
     location_slug: 'park-guell',
     question: 'Park Güell was originally designed to be a…',
     options: ['Public park', 'Residential housing estate', 'Hospital', 'Monastery'],
@@ -239,6 +253,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-park-guell-2',
     location_slug: 'park-guell',
     question: 'Who was the patron who commissioned Park Güell?',
     options: ['Antoni Gaudí', 'Lluís Domènech', 'Eusebi Güell', 'King Alfonso XIII'],
@@ -249,6 +264,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-park-guell-3',
     location_slug: 'park-guell',
     question: 'In what year was Park Güell donated to the city of Barcelona?',
     options: ['1914', '1918', '1922', '1926'],
@@ -260,6 +276,7 @@ const quizzes = [
   },
   // Gothic Quarter
   {
+    _id: 'quiz-gothic-quarter-1',
     location_slug: 'gothic-quarter',
     question: 'What is the fine for cycling on Barcelona\'s pedestrian pavements (sidewalks)?',
     options: ['€100', '€200', '€350', '€500'],
@@ -270,6 +287,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-gothic-quarter-2',
     location_slug: 'gothic-quarter',
     question: 'The Gothic Quarter contains the remains of a Roman city. What was it called?',
     options: ['Carthago Nova', 'Barcino', 'Emporiae', 'Caesaraugusta'],
@@ -281,6 +299,7 @@ const quizzes = [
   },
   // Camp Nou
   {
+    _id: 'quiz-camp-nou-1',
     location_slug: 'camp-nou',
     question: 'What is the seating capacity of Camp Nou?',
     options: ['79,000', '89,000', '99,354', '109,000'],
@@ -291,6 +310,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-camp-nou-2',
     location_slug: 'camp-nou',
     question: 'In what year was Camp Nou opened?',
     options: ['1947', '1957', '1967', '1977'],
@@ -302,6 +322,7 @@ const quizzes = [
   },
   // Barceloneta
   {
+    _id: 'quiz-barceloneta-1',
     location_slug: 'barceloneta',
     question: 'Barceloneta beach was extensively renovated for which event?',
     options: ['1988 World Cup', '1992 Olympic Games', '1996 UEFA Cup Final', '2000 World Expo'],
@@ -313,6 +334,7 @@ const quizzes = [
   },
   // Casa Batlló
   {
+    _id: 'quiz-casa-batllo-1',
     location_slug: 'casa-batllo',
     question: 'Casa Batlló is nicknamed the "House of…"',
     options: ['Bones', 'Glass', 'Dragon', 'Flowers'],
@@ -323,6 +345,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-casa-batllo-2',
     location_slug: 'casa-batllo',
     question: 'In what year did Gaudí complete his renovation of Casa Batlló?',
     options: ['1900', '1906', '1912', '1918'],
@@ -334,6 +357,7 @@ const quizzes = [
   },
   // Palau de la Música
   {
+    _id: 'quiz-palau-musica-1',
     location_slug: 'palau-musica',
     question: 'Who designed the Palau de la Música Catalana?',
     options: ['Antoni Gaudí', 'Lluís Domènech i Montaner', 'Josep Puig i Cadafalch', 'Enric Sagnier'],
@@ -344,6 +368,7 @@ const quizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-palau-musica-2',
     location_slug: 'palau-musica',
     question: 'The Palau de la Música Catalana is a UNESCO World Heritage Site since…',
     options: ['1987', '1992', '1997', '2003'],
@@ -358,6 +383,7 @@ const quizzes = [
 const faqs = [
   // Sagrada Família
   {
+    _id: 'faq-sagrada-familia-1',
     location_slug: 'sagrada-familia',
     question: 'Can I lock my bike at the Sagrada Família?',
     answer: 'Yes. There are Bicipark open racks on Avinguda de Gaudí (east side) and Carrer de Provença (north side). Do not lock to railings or barriers — wardens issue removal notices.',
@@ -367,6 +393,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-sagrada-familia-2',
     location_slug: 'sagrada-familia',
     question: 'Do I need to book tickets in advance?',
     answer: 'Yes — strongly recommended. Same-day tickets are almost never available. Book via the official Sagrada Família website or GetYourGuide for skip-the-line access.',
@@ -376,6 +403,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-sagrada-familia-3',
     location_slug: 'sagrada-familia',
     question: 'How long does a visit to the Sagrada Família take?',
     answer: 'Allow 1.5 to 2 hours for a self-guided visit. Add 30 minutes if you take a tower lift (book separately). Audio guides are included in most ticket types.',
@@ -385,6 +413,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-sagrada-familia-4',
     location_slug: 'sagrada-familia',
     question: 'Is there a secure Bicibox near the Sagrada Família?',
     answer: 'The nearest Bicibox (locked indoor station) is at Avinguda Diagonal, about 800 m away. For a quick visit, use the Bicipark open racks on Avinguda de Gaudí instead.',
@@ -395,6 +424,7 @@ const faqs = [
   },
   // Park Güell
   {
+    _id: 'faq-park-guell-1',
     location_slug: 'park-guell',
     question: 'Can I bring my bicycle inside Park Güell?',
     answer: 'No. Bicycles are prohibited inside the ticketed monumental zone. Lock up at the designated Bicipark racks on Carrer d\'Olot before the entrance gates.',
@@ -404,6 +434,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-park-guell-2',
     location_slug: 'park-guell',
     question: 'Is there a free zone in Park Güell?',
     answer: 'Yes. Only the central monumental zone (Dragon Staircase, Hypostyle Hall, main terrace) requires a ticket. The surrounding park and forest paths are free and open 24/7.',
@@ -413,6 +444,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-park-guell-3',
     location_slug: 'park-guell',
     question: 'How steep is the ride up to Park Güell?',
     answer: 'Very steep — the climb via Carrer de Larrard gains about 100 m elevation in under 1 km (roughly 10–15% gradient). Most cyclists will walk their bike up. The park escalators are pedestrian-only.',
@@ -423,6 +455,7 @@ const faqs = [
   },
   // Gothic Quarter
   {
+    _id: 'faq-gothic-quarter-1',
     location_slug: 'gothic-quarter',
     question: 'Why can\'t I cycle through the Gothic Quarter?',
     answer: 'The Barri Gòtic is a pedestrian-priority zone. Barcelona\'s traffic ordinance prohibits cycling in these streets. The fine is €500. You must dismount and walk your bike.',
@@ -432,6 +465,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-gothic-quarter-2',
     location_slug: 'gothic-quarter',
     question: 'Where can I park near the Gothic Quarter?',
     answer: 'Use the Bicibox station on Plaça de Catalunya (24/7, free, requires PIN from the Bicibox app) or Bicipark racks near La Rambla entrance.',
@@ -441,6 +475,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-gothic-quarter-3',
     location_slug: 'gothic-quarter',
     question: 'Which streets near the Gothic Quarter have bike lanes?',
     answer: 'Via Laietana has a protected two-way bike lane running north–south just east of the Gothic Quarter. Carrer de la Princesa leads east toward El Born. Avoid La Rambla — use parallel Carrer Nou de la Rambla instead.',
@@ -451,6 +486,7 @@ const faqs = [
   },
   // Camp Nou
   {
+    _id: 'faq-camp-nou-1',
     location_slug: 'camp-nou',
     question: 'Can I cycle to Camp Nou on match day?',
     answer: 'Yes, but road closures apply on match day within 500 m of the stadium. Arrive via Avinguda de Joan XXIII bike lane. Lock up at the Bicipark racks outside Gate 9 — these fill up fast, arrive early.',
@@ -461,6 +497,7 @@ const faqs = [
   },
   // Barceloneta
   {
+    _id: 'faq-barceloneta-1',
     location_slug: 'barceloneta',
     question: 'Can I cycle on the Barceloneta beachfront promenade?',
     answer: 'Only in the designated bike lane marked with blue paint. Cycling on the pedestrian walkway is prohibited and carries a €500 fine. The speed limit in the bike lane is 10 km/h.',
@@ -470,6 +507,7 @@ const faqs = [
     is_active: true,
   },
   {
+    _id: 'faq-barceloneta-2',
     location_slug: 'barceloneta',
     question: 'Where can I rent a bike near Barceloneta?',
     answer: 'Several rental shops are on Carrer de la Marina. Bicing (Barcelona\'s public bike share) has docking stations at Passeig Marítim and Plaça del Mar. You need a Bicing subscription or day pass via the app.',
@@ -480,6 +518,7 @@ const faqs = [
   },
   // La Rambla
   {
+    _id: 'faq-la-rambla-1',
     location_slug: 'la-rambla',
     question: 'Can I cycle along La Rambla?',
     answer: 'No — cycling on La Rambla\'s central pedestrian walkway is prohibited (€500 fine). Use the bike lanes on Carrer Nou de la Rambla (parallel, one block west) or Via Laietana (one block east).',
@@ -726,6 +765,7 @@ const moreLocations = [
 
 const moreQuizzes = [
   {
+    _id: 'quiz-arc-de-triomf-1',
     location_slug: 'arc-de-triomf',
     question: 'What event was the Arc de Triomf built for?',
     options: ['1992 Olympics', '1888 World Exposition', '1929 International Exhibition', '2004 Forum'],
@@ -736,6 +776,7 @@ const moreQuizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-macba-1',
     location_slug: 'macba',
     question: 'Who designed the MACBA building?',
     options: ['Frank Gehry', 'Renzo Piano', 'Richard Meier', 'Norman Foster'],
@@ -746,6 +787,7 @@ const moreQuizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-parc-ciutadella-1',
     location_slug: 'parc-ciutadella',
     question: "Which famous structure in Parc de la Ciutadella was Gaudí's first major collaborative work?",
     options: ['The boating lake', 'The monumental cascade fountain', 'The glass greenhouse', 'The iron gate'],
@@ -756,6 +798,7 @@ const moreQuizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-port-olimpic-1',
     location_slug: 'port-olimpic',
     question: "What is the name of Frank Gehry's golden sculpture at Port Olímpic?",
     options: ["Peix d'Or (Golden Fish)", 'El Toro', 'La Balena', 'Vela Barcelona'],
@@ -766,6 +809,7 @@ const moreQuizzes = [
     is_active: true,
   },
   {
+    _id: 'quiz-la-boqueria-1',
     location_slug: 'la-boqueria',
     question: 'What is the official Catalan name of La Boqueria?',
     options: ['Mercat de Santa Caterina', 'Mercat de Sant Antoni', 'Mercat de Sant Josep de la Boqueria', 'Mercat del Born'],
@@ -779,6 +823,7 @@ const moreQuizzes = [
 
 const moreFaqs = [
   {
+    _id: 'faq-arc-de-triomf-1',
     location_slug: 'arc-de-triomf',
     question: 'Can I cycle through the Arc de Triomf?',
     answer: 'Yes — Passeig de Lluís Companys leading to the arch has a dedicated cycling lane. The arch itself is a pedestrian plaza, so dismount when approaching the arch closely.',
@@ -788,6 +833,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-arc-de-triomf-2',
     location_slug: 'arc-de-triomf',
     question: 'Is there bike parking near the Arc de Triomf?',
     answer: 'Yes, there are public bike racks along Passeig de Lluís Companys and at the nearby Parc de la Ciutadella entrance. Several Bicing stations are within 200 m.',
@@ -797,6 +843,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-macba-1',
     location_slug: 'macba',
     question: 'Is cycling allowed on the MACBA plaza?',
     answer: "The MACBA plaza (Plaça dels Àngels) is a pedestrian area — no cycling allowed. It's a popular skate spot but bikes must be walked through. Use the adjacent streets to cycle around.",
@@ -806,6 +853,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-macba-2',
     location_slug: 'macba',
     question: 'Where can I lock my bike near MACBA?',
     answer: 'There are bike racks on Carrer dels Àngels and Carrer del Bonsuccés just off the plaza. A Bicing station is also available on Rambla del Raval, about 200 m away.',
@@ -815,6 +863,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-parc-ciutadella-1',
     location_slug: 'parc-ciutadella',
     question: 'Can I cycle inside Parc de la Ciutadella?',
     answer: 'Cycling is allowed on the main paths inside the park but you must ride slowly and give way to pedestrians. The park is very popular so be extra careful on weekends.',
@@ -824,6 +873,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-parc-ciutadella-2',
     location_slug: 'parc-ciutadella',
     question: 'Is there a Bicipark near Parc de la Ciutadella?',
     answer: 'Yes — there is a Bicipark open rack near the Passeig de Pujades entrance (north side) and several Bicing stations on the streets surrounding the park.',
@@ -833,6 +883,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-port-olimpic-1',
     location_slug: 'port-olimpic',
     question: 'Is the seafront route to Port Olímpic bike-friendly?',
     answer: 'Yes — the Ronda Litoral coastal path has a dedicated bike lane running all the way from Barceloneta beach to Port Olímpic and beyond. It is flat and well-maintained.',
@@ -842,6 +893,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-port-olimpic-2',
     location_slug: 'port-olimpic',
     question: 'Where can I park my bike at Port Olímpic?',
     answer: 'There are bike racks at the marina entrance and along Passeig Marítim. Several Bicing stations are located nearby on Avinguda del Litoral and Carrer de la Marina.',
@@ -851,6 +903,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-la-boqueria-1',
     location_slug: 'la-boqueria',
     question: 'Can I cycle on La Rambla where La Boqueria is located?',
     answer: "Cycling is technically prohibited on La Rambla's pedestrian promenade. Use the parallel streets (Carrer del Carme or Carrer de l'Hospital) to ride, and walk your bike to the market entrance.",
@@ -860,6 +913,7 @@ const moreFaqs = [
     is_active: true,
   },
   {
+    _id: 'faq-la-boqueria-2',
     location_slug: 'la-boqueria',
     question: 'Where can I lock my bike near La Boqueria?',
     answer: "There are bike racks on Carrer del Carme and Carrer de l'Hospital, one block from La Rambla. A Bicing station is available on Carrer de la Portaferrissa, 100 m from the market.",
