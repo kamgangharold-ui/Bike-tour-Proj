@@ -451,17 +451,16 @@ export default function MapScreen() {
   );
 
   const handleDismissPreview = useCallback(() => {
-    setRouteCoords([]);
-    setRouteInfo(null);
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
     setTappedMapPoint(null);
   }, []);
 
+  // Closing the card does NOT clear the directions route — route state is
+  // independent of the card/landmark, cleared only by the route banner's ✕ or a
+  // new directions request.
   const handleDismissCard = useCallback(() => {
-    setRouteCoords([]);
-    setRouteInfo(null);
     if (tappedLandmark) {
       setTappedLandmark(null);
       setShowFullDetails(false);
