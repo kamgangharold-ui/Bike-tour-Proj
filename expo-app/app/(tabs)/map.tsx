@@ -139,6 +139,7 @@ interface PlaceResult {
   vicinity?: string;
   lat: number;
   lng: number;
+  distance?: number;
 }
 
 function pickType(types: string[] = []): string | undefined {
@@ -195,17 +196,42 @@ async function findPlaceByText(name: string, lat: number, lng: number): Promise<
   return result;
 }
 
-// Nearest specific venue to an arbitrary point (blank-map free tap only).
-async function nearestPlace(lat: number, lng: number): Promise<PlaceResult | null> {
+// Nearest specific venue within `radiusM` of a point (blank-map / iOS coordinate tap).
+async function nearestPlace(lat: number, lng: number, radiusM: number): Promise<PlaceResult | null> {
   const data = await placesJson(
-    `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=50&key=${PLACES_KEY}`,
+    `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${Math.round(radiusM)}&key=${PLACES_KEY}`,
   ) as { status?: string; results?: GPlace[] } | null;
   if (data?.status !== 'OK' || !data.results) return null;
   const nearest = data.results
     .filter((r) => r.geometry && !(r.types ?? []).every((t) => ADMIN_TYPES.has(t)))
     .map((r) => ({ r, d: haversineMetres(lat, lng, r.geometry!.location.lat, r.geometry!.location.lng) }))
-    .sort((a, b) => a.d - b.d)[0]?.r;
-  return nearest ? toResult(nearest) : null;
+    .sort((a, b) => a.d - b.d)[0];
+  if (!nearest) return null;
+  const res = toResult(nearest.r);
+  return res ? { ...res, distance: nearest.d } : null;
+}
+
+// A tap should select whatever venue sits within ~a fingertip of it on SCREEN.
+// A fingertip is a roughly constant pixel size, so its real-world radius scales
+// with zoom — a few metres zoomed in, more when zoomed out. This keeps taps
+// precise without forcing a wrong neighbour when the map is zoomed out.
+function acceptRadiusM(latitudeDelta: number): number {
+  return Math.max(25, Math.min(140, latitudeDelta * 111000 * 0.045));
+}
+
+// Dropped-pin fallback: reverse-geocode to an address with the on-device geocoder
+// (no API key / no extra billing) when no specific venue is under the finger.
+async function reverseGeocodeName(lat: number, lng: number): Promise<{ name: string; vicinity: string } | null> {
+  try {
+    const [a] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    if (!a) return null;
+    const street = a.street ? (a.streetNumber ? `${a.street}, ${a.streetNumber}` : a.street) : '';
+    const name = a.name || street || 'Dropped pin';
+    const vicinity = [street && street !== name ? street : '', a.postalCode, a.city].filter(Boolean).join(', ');
+    return { name, vicinity };
+  } catch {
+    return null;
+  }
 }
 
 const BICING_INFO = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_information.json';
@@ -217,6 +243,7 @@ const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeT
 export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const markerJustPressedRef = useRef(false);
+  const regionDeltaRef = useRef(0.02); // current map zoom (latitudeDelta), for tap precision
   const router = useRouter();
 
   // Location (Feature 4)
@@ -550,20 +577,29 @@ export default function MapScreen() {
     setTappedLandmark(null);
     setShowFullDetails(false);
     setCardData(null);
-    setTappedMapPoint(null);
-    // Blank-map tap: snap to the nearest specific venue, shown at its real location.
-    const place = await nearestPlace(latitude, longitude);
-    if (place) {
-      setTappedMapPoint({
-        latitude: place.lat,
-        longitude: place.lng,
-        name: place.name,
-        type: place.type,
-        rating: place.rating,
-        vicinity: place.vicinity,
-      });
+    if (activeSlug) exitLandmark(activeSlug);
+    // Instant feedback while we work out what sits under the finger.
+    setTappedMapPoint({ latitude, longitude, name: 'Locating…' });
+
+    // 1) Nearest specific venue within a fingertip of the tap (gate scales with zoom).
+    const gate = acceptRadiusM(regionDeltaRef.current);
+    const place = await nearestPlace(latitude, longitude, gate);
+    if (place && (place.distance ?? Infinity) <= gate) {
+      setTappedMapPoint((prev) =>
+        prev && prev.latitude === latitude && prev.longitude === longitude
+          ? { latitude: place.lat, longitude: place.lng, name: place.name, type: place.type, rating: place.rating, vicinity: place.vicinity }
+          : prev,
+      );
+      return;
     }
-  }, []);
+    // 2) Nothing specific under the finger → dropped-pin behaviour (address only).
+    const addr = await reverseGeocodeName(latitude, longitude);
+    setTappedMapPoint((prev) =>
+      prev && prev.latitude === latitude && prev.longitude === longitude
+        ? (addr ? { latitude, longitude, name: addr.name, vicinity: addr.vicinity } : null)
+        : prev,
+    );
+  }, [activeSlug, exitLandmark]);
 
   // ── Instant native POI tap (Google-Maps-grade precision) ──────────────────────
   // The provider localises the tapped place perfectly and hands us its name +
@@ -669,6 +705,7 @@ export default function MapScreen() {
         onPoiClick={handlePoiClick}
         showsUserLocation
         onMapReady={() => setMapReady(true)}
+        onRegionChangeComplete={(r) => { regionDeltaRef.current = r.latitudeDelta; }}
         onPress={(e) => void handleMapPress(e)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
