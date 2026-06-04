@@ -107,6 +107,13 @@ const PLACE_TYPE_LABELS: Record<string, string> = {
   point_of_interest: 'Place', establishment: 'Place',
 };
 
+const ADMIN_TYPES = new Set([
+  'locality', 'political', 'administrative_area_level_1', 'administrative_area_level_2',
+  'administrative_area_level_3', 'administrative_area_level_4', 'administrative_area_level_5',
+  'country', 'route', 'postal_code', 'postal_town', 'colloquial_area', 'continent',
+  'sublocality', 'sublocality_level_1', 'neighborhood',
+]);
+
 async function fetchPlaceInfo(lat: number, lng: number): Promise<{
   name: string; type?: string; rating?: number; vicinity?: string; hasPlace: boolean;
 }> {
@@ -114,17 +121,20 @@ async function fetchPlaceInfo(lat: number, lng: number): Promise<{
   if (apiKey) {
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=80&rankby=prominence&key=${apiKey}`,
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=80&key=${apiKey}`,
         { headers: { Accept: 'application/json' } },
       );
       const data = await res.json() as {
         status: string;
         results: Array<{ name: string; types: string[]; rating?: number; vicinity?: string }>;
       };
-      if (data.status === 'OK' && data.results.length > 0) {
-        const place = data.results[0];
-        const type = place.types.find((t) => PLACE_TYPE_LABELS[t]) ?? place.types[0];
-        return { name: place.name, type, rating: place.rating, vicinity: place.vicinity, hasPlace: true };
+      if (data.status === 'OK') {
+        // Skip city/admin results — find first actual venue
+        const place = data.results.find((r) => !r.types.every((t) => ADMIN_TYPES.has(t)));
+        if (place) {
+          const type = place.types.find((t) => PLACE_TYPE_LABELS[t]) ?? place.types[0];
+          return { name: place.name, type, rating: place.rating, vicinity: place.vicinity, hasPlace: true };
+        }
       }
     } catch (e) {
       console.warn('[Places]', e);
@@ -550,7 +560,6 @@ export default function MapScreen() {
           maximumZ={18}
           flipY={false}
           zIndex={-1}
-          shouldReplaceMapContent
         />
         {/* Landmark markers */}
         {locations.map((loc) => {
