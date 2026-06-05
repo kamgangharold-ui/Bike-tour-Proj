@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
@@ -103,7 +103,12 @@ export default function RideScreen() {
     [tours, rideTourId],
   );
 
-  const handleEnd = () => { void endRideAndSave(); };
+  const handleEnd = () => {
+    void endRideAndSave().then((summary) => {
+      // Cast: typed-routes manifest regenerates on Metro start to include /recap.
+      if (summary) router.push('/recap' as Href);
+    });
+  };
 
   // ── Active ride dashboard ─────────────────────────────────────────────────────
   if (rideActive) {

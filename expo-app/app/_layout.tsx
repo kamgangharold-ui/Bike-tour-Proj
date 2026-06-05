@@ -48,6 +48,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="recap" options={{ headerShown: true, title: 'Ride recap' }} />
       </Stack>
       <RideBanner />
     </SafeAreaProvider>

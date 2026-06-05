@@ -22,6 +22,21 @@ export interface TourPreview {
   estMinutes: number;
 }
 
+// Snapshot of a finished ride, captured at End Ride for the shareable recap.
+export interface RideSummary {
+  startedAt: number; // epoch ms
+  endedAt: number;   // epoch ms
+  durationSec: number;
+  distanceMeters: number;
+  mode: RideMode;
+  tourId: string | null;
+  tourStops: string[];     // ordered slugs (tour mode)
+  visitedSlugs: string[];
+  // Recorded GPS path (Group C). The recap draws it when present, else falls
+  // back to a line through the visited / tour-stop coordinates.
+  track?: { latitude: number; longitude: number }[];
+}
+
 interface RideState {
   rideActive: boolean;
   rideStartedAt: number;       // epoch ms
@@ -51,6 +66,8 @@ interface AppState extends LandmarkData, RideState, RideActions {
   userLng: number | null;
   // Tour preview: set when tapping a tour card; map reads this to show the route.
   tourPreview: TourPreview | null;
+  // Last finished ride, set at End Ride; read by the recap screen.
+  lastRide: RideSummary | null;
   enterLandmark: (data: LandmarkData) => void;
   exitLandmark: (slug: string) => void;
   setSubscribed: (val: boolean) => void;
@@ -60,6 +77,7 @@ interface AppState extends LandmarkData, RideState, RideActions {
   setUserCoords: (lat: number, lng: number) => void;
   setTourPreview: (p: TourPreview) => void;
   clearTourPreview: () => void;
+  setLastRide: (summary: RideSummary | null) => void;
 }
 
 const CLEARED: LandmarkData = {
@@ -95,6 +113,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   userLat: null,
   userLng: null,
   tourPreview: null,
+  lastRide: null,
   enterLandmark: (data) => set(data),
   exitLandmark: (slug) => {
     if (get().activeSlug === slug) set(CLEARED);
@@ -106,6 +125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUserCoords: (lat, lng) => set({ userLat: lat, userLng: lng }),
   setTourPreview: (p) => set({ tourPreview: p }),
   clearTourPreview: () => set({ tourPreview: null }),
+  setLastRide: (summary) => set({ lastRide: summary }),
 
   startRide: (opts) =>
     set({
@@ -117,6 +137,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       rideTargetSlug: opts.stops && opts.stops.length > 0 ? opts.stops[0] : null,
       rideVisited: [],
       rideDistanceMeters: 0,
+      lastRide: null, // a new ride invalidates the previous recap
     }),
   endRide: () => set({ ...RIDE_CLEARED }),
   setRideTarget: (slug) => set({ rideTargetSlug: slug }),

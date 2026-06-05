@@ -5,7 +5,7 @@
 
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { usePathname } from 'expo-router';
+import { usePathname, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { useRideGuidance } from '../hooks/useRideGuidance';
@@ -24,6 +24,7 @@ function fmtElapsed(s: number): string {
 export default function RideBanner() {
   const rideActive = useAppStore((s) => s.rideActive);
   const pathname = usePathname();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const guidance = useRideGuidance(); // must run unconditionally while mounted
 
@@ -32,7 +33,10 @@ export default function RideBanner() {
   if (!rideActive || (pathname?.includes('/ride') ?? false)) return null;
 
   const handleEnd = () => {
-    void endRideAndSave();
+    void endRideAndSave().then((summary) => {
+      // Cast: typed-routes manifest regenerates on Metro start to include /recap.
+      if (summary) router.push('/recap' as Href);
+    });
   };
 
   const hasTarget = guidance.targetName != null;
