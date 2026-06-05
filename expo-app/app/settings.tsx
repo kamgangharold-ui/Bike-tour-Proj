@@ -21,6 +21,7 @@ import { useSettingsStore } from '../src/store/useSettingsStore';
 import { useAppStore } from '../src/store/useAppStore';
 import { clearCache, getCacheInfo } from '../src/utils/offlineCache';
 import { clearRideHistory } from '../src/utils/rideHistory';
+import { clearRouteCache } from '../src/utils/routeCache';
 
 // Placeholder until a real hosted Terms page exists.
 const TERMS_URL = 'https://example.com/cycleguide/terms';
@@ -120,14 +121,14 @@ export default function SettingsScreen() {
   };
 
   const handleClearCache = () => {
-    Alert.alert('Clear saved offline data?', 'Cached landmarks and tours will be removed.', [
+    Alert.alert('Clear saved offline data?', 'Cached landmarks, tours and routes will be removed.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear',
         style: 'destructive',
         onPress: () => {
           setClearingCache(true);
-          void clearCache()
+          void Promise.all([clearCache(), clearRouteCache()])
             .then(() => setCacheUpdated(null))
             .finally(() => setClearingCache(false));
         },

@@ -33,6 +33,7 @@ import { haversineMetres } from '../../src/utils/haversine';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { checkRouteAgainstZones, type RouteZone } from '../../src/utils/routeSafety';
 import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
+import { getCachedRoute, putCachedRoute, formatRouteMeta } from '../../src/utils/routeCache';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -184,11 +185,15 @@ export default function MapScreen() {
   const [loadingCard, setLoadingCard] = useState(false);
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeDest, setRouteDest] = useState<Coords | null>(null);
+  const routeReqRef = useRef(0); // token to ignore superseded single-route responses
 
   // Tour preview / active tour state
   const [tourStops, setTourStops] = useState<TourStop[]>([]);
   const [tourRouteCoords, setTourRouteCoords] = useState<Coords[]>([]);
   const [tourRouteMeta, setTourRouteMeta] = useState<{ distance: string; duration: string } | null>(null);
+  const [tourRouteLoading, setTourRouteLoading] = useState(false);
   const hasFittedTourRef = useRef(false);
 
   // Free-tap state (any map location)
@@ -603,61 +608,92 @@ export default function MapScreen() {
     }
   }, [activeSlug, exitLandmark]);
 
-  const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
-    if (!userLocation) return;
+  // Clear the single-leg route + finish pin, and cancel any in-flight request.
+  const clearSingleRoute = useCallback(() => {
+    routeReqRef.current++;
     setRouteCoords([]);
     setRouteInfo(null);
+    setRouteDest(null);
+    setRouteLoading(false);
+  }, []);
+
+  const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
+    if (!userLocation) return;
+    const token = ++routeReqRef.current; // supersede any earlier in-flight request
+    const { latitude: srcLat, longitude: srcLng } = userLocation;
+    setRouteDest({ latitude: destLat, longitude: destLng });
+    const key = `cycling/${srcLng.toFixed(5)},${srcLat.toFixed(5)};${destLng.toFixed(5)},${destLat.toFixed(5)}`;
+
+    // Cache hit → show instantly, no network.
+    const cached = await getCachedRoute(key);
+    if (routeReqRef.current !== token) return; // superseded while reading cache
+    if (cached) {
+      setRouteCoords(cached.coords);
+      setRouteInfo(formatRouteMeta(cached.distance, cached.duration));
+      setRouteLoading(false);
+      return;
+    }
+
+    // Miss → clear, show the instant bearing-line placeholder + loading, fetch.
+    setRouteCoords([]);
+    setRouteInfo(null);
+    setRouteLoading(true);
     try {
-      const { latitude: srcLat, longitude: srcLng } = userLocation;
-      const url = `https://router.project-osrm.org/route/v1/cycling/${srcLng},${srcLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+      const url = `https://router.project-osrm.org/route/v1/${key}?overview=full&geometries=geojson`;
       const res = await fetch(url);
       const data = await res.json() as {
-        routes?: Array<{
-          geometry: { coordinates: [number, number][] };
-          distance: number;
-          duration: number;
-        }>;
+        routes?: Array<{ geometry: { coordinates: [number, number][] }; distance: number; duration: number }>;
       };
+      if (routeReqRef.current !== token) return; // superseded by a newer request
       const route = data.routes?.[0];
       if (!route) return;
-      setRouteCoords(route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng })));
-      setRouteInfo({
-        distance: `${(route.distance / 1000).toFixed(1)} km`,
-        duration: `${Math.round(route.duration / 60)} min`,
-      });
+      const coords = route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      setRouteCoords(coords);
+      setRouteInfo(formatRouteMeta(route.distance, route.duration));
+      void putCachedRoute(key, { coords, distance: route.distance, duration: route.duration });
     } catch (e) {
       console.warn('[fetchRoute]', e);
+    } finally {
+      if (routeReqRef.current === token) setRouteLoading(false);
     }
   }, [userLocation]);
 
   const fetchTourRoute = useCallback(async (stops: TourStop[]) => {
     if (stops.length < 2) return;
+    const waypoints = stops
+      .map((s) => `${s.coordinates.longitude},${s.coordinates.latitude}`)
+      .join(';');
+    const key = `cycling/${waypoints}`;
+
+    // Cache hit → show instantly.
+    const cached = await getCachedRoute(key);
+    if (cached) {
+      setTourRouteCoords(cached.coords);
+      setTourRouteMeta(formatRouteMeta(cached.distance, cached.duration));
+      setTourRouteLoading(false);
+      return;
+    }
+
+    // Miss → clear (the straight-line placeholder shows) and fetch ONE request.
     setTourRouteCoords([]);
     setTourRouteMeta(null);
+    setTourRouteLoading(true);
     try {
-      const waypoints = stops
-        .map((s) => `${s.coordinates.longitude},${s.coordinates.latitude}`)
-        .join(';');
-      const url = `https://router.project-osrm.org/route/v1/cycling/${waypoints}?overview=full&geometries=geojson`;
+      const url = `https://router.project-osrm.org/route/v1/${key}?overview=full&geometries=geojson`;
       const res = await fetch(url);
       const data = await res.json() as {
-        routes?: Array<{
-          geometry: { coordinates: [number, number][] };
-          distance: number;
-          duration: number;
-        }>;
+        routes?: Array<{ geometry: { coordinates: [number, number][] }; distance: number; duration: number }>;
       };
       const route = data.routes?.[0];
       if (!route) return;
-      setTourRouteCoords(
-        route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
-      );
-      setTourRouteMeta({
-        distance: `${(route.distance / 1000).toFixed(1)} km`,
-        duration: `${Math.round(route.duration / 60)} min`,
-      });
+      const coords = route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      setTourRouteCoords(coords);
+      setTourRouteMeta(formatRouteMeta(route.distance, route.duration));
+      void putCachedRoute(key, { coords, distance: route.distance, duration: route.duration });
     } catch (e) {
       console.warn('[fetchTourRoute]', e);
+    } finally {
+      setTourRouteLoading(false);
     }
   }, []);
 
@@ -670,6 +706,7 @@ export default function MapScreen() {
       setTourStops([]);
       setTourRouteCoords([]);
       setTourRouteMeta(null);
+      setTourRouteLoading(false);
       return;
     }
     const resolved = slugs
@@ -794,22 +831,24 @@ export default function MapScreen() {
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
       >
         {/* Tour stop pins — shown during preview or active tour */}
-        {tourStops.map((stop) => {
+        {tourStops.map((stop, i, arr) => {
           const visited = rideActive && rideVisited.includes(stop.slug);
           const isTarget = rideActive && stop.slug === rideTargetSlug;
+          const isFinish = i === arr.length - 1; // last RESOLVED stop = distinct finish pin
           return (
             <Marker
               key={`tour-${stop.slug}`}
               coordinate={stop.coordinates}
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 0.5 }}
-              zIndex={10}
+              zIndex={isFinish ? 11 : 10}
             >
               <View style={[
                 styles.tourPin,
                 visited ? styles.tourPinDone : isTarget ? styles.tourPinTarget : styles.tourPinPending,
+                isFinish && styles.tourPinFinish,
               ]}>
-                <Text style={styles.tourPinNum}>{visited ? '✓' : stop.index + 1}</Text>
+                <Text style={styles.tourPinNum}>{visited ? '✓' : isFinish ? '🏁' : stop.index + 1}</Text>
               </View>
             </Marker>
           );
@@ -851,6 +890,23 @@ export default function MapScreen() {
             </View>
           </Marker>
         ))}
+        {/* Group C: instant straight placeholder while the real route loads */}
+        {tourRouteLoading && tourRouteCoords.length === 0 && tourStops.length >= 2 && (
+          <Polyline
+            coordinates={tourStops.map((s) => s.coordinates)}
+            strokeColor="#00C853"
+            strokeWidth={3}
+            lineDashPattern={[6, 6]}
+          />
+        )}
+        {routeLoading && routeCoords.length === 0 && userLocation && routeDest && tourStops.length === 0 && (
+          <Polyline
+            coordinates={[userLocation, routeDest]}
+            strokeColor="#00C853"
+            strokeWidth={3}
+            lineDashPattern={[6, 6]}
+          />
+        )}
         {/* Tour route — full multi-stop green line */}
         {tourRouteCoords.length > 0 && (
           <Polyline
@@ -890,6 +946,15 @@ export default function MapScreen() {
               zIndex={20}
             />
           ))}
+        {/* Group C: finish pin at a single/free-ride destination — tied to the
+            real route line so it can't outlive it (no orphan on a failed fetch). */}
+        {routeDest && routeCoords.length > 0 && tourStops.length === 0 && (
+          <Marker coordinate={routeDest} anchor={{ x: 0.5, y: 0.5 }} zIndex={15} tracksViewChanges={false}>
+            <View style={styles.finishPin}>
+              <Ionicons name="flag" size={14} color="#fff" />
+            </View>
+          </Marker>
+        )}
       </MapView>
 
       {/* Re-centre FAB */}
@@ -1066,7 +1131,11 @@ export default function MapScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.tourBannerMeta}>
-            {tourStops.length} stops · {tourRouteMeta?.distance ?? '…'} · {tourRouteMeta?.duration ?? '…'} by bike
+            {tourRouteMeta
+              ? `${tourStops.length} stops · ${tourRouteMeta.distance} · ${tourRouteMeta.duration} by bike`
+              : tourRouteLoading
+                ? `${tourStops.length} stops · loading route…`
+                : `${tourStops.length} stops`}
           </Text>
           <TouchableOpacity
             style={styles.tourStartBtn}
@@ -1097,7 +1166,7 @@ export default function MapScreen() {
 
       {/* Group A: top banner stack — zone warning above route info; flows in a
           column so the two never overlap regardless of wrapped text height. */}
-      {(activeConflicts.length > 0 || routeInfo) && (
+      {(activeConflicts.length > 0 || ((routeInfo || routeLoading) && tourStops.length === 0)) && (
         <View style={[styles.topBannerStack, rideActive && styles.topBannerStackRiding]} pointerEvents="box-none">
           {activeConflicts.length > 0 && (
             <View style={styles.routeWarnBanner}>
@@ -1105,15 +1174,23 @@ export default function MapScreen() {
               <Text style={styles.routeWarnText}>{routeWarningText(activeConflicts)}</Text>
             </View>
           )}
-          {routeInfo && (
+          {tourStops.length === 0 && routeInfo ? (
             <View style={styles.routeBanner}>
               <Ionicons name="bicycle" size={16} color="#fff" />
               <Text style={styles.routeText}>{routeInfo.distance} · {routeInfo.duration} by bike</Text>
-              <TouchableOpacity onPress={() => { setRouteCoords([]); setRouteInfo(null); }}>
+              <TouchableOpacity onPress={clearSingleRoute}>
                 <Ionicons name="close-circle" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
-          )}
+          ) : tourStops.length === 0 && routeLoading ? (
+            <View style={styles.routeBanner}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.routeText}>Loading route…</Text>
+              <TouchableOpacity onPress={clearSingleRoute}>
+                <Ionicons name="close-circle" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -1254,7 +1331,23 @@ const styles = StyleSheet.create({
   tourPinPending: { backgroundColor: '#C62828' },
   tourPinTarget: { backgroundColor: '#FF6F00', transform: [{ scale: 1.2 }] },
   tourPinDone: { backgroundColor: '#00C853' },
+  tourPinFinish: { borderColor: '#FFD600', borderWidth: 3 }, // gold ring marks the last stop
   tourPinNum: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  finishPin: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#00C853',
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 2,
+  },
 
   // Tour banner
   tourBanner: {
