@@ -40,6 +40,7 @@ export function useRideGuidance(): RideGuidance {
   const rideVisited = useAppStore((s) => s.rideVisited);
   const rideDistanceMeters = useAppStore((s) => s.rideDistanceMeters);
   const addRideDistance = useAppStore((s) => s.addRideDistance);
+  const appendTrackPoint = useAppStore((s) => s.appendTrackPoint);
 
   const [pois, setPois] = useState<Map<string, Poi>>(new Map());
   const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -48,6 +49,7 @@ export function useRideGuidance(): RideGuidance {
   const [freeTargetSlug, setFreeTargetSlug] = useState<string | null>(null);
 
   const lastPosRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const lastTrackRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
   // Load active landmarks once per ride.
   useEffect(() => {
@@ -80,6 +82,7 @@ export function useRideGuidance(): RideGuidance {
       setPosition(null);
       setDeviceHeading(null);
       lastPosRef.current = null;
+      lastTrackRef.current = null;
       return;
     }
     let posSub: Location.LocationSubscription | null = null;
@@ -92,10 +95,30 @@ export function useRideGuidance(): RideGuidance {
         (pos) => {
           const p = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
           setPosition(p);
-          const last = lastPosRef.current;
-          if (last) {
-            const d = haversineMetres(last.latitude, last.longitude, p.latitude, p.longitude);
-            if (d >= 3 && d < 200) addRideDistance(d); // skip GPS jitter and teleports
+          const last = lastPosRef.current; // previous raw reading
+          // `moved` = distance from the PREVIOUS reading. Used for both distance
+          // accumulation and the glitch filter so a bad fix is rejected relative
+          // to where we just were — not relative to the last recorded track point
+          // (which would freeze the track permanently after a real signal gap).
+          const moved = last
+            ? haversineMetres(last.latitude, last.longitude, p.latitude, p.longitude)
+            : 0;
+          if (last && moved >= 3 && moved < 200) addRideDistance(moved); // skip jitter & teleports
+
+          // Throttled track recording (~every 15 m) for the recap souvenir. Skip
+          // low-accuracy and >=500 m glitch readings; lastPosRef still advances
+          // below, so the anchor recovers on the next good reading.
+          const acc = pos.coords.accuracy;
+          const accurate = acc == null || acc <= 50; // metres
+          if (accurate && moved < 500) {
+            const lt = lastTrackRef.current;
+            const spacing = lt
+              ? haversineMetres(lt.latitude, lt.longitude, p.latitude, p.longitude)
+              : Infinity;
+            if (lt === null || spacing >= 15) {
+              appendTrackPoint({ latitude: p.latitude, longitude: p.longitude, t: pos.timestamp });
+              lastTrackRef.current = p;
+            }
           }
           lastPosRef.current = p;
         },
@@ -106,7 +129,7 @@ export function useRideGuidance(): RideGuidance {
       });
     })();
     return () => { posSub?.remove(); headSub?.remove(); };
-  }, [rideActive, addRideDistance]);
+  }, [rideActive, addRideDistance, appendTrackPoint]);
 
   // Elapsed timer.
   useEffect(() => {

@@ -13,7 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
+import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { endRideAndSave } from '../../src/utils/rides';
+import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
 
 interface Tour {
   id: string;
@@ -60,27 +62,41 @@ export default function RideScreen() {
           getDocs(query(collection(db, 'locations'), where('is_active', '==', true))),
         ]);
         if (cancelled) return;
-        setTours(
-          tourSnap.docs.map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              name: (data['name'] as string) ?? 'Tour',
-              description: (data['description'] as string) ?? '',
-              location_slugs: (data['location_slugs'] as string[]) ?? [],
-              distance_km: (data['distance_km'] as number) ?? 0,
-              est_minutes: (data['est_minutes'] as number) ?? 0,
-            };
-          }),
-        );
+        const mappedTours: Tour[] = tourSnap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            name: (data['name'] as string) ?? 'Tour',
+            description: (data['description'] as string) ?? '',
+            location_slugs: (data['location_slugs'] as string[]) ?? [],
+            distance_km: (data['distance_km'] as number) ?? 0,
+            est_minutes: (data['est_minutes'] as number) ?? 0,
+          };
+        });
+        setTours(mappedTours);
         const names = new Map<string, string>();
         locSnap.docs.forEach((d) => {
           const data = d.data();
           names.set((data['slug'] as string) ?? d.id, (data['name'] as string) ?? '');
         });
         setLocNames(names);
+        // Never overwrite a good cache with an empty/partial result.
+        if (mappedTours.length && useSettingsStore.getState().offlineCacheEnabled) {
+          void writeCache(CACHE_KEYS.tours, mappedTours);
+        }
       } catch (e) {
-        console.warn('[Ride] load failed', e);
+        console.warn('[Ride] load failed; trying cache', e);
+        const [cachedTours, cachedLocs] = await Promise.all([
+          readCache<Tour[]>(CACHE_KEYS.tours),
+          readCache<{ slug: string; name: string }[]>(CACHE_KEYS.locations),
+        ]);
+        if (cancelled) return;
+        if (cachedTours?.data) setTours(cachedTours.data);
+        if (cachedLocs?.data?.length) {
+          const names = new Map<string, string>();
+          cachedLocs.data.forEach((l) => names.set(l.slug, l.name));
+          setLocNames(names);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

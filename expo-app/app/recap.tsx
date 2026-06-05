@@ -16,6 +16,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import * as Sharing from 'expo-sharing';
 import { db } from '../src/firebase/config';
 import { useAppStore } from '../src/store/useAppStore';
+import { readCache, CACHE_KEYS } from '../src/utils/offlineCache';
 import { BARCELONA_CENTER } from '../constants/rules';
 
 type Coords = { latitude: number; longitude: number };
@@ -85,7 +86,17 @@ export default function RecapScreen() {
         });
         setCoordsBySlug(m);
       } catch (e) {
-        console.warn('[recap] locations fetch failed', e);
+        console.warn('[recap] locations fetch failed; trying cache', e);
+        const cached = await readCache<{ slug: string; coordinates: Coords }[]>(
+          CACHE_KEYS.locations,
+        );
+        if (!cancelled && cached?.data?.length) {
+          const m = new Map<string, Coords>();
+          cached.data.forEach((l) => {
+            if (l.coordinates) m.set(l.slug, l.coordinates);
+          });
+          setCoordsBySlug(m);
+        }
       }
     })();
     return () => {
@@ -154,6 +165,7 @@ export default function RecapScreen() {
   const distanceStr = fmtKm(lastRide.distanceMeters);
   const durationStr = fmtDuration(lastRide.durationSec);
   const landmarkCount = lastRide.visitedSlugs.length;
+  const avgSpeedStr = `${lastRide.avgSpeedKmh.toFixed(1)} km/h`;
   const dateStr = fmtDate(lastRide.endedAt);
   const caption =
     `🚴 Barcelona CycleGuide — ${distanceStr} ridden, ${durationStr}, ` +
@@ -243,9 +255,12 @@ export default function RecapScreen() {
         </Text>
         <Text style={styles.date}>{dateStr}</Text>
 
-        <View style={styles.statsGrid}>
+        <View style={styles.statsRow}>
           <Stat icon="navigate-outline" label="Distance" value={distanceStr} />
           <Stat icon="time-outline" label="Duration" value={durationStr} />
+        </View>
+        <View style={styles.statsRowLast}>
+          <Stat icon="speedometer-outline" label="Avg speed" value={avgSpeedStr} />
           <Stat icon="flag-outline" label="Landmarks" value={String(landmarkCount)} />
         </View>
 
@@ -303,7 +318,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 4 },
   date: { fontSize: 13, color: '#9E9E9E', marginBottom: 20 },
 
-  statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  statsRowLast: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   stat: {
     flex: 1,
     backgroundColor: '#1E1E1E',

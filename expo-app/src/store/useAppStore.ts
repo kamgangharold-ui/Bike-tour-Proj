@@ -22,12 +22,20 @@ export interface TourPreview {
   estMinutes: number;
 }
 
+// A throttled GPS sample recorded during a ride.
+export interface TrackPoint {
+  latitude: number;
+  longitude: number;
+  t: number; // epoch ms
+}
+
 // Snapshot of a finished ride, captured at End Ride for the shareable recap.
 export interface RideSummary {
   startedAt: number; // epoch ms
   endedAt: number;   // epoch ms
   durationSec: number;
   distanceMeters: number;
+  avgSpeedKmh: number;
   mode: RideMode;
   tourId: string | null;
   tourStops: string[];     // ordered slugs (tour mode)
@@ -46,6 +54,7 @@ interface RideState {
   rideTourStops: string[];     // ordered location slugs (tour mode)
   rideVisited: string[];       // slugs visited during this ride
   rideDistanceMeters: number;
+  rideTrack: TrackPoint[];     // throttled GPS path for this ride
 }
 
 interface RideActions {
@@ -54,10 +63,14 @@ interface RideActions {
   setRideTarget: (slug: string | null) => void;
   markRideVisited: (slug: string) => void;
   addRideDistance: (metres: number) => void;
+  appendTrackPoint: (p: TrackPoint) => void;
 }
 
 interface AppState extends LandmarkData, RideState, RideActions {
   isSubscribed: boolean;
+  // Live connectivity (driven by expo-network); read by the offline banner.
+  isOnline: boolean;
+  setOnline: (val: boolean) => void;
   biciboxJson: string;
   biciparkJson: string;
   chatPrefill: string;
@@ -101,12 +114,15 @@ const RIDE_CLEARED: RideState = {
   rideTourStops: [],
   rideVisited: [],
   rideDistanceMeters: 0,
+  rideTrack: [],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
   ...CLEARED,
   ...RIDE_CLEARED,
   isSubscribed: false,
+  isOnline: true,
+  setOnline: (val) => set({ isOnline: val }),
   biciboxJson: '',
   biciparkJson: '',
   chatPrefill: '',
@@ -137,6 +153,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       rideTargetSlug: opts.stops && opts.stops.length > 0 ? opts.stops[0] : null,
       rideVisited: [],
       rideDistanceMeters: 0,
+      rideTrack: [],
       lastRide: null, // a new ride invalidates the previous recap
     }),
   endRide: () => set({ ...RIDE_CLEARED }),
@@ -157,4 +174,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   addRideDistance: (metres) =>
     set({ rideDistanceMeters: get().rideDistanceMeters + Math.max(0, metres) }),
+  appendTrackPoint: (p) => {
+    const track = get().rideTrack;
+    if (track.length >= 5000) return; // safety cap for a very long ride
+    set({ rideTrack: [...track, p] });
+  },
 }));

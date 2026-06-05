@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Local geofence notifications work in Expo Go foreground only
 import * as Notifications from 'expo-notifications';
 import RideBanner from '../src/components/RideBanner';
+import OfflineBanner from '../src/components/OfflineBanner';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -51,6 +52,7 @@ export default function RootLayout() {
         <Stack.Screen name="recap" options={{ headerShown: true, title: 'Ride recap' }} />
       </Stack>
       <RideBanner />
+      <OfflineBanner />
     </SafeAreaProvider>
   );
 }

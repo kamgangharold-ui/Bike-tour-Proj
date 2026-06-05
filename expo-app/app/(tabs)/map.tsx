@@ -32,6 +32,7 @@ import { BARCELONA_CENTER, DISMOUNT_ZONE_CATEGORY } from '../../constants/rules'
 import { haversineMetres } from '../../src/utils/haversine';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { checkRouteAgainstZones, type RouteZone } from '../../src/utils/routeSafety';
+import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -332,8 +333,15 @@ export default function MapScreen() {
         return true;
       });
       setLocations(deduplicated);
+      // Cache for offline use (Group C), gated by the Settings toggle. Never
+      // overwrite a good cache with an empty/partial result.
+      if (deduplicated.length && useSettingsStore.getState().offlineCacheEnabled) {
+        void writeCache(CACHE_KEYS.locations, deduplicated);
+      }
       } catch (e) {
-        console.warn('[Map] Firestore fetch failed', e);
+        console.warn('[Map] Firestore fetch failed; trying cache', e);
+        const cached = await readCache<LocationDoc[]>(CACHE_KEYS.locations);
+        if (cached?.data?.length) setLocations(cached.data);
       } finally {
         setLocationsLoading(false);
       }

@@ -11,6 +11,10 @@ interface SettingsState {
   // flagged with a warning and painted red. Default ON.
   avoidNoCyclingZones: boolean;
   setAvoidNoCyclingZones: (value: boolean) => void;
+  // Offline (Group C) — when ON, fetched Barcelona data is cached to AsyncStorage
+  // and re-served when offline. Default ON.
+  offlineCacheEnabled: boolean;
+  setOfflineCacheEnabled: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -18,11 +22,16 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       avoidNoCyclingZones: true,
       setAvoidNoCyclingZones: (value) => set({ avoidNoCyclingZones: value }),
+      offlineCacheEnabled: true,
+      setOfflineCacheEnabled: (value) => set({ offlineCacheEnabled: value }),
     }),
     {
       name: 'cycleguide-settings',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ avoidNoCyclingZones: s.avoidNoCyclingZones }),
+      partialize: (s) => ({
+        avoidNoCyclingZones: s.avoidNoCyclingZones,
+        offlineCacheEnabled: s.offlineCacheEnabled,
+      }),
     },
   ),
 );

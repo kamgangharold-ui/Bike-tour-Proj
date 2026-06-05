@@ -21,15 +21,22 @@ export async function endRideAndSave(): Promise<RideSummary | null> {
 
   const endedAt = Date.now();
   const startedAt = s.rideStartedAt || endedAt;
+  const durationSec = Math.max(0, Math.round((endedAt - startedAt) / 1000));
+  const distanceMeters = s.rideDistanceMeters;
   const summary: RideSummary = {
     startedAt,
     endedAt,
-    durationSec: Math.max(0, Math.round((endedAt - startedAt) / 1000)),
-    distanceMeters: s.rideDistanceMeters,
+    durationSec,
+    distanceMeters,
+    avgSpeedKmh: durationSec > 0 ? distanceMeters / 1000 / (durationSec / 3600) : 0,
     mode: s.rideMode,
     tourId: s.rideTourId,
     tourStops: s.rideTourStops,
     visitedSlugs: s.rideVisited,
+    track:
+      s.rideTrack.length >= 2
+        ? s.rideTrack.map((p) => ({ latitude: p.latitude, longitude: p.longitude }))
+        : undefined,
   };
 
   // Surface the recap and clear ride state immediately — do NOT block on the

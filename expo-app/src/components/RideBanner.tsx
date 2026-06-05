@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { useRideGuidance } from '../hooks/useRideGuidance';
 import { endRideAndSave } from '../utils/rides';
+import { OFFLINE_BANNER_HEIGHT } from './OfflineBanner';
 
 const HIT = { top: 10, bottom: 10, left: 10, right: 10 };
 
@@ -23,6 +24,7 @@ function fmtElapsed(s: number): string {
 
 export default function RideBanner() {
   const rideActive = useAppStore((s) => s.rideActive);
+  const isOnline = useAppStore((s) => s.isOnline);
   const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -42,7 +44,10 @@ export default function RideBanner() {
   const hasTarget = guidance.targetName != null;
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+    <View
+      style={[styles.wrap, { paddingTop: insets.top + 8 + (isOnline ? 0 : OFFLINE_BANNER_HEIGHT) }]}
+      pointerEvents="box-none"
+    >
       <View style={styles.row} pointerEvents="auto">
         <View style={styles.badge}>
           <Ionicons
