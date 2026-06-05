@@ -45,6 +45,15 @@ export interface RideSummary {
   track?: { latitude: number; longitude: number }[];
 }
 
+// A chosen free-ride destination: a curated landmark (slug) or a dropped map
+// point (slug = null). Drives the route + bearing guidance for a free ride.
+export interface FreeTarget {
+  slug: string | null;
+  lat: number;
+  lng: number;
+  name: string;
+}
+
 interface RideState {
   rideActive: boolean;
   rideStartedAt: number;       // epoch ms
@@ -55,10 +64,11 @@ interface RideState {
   rideVisited: string[];       // slugs visited during this ride
   rideDistanceMeters: number;
   rideTrack: TrackPoint[];     // throttled GPS path for this ride
+  rideFreeTarget: FreeTarget | null; // chosen free-ride destination (null = nearest)
 }
 
 interface RideActions {
-  startRide: (opts: { mode: RideMode; tourId?: string; stops?: string[] }) => void;
+  startRide: (opts: { mode: RideMode; tourId?: string; stops?: string[]; freeTarget?: FreeTarget }) => void;
   endRide: () => void;
   setRideTarget: (slug: string | null) => void;
   markRideVisited: (slug: string) => void;
@@ -115,6 +125,7 @@ const RIDE_CLEARED: RideState = {
   rideVisited: [],
   rideDistanceMeters: 0,
   rideTrack: [],
+  rideFreeTarget: null,
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -154,6 +165,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       rideVisited: [],
       rideDistanceMeters: 0,
       rideTrack: [],
+      rideFreeTarget: opts.freeTarget ?? null,
       lastRide: null, // a new ride invalidates the previous recap
     }),
   endRide: () => set({ ...RIDE_CLEARED }),

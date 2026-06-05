@@ -222,6 +222,7 @@ export default function MapScreen() {
   const rideTourStops = useAppStore((s) => s.rideTourStops);
   const rideTargetSlug = useAppStore((s) => s.rideTargetSlug);
   const rideVisited = useAppStore((s) => s.rideVisited);
+  const rideFreeTarget = useAppStore((s) => s.rideFreeTarget);
   const avoidNoCyclingZones = useSettingsStore((s) => s.avoidNoCyclingZones);
   const showBicing = useSettingsStore((s) => s.showBicing);
 
@@ -687,6 +688,21 @@ export default function MapScreen() {
     if (tourStops.length >= 2) void fetchTourRoute(tourStops);
   }, [tourStops, fetchTourRoute]);
 
+  // Group A: when a free ride has a chosen destination, draw the route to it
+  // (reuses the single-leg OSRM route). Fetch once per destination.
+  const freeRouteKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (rideActive && rideMode === 'free' && rideFreeTarget && userLocation) {
+      const key = `${rideFreeTarget.lat},${rideFreeTarget.lng}`;
+      if (freeRouteKeyRef.current !== key) {
+        freeRouteKeyRef.current = key;
+        void fetchRoute(rideFreeTarget.lat, rideFreeTarget.lng);
+      }
+    } else if (!rideActive || rideMode !== 'free' || !rideFreeTarget) {
+      freeRouteKeyRef.current = null;
+    }
+  }, [rideActive, rideMode, rideFreeTarget, userLocation, fetchRoute]);
+
   // Fit camera to all tour stop pins once when the route first loads.
   useEffect(() => {
     if (tourStops.length === 0) { hasFittedTourRef.current = false; return; }
@@ -1012,6 +1028,19 @@ export default function MapScreen() {
                 <Text style={styles.previewDetailsBtnText}> Directions</Text>
               </TouchableOpacity>
             </View>
+            <TouchableOpacity
+              style={styles.startHereBtn}
+              onPress={() => {
+                startRide({
+                  mode: 'free',
+                  freeTarget: { slug: null, lat: pt.latitude, lng: pt.longitude, name: pt.name },
+                });
+                setTappedMapPoint(null);
+              }}
+            >
+              <Ionicons name="bicycle" size={16} color="#000" />
+              <Text style={styles.startHereText}> Start ride here</Text>
+            </TouchableOpacity>
           </View>
         );
       })()}
@@ -1337,6 +1366,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   previewDetailsBtnText: { fontSize: 13, color: '#fff', fontWeight: '600' },
+  startHereBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00C853',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  startHereText: { fontSize: 13, color: '#000', fontWeight: '700' },
 
   // Full card sheet
   sheet: {

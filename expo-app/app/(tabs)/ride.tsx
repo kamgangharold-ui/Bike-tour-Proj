@@ -6,16 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  TextInput,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
-import { useAppStore } from '../../src/store/useAppStore';
+import { useAppStore, type FreeTarget } from '../../src/store/useAppStore';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { endRideAndSave } from '../../src/utils/rides';
 import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
+import { haversineMetres } from '../../src/utils/haversine';
 
 interface Tour {
   id: string;
@@ -24,6 +27,13 @@ interface Tour {
   location_slugs: string[];
   distance_km: number;
   est_minutes: number;
+}
+
+interface Landmark {
+  slug: string;
+  name: string;
+  latitude: number;
+  longitude: number;
 }
 
 function fmtElapsed(s: number): string {
@@ -43,14 +53,21 @@ export default function RideScreen() {
   const rideVisited = useAppStore((s) => s.rideVisited);
   const rideDistanceMeters = useAppStore((s) => s.rideDistanceMeters);
   const rideStartedAt = useAppStore((s) => s.rideStartedAt);
+  const rideFreeTarget = useAppStore((s) => s.rideFreeTarget);
   const startRide = useAppStore((s) => s.startRide);
   const setTourPreview = useAppStore((s) => s.setTourPreview);
+  const userLat = useAppStore((s) => s.userLat);
+  const userLng = useAppStore((s) => s.userLng);
   const insets = useSafeAreaInsets();
 
   const [tours, setTours] = useState<Tour[]>([]);
   const [locNames, setLocNames] = useState<Map<string, string>>(new Map());
+  const [landmarks, setLandmarks] = useState<Landmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
+  // Destination chooser (Group A) shown when starting a free ride.
+  const [choosing, setChoosing] = useState(false);
+  const [search, setSearch] = useState('');
 
   // Load curated tours + landmark names from Firestore.
   useEffect(() => {
@@ -80,6 +97,22 @@ export default function RideScreen() {
           names.set((data['slug'] as string) ?? d.id, (data['name'] as string) ?? '');
         });
         setLocNames(names);
+        setLandmarks(
+          locSnap.docs
+            .map((d) => {
+              const data = d.data();
+              const c = data['coordinates'] as { latitude?: number; longitude?: number } | null;
+              return c?.latitude != null && c?.longitude != null
+                ? {
+                    slug: (data['slug'] as string) ?? d.id,
+                    name: (data['name'] as string) ?? '',
+                    latitude: c.latitude,
+                    longitude: c.longitude,
+                  }
+                : null;
+            })
+            .filter((l): l is Landmark => l !== null),
+        );
         // Never overwrite a good cache with an empty/partial result.
         if (mappedTours.length && useSettingsStore.getState().offlineCacheEnabled) {
           void writeCache(CACHE_KEYS.tours, mappedTours);
@@ -88,7 +121,9 @@ export default function RideScreen() {
         console.warn('[Ride] load failed; trying cache', e);
         const [cachedTours, cachedLocs] = await Promise.all([
           readCache<Tour[]>(CACHE_KEYS.tours),
-          readCache<{ slug: string; name: string }[]>(CACHE_KEYS.locations),
+          readCache<{ slug: string; name: string; coordinates?: { latitude: number; longitude: number } }[]>(
+            CACHE_KEYS.locations,
+          ),
         ]);
         if (cancelled) return;
         if (cachedTours?.data) setTours(cachedTours.data);
@@ -96,6 +131,16 @@ export default function RideScreen() {
           const names = new Map<string, string>();
           cachedLocs.data.forEach((l) => names.set(l.slug, l.name));
           setLocNames(names);
+          setLandmarks(
+            cachedLocs.data
+              .filter((l) => l.coordinates)
+              .map((l) => ({
+                slug: l.slug,
+                name: l.name,
+                latitude: l.coordinates!.latitude,
+                longitude: l.coordinates!.longitude,
+              })),
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -126,6 +171,28 @@ export default function RideScreen() {
     });
   };
 
+  // Start a free ride toward an optional chosen destination, then show the map.
+  const startFree = (freeTarget?: FreeTarget) => {
+    startRide(freeTarget ? { mode: 'free', freeTarget } : { mode: 'free' });
+    setChoosing(false);
+    setSearch('');
+    router.push('/(tabs)/map');
+  };
+
+  // Curated landmarks filtered by the search box, nearest first.
+  const landmarkList = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const withDist = landmarks.map((l) => ({
+      ...l,
+      dist:
+        userLat != null && userLng != null
+          ? haversineMetres(userLat, userLng, l.latitude, l.longitude)
+          : null,
+    }));
+    const filtered = q ? withDist.filter((l) => l.name.toLowerCase().includes(q)) : withDist;
+    return filtered.sort((a, b) => (a.dist ?? Infinity) - (b.dist ?? Infinity));
+  }, [landmarks, search, userLat, userLng]);
+
   // ── Active ride dashboard ─────────────────────────────────────────────────────
   if (rideActive) {
     const targetName =
@@ -147,7 +214,9 @@ export default function RideScreen() {
               {targetName ? `Next stop: ${targetName}` : 'Tour complete 🎉'}
             </Text>
           ) : (
-            <Text style={styles.nextStop}>Heading to the nearest landmark</Text>
+            <Text style={styles.nextStop}>
+              {rideFreeTarget ? `Heading to ${rideFreeTarget.name}` : 'Heading to the nearest landmark'}
+            </Text>
           )}
 
           <View style={styles.metricsRow}>
@@ -179,13 +248,80 @@ export default function RideScreen() {
     );
   }
 
+  // ── Destination chooser (Group A) ─────────────────────────────────────────────
+  if (choosing) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + 12, paddingHorizontal: 20 }]}>
+        <View style={styles.chooserHeader}>
+          <TouchableOpacity
+            onPress={() => { setChoosing(false); setSearch(''); }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.chooserTitle}>Choose a destination</Text>
+        </View>
+
+        <TouchableOpacity style={styles.nearestBtn} onPress={() => startFree()}>
+          <Ionicons name="locate" size={18} color="#000" />
+          <Text style={styles.nearestBtnText}> Nearest landmark</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.dropBtn}
+          onPress={() => { setChoosing(false); setSearch(''); router.push('/(tabs)/map'); }}
+        >
+          <Ionicons name="pin-outline" size={16} color="#00C853" />
+          <Text style={styles.dropBtnText}> Or drop a pin on the map</Text>
+        </TouchableOpacity>
+
+        <View style={styles.searchRow}>
+          <Ionicons name="search" size={16} color="#777" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search landmarks…"
+            placeholderTextColor="#666"
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+        </View>
+
+        <FlatList
+          data={landmarkList}
+          keyExtractor={(l) => l.slug}
+          keyboardShouldPersistTaps="handled"
+          style={{ marginTop: 4 }}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.lmRow}
+              onPress={() =>
+                startFree({ slug: item.slug, lat: item.latitude, lng: item.longitude, name: item.name })
+              }
+            >
+              <Ionicons name="location-outline" size={18} color="#1565C0" />
+              <Text style={styles.lmName} numberOfLines={1}>{item.name}</Text>
+              {item.dist != null ? <Text style={styles.lmDist}>{fmtKm(item.dist)}</Text> : null}
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              {landmarks.length === 0 ? 'Loading landmarks…' : 'No matching landmarks.'}
+            </Text>
+          }
+        />
+      </View>
+    );
+  }
+
   // ── Start screen ──────────────────────────────────────────────────────────────
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.inner, styles.innerCentered, { paddingTop: insets.top + 20 }]}>
       <Text style={styles.heading}>Guided Ride</Text>
       <Text style={styles.subheading}>Hands-free landmark audio + turn-toward directions.</Text>
 
-      <TouchableOpacity style={styles.freeBtn} onPress={() => startRide({ mode: 'free' })}>
+      <TouchableOpacity style={styles.freeBtn} onPress={() => setChoosing(true)}>
         <Ionicons name="bicycle" size={20} color="#000" />
         <Text style={styles.freeBtnText}> Start free ride</Text>
       </TouchableOpacity>
@@ -255,6 +391,43 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   freeBtnText: { fontSize: 16, fontWeight: '800', color: '#000' },
+
+  // Destination chooser
+  chooserHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  chooserTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  nearestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00C853',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 8,
+  },
+  nearestBtnText: { fontSize: 15, fontWeight: '800', color: '#000' },
+  dropBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginBottom: 8 },
+  dropBtnText: { fontSize: 13, fontWeight: '600', color: '#00C853' },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  searchInput: { flex: 1, color: '#fff', fontSize: 14, padding: 0 },
+  lmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#2A2A2A',
+  },
+  lmName: { flex: 1, color: '#fff', fontSize: 15 },
+  lmDist: { color: '#777', fontSize: 12, fontWeight: '600' },
   sectionLabel: { fontSize: 13, fontWeight: '700', color: '#666', letterSpacing: 0.5, marginBottom: 12, textTransform: 'uppercase' },
   empty: { color: '#777', fontSize: 14, lineHeight: 20 },
   tourCard: { backgroundColor: '#1E1E1E', borderRadius: 12, padding: 16, marginBottom: 12 },

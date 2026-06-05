@@ -38,6 +38,7 @@ export function useRideGuidance(): RideGuidance {
   const rideTargetSlug = useAppStore((s) => s.rideTargetSlug);
   const rideStartedAt = useAppStore((s) => s.rideStartedAt);
   const rideVisited = useAppStore((s) => s.rideVisited);
+  const rideFreeTarget = useAppStore((s) => s.rideFreeTarget);
   const rideDistanceMeters = useAppStore((s) => s.rideDistanceMeters);
   const addRideDistance = useAppStore((s) => s.addRideDistance);
   const appendTrackPoint = useAppStore((s) => s.appendTrackPoint);
@@ -151,8 +152,24 @@ export function useRideGuidance(): RideGuidance {
     setFreeTargetSlug(bestSlug);
   }, [rideMode, position, pois, rideVisited]);
 
-  const targetSlug = rideMode === 'tour' ? rideTargetSlug : freeTargetSlug;
-  const target = targetSlug ? pois.get(targetSlug) ?? null : null;
+  // Resolve the active target: tour → current stop; free → the chosen
+  // destination (rideFreeTarget) until it's reached, else the nearest landmark.
+  type Target = { slug: string | null; name: string; latitude: number; longitude: number };
+  let target: Target | null = null;
+  if (rideMode === 'tour') {
+    const t = rideTargetSlug ? pois.get(rideTargetSlug) : undefined;
+    if (t) target = t;
+  } else if (rideFreeTarget && !(rideFreeTarget.slug && rideVisited.includes(rideFreeTarget.slug))) {
+    target = {
+      slug: rideFreeTarget.slug,
+      name: rideFreeTarget.name,
+      latitude: rideFreeTarget.lat,
+      longitude: rideFreeTarget.lng,
+    };
+  } else {
+    const t = freeTargetSlug ? pois.get(freeTargetSlug) : undefined;
+    if (t) target = t;
+  }
 
   let distanceToTargetM: number | null = null;
   let bearingToTarget: number | null = null;
