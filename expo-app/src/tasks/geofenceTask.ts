@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAppStore } from '../store/useAppStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 export const GEOFENCE_TASK = 'BIKE_TOUR_GEOFENCE';
 
@@ -39,18 +40,27 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
       activeAudioUrl: (loc['audio_url'] as string) ?? '',
     });
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: ((loc['name'] as string | undefined) ?? 'Landmark'),
-        body: isRegulatory
-          ? `⚠️ ${(regAlert?.['message'] as string) ?? ''}`
-          : (loc['short_description'] as string) ?? '',
-        data: { slug },
-      },
-      trigger: null,
-    });
+    // Gate the notification on the user's Settings (Group D). This is a fresh
+    // background JS context, so rehydrate the persisted settings first.
+    try { await useSettingsStore.persist.rehydrate(); } catch { /* use defaults */ }
+    const { landmarkAlertsEnabled, safetyAlertsEnabled } = useSettingsStore.getState();
+    const notifyAllowed = isRegulatory ? safetyAlertsEnabled : landmarkAlertsEnabled;
+
+    if (notifyAllowed) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: ((loc['name'] as string | undefined) ?? 'Landmark'),
+          body: isRegulatory
+            ? `⚠️ ${(regAlert?.['message'] as string) ?? ''}`
+            : (loc['short_description'] as string) ?? '',
+          data: { slug },
+        },
+        trigger: null,
+      });
+    }
 
     // If a guided ride is active, record the visit (and advance the tour target).
+    // Always done regardless of the notification toggles (it's not a notification).
     useAppStore.getState().markRideVisited(slug);
   } else if (eventType === Location.GeofencingEventType.Exit) {
     useAppStore.getState().exitLandmark(slug);

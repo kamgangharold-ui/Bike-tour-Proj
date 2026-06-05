@@ -223,6 +223,7 @@ export default function MapScreen() {
   const rideTargetSlug = useAppStore((s) => s.rideTargetSlug);
   const rideVisited = useAppStore((s) => s.rideVisited);
   const avoidNoCyclingZones = useSettingsStore((s) => s.avoidNoCyclingZones);
+  const showBicing = useSettingsStore((s) => s.showBicing);
 
   useGeofencing();
 
@@ -812,8 +813,8 @@ export default function MapScreen() {
           );
         })}
 
-        {/* Bicing station markers */}
-        {bicingStations.map((station) => (
+        {/* Bicing station markers (toggle: Settings → Map layers) */}
+        {showBicing && bicingStations.map((station) => (
           <Marker
             key={`bicing-${station.station_id}`}
             coordinate={{ latitude: station.lat, longitude: station.lon }}

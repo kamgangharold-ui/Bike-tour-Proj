@@ -17,6 +17,7 @@ import * as Speech from 'expo-speech';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
+import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { haversineMetres } from '../../src/utils/haversine';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -95,7 +96,9 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [speakerOn, setSpeakerOn] = useState(true);
+  // Voice/TTS state is global (Settings ↔ this header toggle share it).
+  const speakerOn = useSettingsStore((s) => s.voiceGuidanceEnabled);
+  const setVoiceGuidanceEnabled = useSettingsStore((s) => s.setVoiceGuidanceEnabled);
   const [isListening, setIsListening] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [transcribing, setTranscribing] = useState(false);
@@ -431,7 +434,7 @@ export default function ChatScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>BikAI</Text>
         <TouchableOpacity
-          onPress={() => { setSpeakerOn((p) => !p); Speech.stop(); }}
+          onPress={() => { setVoiceGuidanceEnabled(!speakerOn); Speech.stop(); }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons

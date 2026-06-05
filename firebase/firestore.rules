@@ -71,11 +71,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ─── RIDES (owner read/write own only) ────────────────────────────────────
+    // ─── RIDES (owner read/create/delete own only; no edits) ──────────────────
     match /rides/{rideId} {
       allow read: if isSignedIn() && isOwner(resource.data.user_uid);
       allow create: if isSignedIn() && isOwner(request.resource.data.user_uid);
-      allow update, delete: if false;
+      // Owner may delete their own rides (Settings → Clear ride history).
+      allow delete: if isSignedIn() && isOwner(resource.data.user_uid);
+      allow update: if false;
     }
 
   }
