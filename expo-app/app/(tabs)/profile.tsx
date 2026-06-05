@@ -55,8 +55,14 @@ export default function ProfileScreen() {
   }, [user]);
 
   const handleSignOut = async () => {
-    await signOut(auth);
-    router.replace('/auth');
+    const store = useAppStore.getState();
+    store.endRide();         // drop any active ride so its banner can't linger on /auth
+    store.setLastRide(null); // don't carry this user's recap into the next session
+    try {
+      await signOut(auth);
+    } finally {
+      router.replace('/auth');
+    }
   };
 
   if (loading) {

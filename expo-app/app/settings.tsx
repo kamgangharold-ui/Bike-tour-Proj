@@ -126,6 +126,9 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
+    const store = useAppStore.getState();
+    store.endRide();         // drop any active ride so its banner can't linger on /auth
+    store.setLastRide(null); // don't carry this user's recap into the next session
     try {
       await signOut(auth);
     } finally {

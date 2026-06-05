@@ -756,6 +756,11 @@ export default function MapScreen() {
   const fullLng = isTappedFull ? tappedLandmark.coordinates.longitude : activeLandmarkCoords?.longitude;
 
   const sheetVisible = showPreview || showFullCard;
+  // The bottom tour banner (preview or active-tour) shares the FABs' corner, so
+  // lift the FABs above it when it's showing.
+  const tourBannerVisible =
+    (!!tourPreview && tourStops.length > 0 && !rideActive) ||
+    (rideActive && rideMode === 'tour' && tourStops.length > 0);
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -873,7 +878,7 @@ export default function MapScreen() {
 
       {/* Re-centre FAB */}
       <TouchableOpacity
-        style={[styles.fab, sheetVisible && styles.fabWithSheet]}
+        style={[styles.fab, sheetVisible ? styles.fabWithSheet : tourBannerVisible && styles.fabAboveBanner]}
         onPress={handleRecenter}
       >
         <Ionicons name="navigate" size={20} color="#fff" />
@@ -881,7 +886,7 @@ export default function MapScreen() {
 
       {/* AI chat FAB */}
       <TouchableOpacity
-        style={[styles.aiFab, sheetVisible && styles.aiFabWithSheet]}
+        style={[styles.aiFab, sheetVisible ? styles.aiFabWithSheet : tourBannerVisible && styles.aiFabAboveBanner]}
         onPress={() => router.push('/(tabs)/chat')}
       >
         <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
@@ -1064,7 +1069,7 @@ export default function MapScreen() {
       {/* Group A: top banner stack — zone warning above route info; flows in a
           column so the two never overlap regardless of wrapped text height. */}
       {(activeConflicts.length > 0 || routeInfo) && (
-        <View style={styles.topBannerStack} pointerEvents="box-none">
+        <View style={[styles.topBannerStack, rideActive && styles.topBannerStackRiding]} pointerEvents="box-none">
           {activeConflicts.length > 0 && (
             <View style={styles.routeWarnBanner}>
               <Ionicons name="warning" size={18} color="#fff" />
@@ -1152,6 +1157,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   fabWithSheet: { bottom: 320 },
+  fabAboveBanner: { bottom: 160 },
 
   aiFab: {
     position: 'absolute',
@@ -1170,6 +1176,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   aiFabWithSheet: { bottom: 372 },
+  aiFabAboveBanner: { bottom: 212 },
 
   pinHitArea: {
     width: 36,
@@ -1366,6 +1373,7 @@ const styles = StyleSheet.create({
     right: 16,
     gap: 8,
   },
+  topBannerStackRiding: { top: 104 }, // clear the global ride banner at the top
   routeBanner: {
     backgroundColor: '#1B5E20',
     borderRadius: 10,
