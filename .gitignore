@@ -37,3 +37,4 @@ Podfile.lock
 # Firebase keys — never commit
 google-services.json
 GoogleService-Info.plist
+*firebase-adminsdk*.json
