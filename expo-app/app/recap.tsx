@@ -13,7 +13,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import * as Sharing from 'expo-sharing';
 import { db } from '../src/firebase/config';
 import { useAppStore, type RideRecord } from '../src/store/useAppStore';
 import { readCache, CACHE_KEYS } from '../src/utils/offlineCache';
@@ -194,8 +193,14 @@ export default function RecapScreen() {
       // snapshot would capture a blank/wrong-region image instead of falling back.
       // NOTE: expo-sharing shares only the image file; the stats caption can't ride
       // along with it (it reaches recipients via the text fallback below).
+      // Defensive: load expo-sharing lazily so a missing native module (an older
+      // build reached by an OTA) can't crash the recap — we fall back to text.
+      const Sharing = (() => {
+        try { return require('expo-sharing') as typeof import('expo-sharing'); }
+        catch { return null; }
+      })();
       try {
-        if (hasMapContent && mapRef.current && mapReady && fitted && (await Sharing.isAvailableAsync())) {
+        if (Sharing && hasMapContent && mapRef.current && mapReady && fitted && (await Sharing.isAvailableAsync())) {
           const uri = await mapRef.current.takeSnapshot({
             width: 1080,
             height: 1080,

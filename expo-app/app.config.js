@@ -46,8 +46,14 @@ module.exports = {
     updates: {
       url: 'https://u.expo.dev/486226d7-7af6-43df-ba8d-41d919f57d87',
     },
+    // Fingerprint policy: the runtimeVersion is derived from the native project
+    // (native modules, config, permissions). An OTA built with a different native
+    // footprint than an installed build gets a DIFFERENT runtimeVersion, so it is
+    // never served to that build — incompatible updates are skipped, not crashed.
+    // (Replaces 'sdkVersion', which served every SDK-54 OTA to every SDK-54 build
+    // regardless of native modules — the cause of the Android launch crash.)
     runtimeVersion: {
-      policy: 'sdkVersion',
+      policy: 'fingerprint',
     },
     experiments: { typedRoutes: true },
     extra: {
