@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -28,8 +28,10 @@ import { db, auth } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useGeofencing } from '../../src/hooks/useGeofencing';
 import LandmarkCard from '../../src/components/LandmarkCard';
-import { BARCELONA_CENTER } from '../../constants/rules';
+import { BARCELONA_CENTER, DISMOUNT_ZONE_CATEGORY } from '../../constants/rules';
 import { haversineMetres } from '../../src/utils/haversine';
+import { useSettingsStore } from '../../src/store/useSettingsStore';
+import { checkRouteAgainstZones, type RouteZone } from '../../src/utils/routeSafety';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +53,7 @@ interface LocationDoc {
   coordinates: Coords;
   geofenceRadius: number;
   isRegulatory: boolean;
+  regulatoryAlertType: string;
   regulatoryMessage: string;
   regulatoryFineEur: number;
   audioUrl: string;
@@ -133,6 +136,30 @@ async function reverseGeocodeName(lat: number, lng: number): Promise<{ name: str
   }
 }
 
+// A landmark counts as a no-cycling zone when it's a dismount zone or carries a
+// dismount / no_cycling regulatory alert. (speed_limit / fine_warning alerts are
+// regulatory but do NOT prohibit cycling, so they are not treated as zones.)
+function isNoCyclingZone(loc: LocationDoc): boolean {
+  return (
+    loc.category === DISMOUNT_ZONE_CATEGORY ||
+    loc.regulatoryAlertType === 'dismount' ||
+    loc.regulatoryAlertType === 'no_cycling'
+  );
+}
+
+// Human-readable warning for a route that crosses one or more no-cycling zones.
+function routeWarningText(conflicts: { name: string; fineEur: number }[]): string {
+  if (conflicts.length === 1) {
+    const c = conflicts[0];
+    const fine = c.fineEur > 0 ? `, €${Math.round(c.fineEur)} fine` : '';
+    return `This route crosses ${c.name} — cycling prohibited${fine}. Dismount or reroute.`;
+  }
+  const names = conflicts.map((c) => c.name).join(', ');
+  const maxFine = Math.max(...conflicts.map((c) => c.fineEur));
+  const fine = maxFine > 0 ? ` (up to €${Math.round(maxFine)} fine)` : '';
+  return `Route crosses ${conflicts.length} no-cycling zones${fine}: ${names}. Dismount or reroute.`;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
@@ -194,6 +221,7 @@ export default function MapScreen() {
   const rideTourStops = useAppStore((s) => s.rideTourStops);
   const rideTargetSlug = useAppStore((s) => s.rideTargetSlug);
   const rideVisited = useAppStore((s) => s.rideVisited);
+  const avoidNoCyclingZones = useSettingsStore((s) => s.avoidNoCyclingZones);
 
   useGeofencing();
 
@@ -290,6 +318,7 @@ export default function MapScreen() {
           },
           geofenceRadius: (data['geofence_radius_metres'] as number) ?? 40,
           isRegulatory: !!reg,
+          regulatoryAlertType: (reg?.['alert_type'] as string) ?? '',
           regulatoryMessage: (reg?.['message'] as string) ?? '',
           regulatoryFineEur: (reg?.['fine_eur'] as number) ?? 0,
           audioUrl: (data['audio_url'] as string) ?? '',
@@ -660,6 +689,42 @@ export default function MapScreen() {
     );
   }, [tourStops, tourRouteCoords, mapReady]);
 
+  // ── Group A: rule-aware routing safety ───────────────────────────────────────
+  // No-cycling / dismount zones, modeled as circles for route checking.
+  const noCyclingZones = useMemo<RouteZone[]>(
+    () =>
+      locations.filter(isNoCyclingZone).map((l) => ({
+        slug: l.slug,
+        name: l.name,
+        coordinates: l.coordinates,
+        radiusMetres: l.geofenceRadius,
+        fineEur: l.regulatoryFineEur,
+        message: l.regulatoryMessage,
+      })),
+    [locations],
+  );
+
+  // Gated behind the "Avoid no-cycling zones" setting (Group D; default ON).
+  const routeSafety = useMemo(
+    () =>
+      avoidNoCyclingZones && routeCoords.length > 0
+        ? checkRouteAgainstZones(routeCoords, noCyclingZones)
+        : { conflicts: [], redSegments: [] },
+    [avoidNoCyclingZones, routeCoords, noCyclingZones],
+  );
+
+  const tourRouteSafety = useMemo(
+    () =>
+      avoidNoCyclingZones && tourRouteCoords.length > 0
+        ? checkRouteAgainstZones(tourRouteCoords, noCyclingZones)
+        : { conflicts: [], redSegments: [] },
+    [avoidNoCyclingZones, tourRouteCoords, noCyclingZones],
+  );
+
+  // The route currently on screen (a tour takes precedence over a single leg).
+  const activeConflicts =
+    tourStops.length > 0 ? tourRouteSafety.conflicts : routeSafety.conflicts;
+
   // ── Derived state for which sheet to show ────────────────────────────────────
   const showPreview = tappedLandmark !== null && !showFullDetails;
   const showFullCard =
@@ -773,6 +838,28 @@ export default function MapScreen() {
             strokeWidth={4}
           />
         )}
+        {/* Group A: red overlays where the route crosses a no-cycling zone */}
+        {tourRouteCoords.length > 0 &&
+          tourRouteSafety.redSegments.map((seg, i) => (
+            <Polyline
+              key={`tour-red-${i}`}
+              coordinates={seg}
+              strokeColor="#D50000"
+              strokeWidth={6}
+              zIndex={20}
+            />
+          ))}
+        {routeCoords.length > 0 &&
+          tourStops.length === 0 &&
+          routeSafety.redSegments.map((seg, i) => (
+            <Polyline
+              key={`route-red-${i}`}
+              coordinates={seg}
+              strokeColor="#D50000"
+              strokeWidth={6}
+              zIndex={20}
+            />
+          ))}
       </MapView>
 
       {/* Re-centre FAB */}
@@ -965,13 +1052,25 @@ export default function MapScreen() {
         </View>
       )}
 
-      {routeInfo && (
-        <View style={styles.routeBanner}>
-          <Ionicons name="bicycle" size={16} color="#fff" />
-          <Text style={styles.routeText}>{routeInfo.distance} · {routeInfo.duration} by bike</Text>
-          <TouchableOpacity onPress={() => { setRouteCoords([]); setRouteInfo(null); }}>
-            <Ionicons name="close-circle" size={20} color="#fff" />
-          </TouchableOpacity>
+      {/* Group A: top banner stack — zone warning above route info; flows in a
+          column so the two never overlap regardless of wrapped text height. */}
+      {(activeConflicts.length > 0 || routeInfo) && (
+        <View style={styles.topBannerStack} pointerEvents="box-none">
+          {activeConflicts.length > 0 && (
+            <View style={styles.routeWarnBanner}>
+              <Ionicons name="warning" size={18} color="#fff" />
+              <Text style={styles.routeWarnText}>{routeWarningText(activeConflicts)}</Text>
+            </View>
+          )}
+          {routeInfo && (
+            <View style={styles.routeBanner}>
+              <Ionicons name="bicycle" size={16} color="#fff" />
+              <Text style={styles.routeText}>{routeInfo.distance} · {routeInfo.duration} by bike</Text>
+              <TouchableOpacity onPress={() => { setRouteCoords([]); setRouteInfo(null); }}>
+                <Ionicons name="close-circle" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
 
@@ -1251,11 +1350,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   mapLoadingText: { color: '#aaa', fontSize: 14 },
-  routeBanner: {
+  topBannerStack: {
     position: 'absolute',
     top: 60,
     left: 16,
     right: 16,
+    gap: 8,
+  },
+  routeBanner: {
     backgroundColor: '#1B5E20',
     borderRadius: 10,
     flexDirection: 'row',
@@ -1270,4 +1372,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   routeText: { color: '#fff', fontSize: 13, fontWeight: '600', flex: 1 },
+  routeWarnBanner: {
+    backgroundColor: '#C62828',
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+  },
+  routeWarnText: { color: '#fff', fontSize: 13, fontWeight: '700', flex: 1, lineHeight: 18 },
 });
