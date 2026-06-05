@@ -45,6 +45,11 @@ export interface RideSummary {
   track?: { latitude: number; longitude: number }[];
 }
 
+// A finished ride persisted to local history (Group B). `id` keys the recap.
+export interface RideRecord extends RideSummary {
+  id: string;
+}
+
 // A chosen free-ride destination: a curated landmark (slug) or a dropped map
 // point (slug = null). Drives the route + bearing guidance for a free ride.
 export interface FreeTarget {
@@ -91,6 +96,8 @@ interface AppState extends LandmarkData, RideState, RideActions {
   tourPreview: TourPreview | null;
   // Last finished ride, set at End Ride; read by the recap screen.
   lastRide: RideSummary | null;
+  // Local ride history (Group B), newest first; powers the Profile list.
+  rideHistory: RideRecord[];
   enterLandmark: (data: LandmarkData) => void;
   exitLandmark: (slug: string) => void;
   setSubscribed: (val: boolean) => void;
@@ -101,6 +108,8 @@ interface AppState extends LandmarkData, RideState, RideActions {
   setTourPreview: (p: TourPreview) => void;
   clearTourPreview: () => void;
   setLastRide: (summary: RideSummary | null) => void;
+  setRideHistory: (list: RideRecord[]) => void;
+  addRideRecord: (record: RideRecord) => void;
 }
 
 const CLEARED: LandmarkData = {
@@ -141,6 +150,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   userLng: null,
   tourPreview: null,
   lastRide: null,
+  rideHistory: [],
   enterLandmark: (data) => set(data),
   exitLandmark: (slug) => {
     if (get().activeSlug === slug) set(CLEARED);
@@ -153,6 +163,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTourPreview: (p) => set({ tourPreview: p }),
   clearTourPreview: () => set({ tourPreview: null }),
   setLastRide: (summary) => set({ lastRide: summary }),
+  setRideHistory: (list) => set({ rideHistory: list }),
+  addRideRecord: (record) => set({ rideHistory: [record, ...get().rideHistory].slice(0, 50) }),
 
   startRide: (opts) =>
     set({

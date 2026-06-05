@@ -10,13 +10,14 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import * as Sharing from 'expo-sharing';
 import { db } from '../src/firebase/config';
-import { useAppStore } from '../src/store/useAppStore';
+import { useAppStore, type RideRecord } from '../src/store/useAppStore';
 import { readCache, CACHE_KEYS } from '../src/utils/offlineCache';
+import { getRideById } from '../src/utils/rideHistory';
 import { BARCELONA_CENTER } from '../constants/rules';
 
 type Coords = { latitude: number; longitude: number };
@@ -50,7 +51,17 @@ interface Pin {
 export default function RecapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const lastRide = useAppStore((s) => s.lastRide);
+  const { id } = useLocalSearchParams<{ id?: string }>();
+
+  // Recap source: a specific past ride (Profile → history, by id) or, with no id,
+  // the just-finished ride. History is checked in the store first, then storage.
+  const storeLastRide = useAppStore((s) => s.lastRide);
+  const historyRide = useAppStore((s) => (id ? s.rideHistory.find((r) => r.id === id) ?? null : null));
+  const [fetchedRide, setFetchedRide] = useState<RideRecord | null>(null);
+  useEffect(() => {
+    if (id && !historyRide) void getRideById(id).then(setFetchedRide);
+  }, [id, historyRide]);
+  const lastRide = id ? historyRide ?? fetchedRide : storeLastRide;
 
   const mapRef = useRef<MapView>(null);
   const [coordsBySlug, setCoordsBySlug] = useState<Map<string, Coords>>(new Map());

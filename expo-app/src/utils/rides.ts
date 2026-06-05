@@ -4,7 +4,8 @@
 
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
-import { useAppStore, type RideSummary } from '../store/useAppStore';
+import { useAppStore, type RideSummary, type RideRecord } from '../store/useAppStore';
+import { addRideToHistory } from './rideHistory';
 
 // Ends the ride: ALWAYS clears local ride state, builds a recap summary when the
 // ride is worth recapping (for the shareable recap screen), and persists to
@@ -46,7 +47,12 @@ export async function endRideAndSave(): Promise<RideSummary | null> {
   // Record the recap only when worthwhile (so a trivial end can't wipe a prior
   // one), but ALWAYS end the ride. Neither blocks on the network — Firestore
   // writes can stall indefinitely while offline.
-  if (summary) s.setLastRide(summary);
+  if (summary) {
+    s.setLastRide(summary);
+    const record: RideRecord = { ...summary, id: String(summary.endedAt) };
+    s.addRideRecord(record);       // reactive: Profile history list updates now
+    void addRideToHistory(record); // durable: survives an app restart
+  }
   s.endRide();
 
   // Persist best-effort in the background, using captured locals (store is now

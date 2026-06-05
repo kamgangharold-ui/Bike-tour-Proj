@@ -20,6 +20,7 @@ import { auth, db } from '../src/firebase/config';
 import { useSettingsStore } from '../src/store/useSettingsStore';
 import { useAppStore } from '../src/store/useAppStore';
 import { clearCache, getCacheInfo } from '../src/utils/offlineCache';
+import { clearRideHistory } from '../src/utils/rideHistory';
 
 // Placeholder until a real hosted Terms page exists.
 const TERMS_URL = 'https://example.com/cycleguide/terms';
@@ -51,6 +52,8 @@ export default function SettingsScreen() {
 
   const isSubscribed = useAppStore((s) => s.isSubscribed);
   const setLastRide = useAppStore((s) => s.setLastRide);
+  const setRideHistory = useAppStore((s) => s.setRideHistory);
+  const historyCount = useAppStore((s) => s.rideHistory.length);
 
   const [cacheUpdated, setCacheUpdated] = useState<number | null>(null);
   const [clearingHistory, setClearingHistory] = useState(false);
@@ -86,23 +89,30 @@ export default function SettingsScreen() {
   };
 
   const clearHistory = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
     setClearingHistory(true);
     try {
-      const snap = await getDocs(query(collection(db, 'rides'), where('user_uid', '==', uid)));
-      if (snap.empty) {
-        Alert.alert('No rides to clear', 'You have no saved rides yet.');
-        return;
-      }
-      await Promise.all(snap.docs.map((d) => deleteDoc(doc(db, 'rides', d.id))));
+      // Local history is the source of truth for the Profile list — clear it
+      // first (works offline, no rules dependency).
+      let firestoreCount = 0;
+      await clearRideHistory();
+      setRideHistory([]);
       setLastRide(null);
-      Alert.alert('Ride history cleared', `Removed ${snap.size} ride${snap.size === 1 ? '' : 's'}.`);
-    } catch (e) {
-      console.warn('[settings] clear history failed', e);
+      // Best-effort: also remove the server-side ride docs (needs the rules
+      // deploy). A failure here never blocks the local clear.
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        try {
+          const snap = await getDocs(query(collection(db, 'rides'), where('user_uid', '==', uid)));
+          firestoreCount = snap.size;
+          await Promise.all(snap.docs.map((d) => deleteDoc(doc(db, 'rides', d.id))));
+        } catch (e) {
+          console.warn('[settings] firestore clear failed (local history already cleared)', e);
+        }
+      }
+      const total = Math.max(historyCount, firestoreCount);
       Alert.alert(
-        'Could not clear history',
-        'The delete was rejected (check your connection / Firestore rules) and nothing was changed.',
+        'Ride history cleared',
+        total > 0 ? `Removed ${total} ride${total === 1 ? '' : 's'}.` : 'Your ride history is now empty.',
       );
     } finally {
       setClearingHistory(false);
@@ -129,6 +139,8 @@ export default function SettingsScreen() {
     const store = useAppStore.getState();
     store.endRide();         // drop any active ride so its banner can't linger on /auth
     store.setLastRide(null); // don't carry this user's recap into the next session
+    store.setRideHistory([]); // and don't expose this user's history to the next account
+    void clearRideHistory();
     try {
       await signOut(auth);
     } finally {
