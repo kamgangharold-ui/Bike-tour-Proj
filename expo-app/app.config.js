@@ -11,6 +11,10 @@ module.exports = {
     platforms: ['ios', 'android'],
     android: {
       package: 'com.biketourguide.app',
+      // Standalone APK: fingerprint runtimeVersion so an OTA whose native footprint
+      // differs from an installed APK is never served to it (the launch-crash guard).
+      // iOS (Expo Go) keeps the top-level sdkVersion policy below.
+      runtimeVersion: { policy: 'fingerprint' },
       permissions: ['RECORD_AUDIO'],
       ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
         ? { config: { googleMaps: { apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY } } }
@@ -46,14 +50,13 @@ module.exports = {
     updates: {
       url: 'https://u.expo.dev/486226d7-7af6-43df-ba8d-41d919f57d87',
     },
-    // Fingerprint policy: the runtimeVersion is derived from the native project
-    // (native modules, config, permissions). An OTA built with a different native
-    // footprint than an installed build gets a DIFFERENT runtimeVersion, so it is
-    // never served to that build — incompatible updates are skipped, not crashed.
-    // (Replaces 'sdkVersion', which served every SDK-54 OTA to every SDK-54 build
-    // regardless of native modules — the cause of the Android launch crash.)
+    // runtimeVersion is per-platform: iOS ships via Expo Go, which only loads
+    // updates whose runtimeVersion is the SDK form (exposdk:54.0.0), so iOS uses
+    // this top-level `sdkVersion`. Android (standalone APK) overrides to
+    // `fingerprint` in the `android` block above so a native-footprint mismatch
+    // is skipped, not crashed. (Was a global `sdkVersion` — the crash cause.)
     runtimeVersion: {
-      policy: 'fingerprint',
+      policy: 'sdkVersion',
     },
     experiments: { typedRoutes: true },
     extra: {
