@@ -292,45 +292,50 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* Input bar */}
-        <View style={styles.inputBar}>
-          <TouchableOpacity
-            style={[styles.micBtn, isListening && styles.micBtnActive]}
-            onPress={() => void (isListening ? stopListening() : startListening())}
-            disabled={transcribing}
-          >
-            {transcribing ? (
-              <ActivityIndicator size="small" color="#9E9E9E" />
-            ) : (
+        {/* Input bar — one elevated rounded dock holding mic + field + send */}
+        <View style={styles.inputBarOuter}>
+          <View style={styles.inputDock}>
+            <TouchableOpacity
+              style={[styles.micBtn, isListening && styles.micBtnActive]}
+              onPress={() => void (isListening ? stopListening() : startListening())}
+              disabled={transcribing}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {transcribing ? (
+                <ActivityIndicator size="small" color="#9E9E9E" />
+              ) : (
+                <Ionicons
+                  name={isListening ? 'stop-circle' : 'mic'}
+                  size={22}
+                  color={isListening ? '#EF5350' : '#9E9E9E'}
+                />
+              )}
+            </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              placeholder="Message BikAI…"
+              placeholderTextColor="#7A7A7A"
+              value={input}
+              onChangeText={setInput}
+              multiline
+              maxLength={400}
+              returnKeyType="send"
+              onSubmitEditing={() => void sendMessage(input)}
+              blurOnSubmit
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnOff]}
+              onPress={() => void sendMessage(input)}
+              disabled={!input.trim() || loading}
+              activeOpacity={0.85}
+            >
               <Ionicons
-                name={isListening ? 'stop-circle' : 'mic'}
-                size={22}
-                color={isListening ? '#EF5350' : '#9E9E9E'}
+                name="send"
+                size={18}
+                color={!input.trim() || loading ? '#6B6B6B' : '#0A0A0A'}
               />
-            )}
-          </TouchableOpacity>
-          <TextInput
-            style={styles.input}
-            placeholder="Message BikAI…"
-            placeholderTextColor="#666"
-            value={input}
-            onChangeText={setInput}
-            multiline
-            maxLength={400}
-            returnKeyType="send"
-            onSubmitEditing={() => void sendMessage(input)}
-            blurOnSubmit
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (!input.trim() || loading) && styles.sendBtnOff,
-            ]}
-            onPress={() => void sendMessage(input)}
-            disabled={!input.trim() || loading}
-          >
-            <Ionicons name="send" size={18} color="#fff" />
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -412,54 +417,69 @@ const styles = StyleSheet.create({
   },
   listeningHintText: { color: '#EF5350', fontSize: 12, textAlign: 'center' },
 
-  inputBar: {
+  inputBarOuter: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: '#121212',
+  },
+  inputDock: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 10,
-    backgroundColor: '#1A1A1A',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#333',
-    gap: 8,
+    backgroundColor: '#202022',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: '#34343A',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    gap: 6,
+    // Float the dock above the message list — same look on both platforms
+    // (iOS reads shadow*, Android reads elevation).
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
   input: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 40,
     maxHeight: 120,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#4A4A4A',
-    paddingHorizontal: 18,
-    paddingTop: 11,
-    paddingBottom: 11,
-    color: '#fff',
-    fontSize: 15,
-    lineHeight: 20,
-    // Android centers multiline text high and adds extra font padding; these make
-    // the placeholder/text sit centered in the pill identically to iOS.
-    textAlignVertical: 'center',
-    includeFontPadding: false,
+    paddingHorizontal: 8,
+    paddingTop: 9,
+    paddingBottom: 9,
+    color: '#FFFFFF',
+    fontSize: 16,
+    lineHeight: 21,
+    backgroundColor: 'transparent', // the field is part of the dock, not its own pill
+    textAlignVertical: 'center',    // Android: center text like iOS
+    includeFontPadding: false,      // Android: drop extra top/bottom font padding
   },
   micBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2A2A2A',
-    borderWidth: 1,
-    borderColor: '#4A4A4A',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2C2C30',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  micBtnActive: { backgroundColor: '#4A0000', borderColor: '#7A1F1F' },
+  micBtnActive: { backgroundColor: '#4A0000' },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#00C853',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#00E676', // brighter, more saturated than the old #00C853
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#00E676',
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
   },
-  sendBtnOff: { backgroundColor: '#2E2E2E' },
+  sendBtnOff: {
+    backgroundColor: '#2C2C30', // matches the mic track → clearly disabled
+    shadowOpacity: 0,
+    elevation: 0,
+  },
 });
