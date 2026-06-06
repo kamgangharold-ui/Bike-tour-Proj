@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -37,6 +38,7 @@ function fmtWhen(ms: number): string {
 }
 
 export default function SettingsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   // ── Settings (persisted) ──
@@ -90,11 +92,11 @@ export default function SettingsScreen() {
   // ── Actions ──
   const handleClearHistory = () => {
     Alert.alert(
-      'Clear ride history?',
-      'This permanently deletes all your saved rides. This cannot be undone.',
+      t('settings.clearHistoryTitle'),
+      t('settings.clearHistoryMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => void clearHistory() },
+        { text: t('settings.cancel'), style: 'cancel' },
+        { text: t('settings.delete'), style: 'destructive', onPress: () => void clearHistory() },
       ],
     );
   };
@@ -122,8 +124,8 @@ export default function SettingsScreen() {
       }
       const total = Math.max(historyCount, firestoreCount);
       Alert.alert(
-        'Ride history cleared',
-        total > 0 ? `Removed ${total} ride${total === 1 ? '' : 's'}.` : 'Your ride history is now empty.',
+        t('settings.historyClearedTitle'),
+        total > 0 ? t('settings.historyClearedCount', { count: total }) : t('settings.historyClearedEmpty'),
       );
     } finally {
       setClearingHistory(false);
@@ -131,10 +133,10 @@ export default function SettingsScreen() {
   };
 
   const handleClearCache = () => {
-    Alert.alert('Clear saved offline data?', 'Cached landmarks, tours and routes will be removed.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('settings.clearCacheTitle'), t('settings.clearCacheMessage'), [
+      { text: t('settings.cancel'), style: 'cancel' },
       {
-        text: 'Clear',
+        text: t('settings.clear'),
         style: 'destructive',
         onPress: () => {
           setClearingCache(true);
@@ -164,97 +166,101 @@ export default function SettingsScreen() {
       style={styles.container}
       contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
     >
-      <Section title="Cycling & routing">
+      {/* ONE language control — drives UI + STT + TTS + AI reply together. */}
+      <Section title={t('settings.sectionLanguage')}>
+        <LanguageRow value={appLocale} onChange={setAppLocale} />
+      </Section>
+
+      <Section title={t('settings.sectionCyclingRouting')}>
         <ToggleRow
           icon="warning-outline"
-          label="Avoid no-cycling & fine zones"
-          sublabel="Warn and reroute around dismount / prohibited areas"
+          label={t('settings.avoidNoCyclingLabel')}
+          sublabel={t('settings.avoidNoCyclingSub')}
           value={avoidNoCyclingZones}
           onValueChange={setAvoidNoCyclingZones}
         />
       </Section>
 
-      <Section title="Voice & guidance">
+      <Section title={t('settings.sectionVoiceGuidance')}>
         <ToggleRow
           icon="volume-high-outline"
-          label="Voice guidance"
-          sublabel="Read BikAI replies aloud"
+          label={t('settings.voiceGuidanceLabel')}
+          sublabel={t('settings.voiceGuidanceSub')}
           value={voiceGuidanceEnabled}
           onValueChange={setVoiceGuidanceEnabled}
         />
-        <LanguageRow value={appLocale} onChange={setAppLocale} />
       </Section>
 
-      <Section title="Notifications">
+      <Section title={t('settings.sectionNotifications')}>
         <ToggleRow
           icon="notifications-circle-outline"
-          label="All notifications"
-          sublabel="Master switch for banners, alerts & the ride notification"
+          label={t('settings.allNotificationsLabel')}
+          sublabel={t('settings.allNotificationsSub')}
           value={notificationsEnabled}
           onValueChange={setNotificationsEnabled}
         />
         <ToggleRow
           icon="notifications-outline"
-          label="Landmark alerts"
-          sublabel="Notify when you reach a landmark"
+          label={t('settings.landmarkAlertsLabel')}
+          sublabel={t('settings.landmarkAlertsSub')}
           value={landmarkAlertsEnabled}
           onValueChange={setLandmarkAlertsEnabled}
         />
         <ToggleRow
           icon="alert-circle-outline"
-          label="Safety & regulatory alerts"
-          sublabel="Dismount zones, fines and warnings"
+          label={t('settings.safetyAlertsLabel')}
+          sublabel={t('settings.safetyAlertsSub')}
           value={safetyAlertsEnabled}
           onValueChange={setSafetyAlertsEnabled}
         />
       </Section>
 
-      <Section title="Offline">
+      <Section title={t('settings.sectionOffline')}>
         <ToggleRow
           icon="cloud-offline-outline"
-          label="Save Barcelona data for offline"
+          label={t('settings.offlineCacheLabel')}
           sublabel={
             cacheUpdated
-              ? `Last updated ${fmtWhen(cacheUpdated)}`
-              : 'No data cached yet'
+              ? t('settings.offlineLastUpdated', { when: fmtWhen(cacheUpdated) })
+              : t('settings.offlineNoData')
           }
           value={offlineCacheEnabled}
           onValueChange={setOfflineCacheEnabled}
         />
         <ActionRow
           icon="trash-outline"
-          label="Clear cached data"
+          label={t('settings.clearCachedData')}
           onPress={handleClearCache}
           busy={clearingCache}
         />
       </Section>
 
-      <Section title="Map layers">
+      <Section title={t('settings.sectionMapLayers')}>
         <ToggleRow
           icon="bicycle-outline"
-          label="Bicing stations"
-          sublabel="Show the city bike-share overlay"
+          label={t('settings.bicingStationsLabel')}
+          sublabel={t('settings.bicingStationsSub')}
           value={showBicing}
           onValueChange={setShowBicing}
         />
       </Section>
 
-      <Section title="Data & account">
+      <Section title={t('settings.sectionDataAccount')}>
         <ActionRow
           icon="bookmark-outline"
-          label="Subscription"
-          value={premium ? 'Premium' : 'Free plan'}
+          label={t('settings.subscription')}
+          value={premium ? t('settings.premium') : t('settings.freePlan')}
         />
         <ActionRow
           icon="trash-bin-outline"
-          label="Clear ride history"
+          label={t('settings.clearRideHistory')}
           onPress={handleClearHistory}
           busy={clearingHistory}
           danger
         />
         <ActionRow
           icon="log-out-outline"
-          label="Sign out"
+          label={t('settings.signOut')}
           onPress={() => void handleSignOut()}
           danger
         />
@@ -313,11 +319,11 @@ export default function SettingsScreen() {
       </Section>
       )}
 
-      <Section title="About">
-        <ActionRow icon="information-circle-outline" label="App version" value={appVersion} />
+      <Section title={t('settings.sectionAbout')}>
+        <ActionRow icon="information-circle-outline" label={t('settings.appVersion')} value={appVersion} />
         <ActionRow
           icon="document-text-outline"
-          label="Terms of Service"
+          label={t('settings.termsOfService')}
           onPress={() => void Linking.openURL(TERMS_URL)}
           chevron
         />
@@ -367,13 +373,14 @@ function ToggleRow({
 }
 
 function LanguageRow({ value, onChange }: { value: AppLocale; onChange: (l: AppLocale) => void }) {
+  const { t } = useTranslation();
   return (
     <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Ionicons name="language-outline" size={20} color="#9E9E9E" style={styles.rowIcon} />
         <View style={styles.rowText}>
-          <Text style={styles.rowLabel}>Voice language</Text>
-          <Text style={styles.rowSub}>Speech recognition & spoken replies</Text>
+          <Text style={styles.rowLabel}>{t('settings.voiceLanguageLabel')}</Text>
+          <Text style={styles.rowSub}>{t('settings.voiceLanguageSub')}</Text>
         </View>
       </View>
       <View style={styles.langChips}>

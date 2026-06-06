@@ -7,6 +7,7 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const CATEGORY_COLORS: Record<string, string> = {
   landmark: '#1565C0',
@@ -16,12 +17,12 @@ const CATEGORY_COLORS: Record<string, string> = {
   viewpoint: '#4A148C',
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  landmark: 'Landmark',
-  dismount_zone: 'Dismount Zone',
-  parking: 'Parking',
-  hazard: 'Hazard',
-  viewpoint: 'Viewpoint',
+const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  landmark: 'categoryLandmark',
+  dismount_zone: 'categoryDismountZone',
+  parking: 'categoryParking',
+  hazard: 'categoryHazard',
+  viewpoint: 'categoryViewpoint',
 };
 
 interface Props {
@@ -75,12 +76,14 @@ export default function LandmarkCard({
   onQuizCorrect,
   onGetDirections,
 }: Props) {
+  const { t } = useTranslation();
   const [selectedOption, setSelectedOption] = useState(-1);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   const answered = selectedOption >= 0;
   const color = CATEGORY_COLORS[category] ?? '#1565C0';
-  const label = CATEGORY_LABELS[category] ?? category;
+  const labelKey = CATEGORY_LABEL_KEYS[category];
+  const label = labelKey ? t(`landmark.${labelKey}`) : category;
 
   return (
     <View style={styles.card}>
@@ -93,7 +96,7 @@ export default function LandmarkCard({
           {isVisited && (
             <View style={styles.visitedRow}>
               <Ionicons name="checkmark-circle" size={13} color="#43A047" />
-              <Text style={styles.visitedText}> Visited</Text>
+              <Text style={styles.visitedText}> {t('landmark.visited')}</Text>
             </View>
           )}
         </View>
@@ -113,7 +116,7 @@ export default function LandmarkCard({
           <Ionicons name="warning" size={18} color="#C62828" />
           <Text style={styles.regulatoryText}>
             {regulatoryMessage}
-            {regulatoryFineEur > 0 ? ` — Fine: €${Math.round(regulatoryFineEur)}` : ''}
+            {regulatoryFineEur > 0 ? t('landmark.finePrefix', { amount: Math.round(regulatoryFineEur) }) : ''}
           </Text>
         </View>
       )}
@@ -127,9 +130,9 @@ export default function LandmarkCard({
         <View style={styles.quizBox}>
           <View style={styles.quizHeaderRow}>
             <Ionicons name="help-circle-outline" size={15} color="#5C6BC0" />
-            <Text style={styles.quizLabel}> Quick Quiz</Text>
+            <Text style={styles.quizLabel}> {t('landmark.quickQuiz')}</Text>
             {quizPoints > 0 && (
-              <Text style={styles.quizPoints}>+{quizPoints} pts</Text>
+              <Text style={styles.quizPoints}>{t('landmark.pointsReward', { count: quizPoints })}</Text>
             )}
           </View>
           <Text style={styles.quizQuestion}>{quizQuestion}</Text>
@@ -172,7 +175,7 @@ export default function LandmarkCard({
                 { color: selectedOption === quizCorrectIndex ? '#43A047' : '#757575' },
               ]}
             >
-              {selectedOption === quizCorrectIndex ? '✓ Correct! ' : '✗ Not quite — '}
+              {selectedOption === quizCorrectIndex ? t('landmark.feedbackCorrect') : t('landmark.feedbackIncorrect')}
               {quizExplanation}
             </Text>
           )}
@@ -182,7 +185,7 @@ export default function LandmarkCard({
       {/* FAQs */}
       {faqQuestions.length > 0 && (
         <View style={styles.faqSection}>
-          <Text style={styles.faqTitle}>FAQs at this spot</Text>
+          <Text style={styles.faqTitle}>{t('landmark.faqsHeading')}</Text>
           {faqQuestions.map((q, i) => {
             const locked = (faqIsPremium[i] ?? false) && !isSubscribed;
             const expanded = expandedFaq === i;
@@ -206,7 +209,7 @@ export default function LandmarkCard({
                 {expanded && (
                   <Text style={styles.faqAnswer}>
                     {locked
-                      ? '⭐ Premium — upgrade to unlock'
+                      ? t('landmark.premiumLock')
                       : (faqAnswers[i] ?? '')}
                   </Text>
                 )}
@@ -224,7 +227,7 @@ export default function LandmarkCard({
             onPress={() => Linking.openURL(affiliateUrl)}
           >
             <Ionicons name="ticket-outline" size={15} color="#fff" />
-            <Text style={styles.filledBtnText}> Book a Tour</Text>
+            <Text style={styles.filledBtnText}> {t('landmark.bookTour')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -236,7 +239,7 @@ export default function LandmarkCard({
           onPress={() => onGetDirections?.()}
         >
           <Ionicons name="navigate" size={15} color="#fff" />
-          <Text style={styles.directionsBtnText}>Get Directions</Text>
+          <Text style={styles.directionsBtnText}>{t('landmark.getDirections')}</Text>
         </TouchableOpacity>
       )}
     </View>

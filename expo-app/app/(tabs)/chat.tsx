@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -38,16 +39,18 @@ interface ChatMessage {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SUGGESTED = [
-  "What's near me right now?",
-  'Is it safe to ride here?',
-  'Where can I park my bike?',
-  'What are the cycling rules here?',
+// Keys for the default suggested questions (resolved via t() at render).
+const SUGGESTED_KEYS = [
+  'suggestNearMe',
+  'suggestSafeHere',
+  'suggestParkBike',
+  'suggestRulesHere',
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ChatScreen() {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,7 +67,7 @@ export default function ChatScreen() {
   const { isListening, transcribing, startListening, stopListening } = useVoiceChat({
     onTranscript: (text) => void sendMessage(text),
     phrases: () => landmarks.map((l) => l.name).filter(Boolean),
-    onError: (msg) => Alert.alert('Voice', msg),
+    onError: (msg) => Alert.alert(t('chat.voiceAlertTitle'), msg),
   });
 
   const router = useRouter();
@@ -95,14 +98,14 @@ export default function ChatScreen() {
   const suggestions = useMemo(() => {
     if (contextName) {
       return [
-        `Tell me about ${contextName}`,
-        `Is it safe to cycle at ${contextName}?`,
-        `Where can I park near ${contextName}?`,
-        `What are the cycling rules at ${contextName}?`,
+        t('chat.suggestTellAbout', { name: contextName }),
+        t('chat.suggestSafeAt', { name: contextName }),
+        t('chat.suggestParkNear', { name: contextName }),
+        t('chat.suggestRulesAt', { name: contextName }),
       ];
     }
-    return SUGGESTED;
-  }, [contextName]);
+    return SUGGESTED_KEYS.map((k) => t(`chat.${k}`));
+  }, [contextName, t]);
 
   // Load landmarks for context
   useEffect(() => {
@@ -183,8 +186,7 @@ export default function ChatScreen() {
         {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content:
-            'Sorry, something went wrong. Check your API key and try again.',
+          content: t('chat.errorReply'),
         },
       ]);
     } finally {
@@ -248,7 +250,7 @@ export default function ChatScreen() {
         {isEmpty ? (
           <View style={styles.emptyState}>
             <Ionicons name="chatbubble-ellipses-outline" size={52} color="#444" />
-            <Text style={styles.emptyTitle}>Ask me anything about your ride</Text>
+            <Text style={styles.emptyTitle}>{t('chat.emptyTitle')}</Text>
             <View style={styles.suggestionList}>
               {suggestions.map((q) => (
                 <TouchableOpacity
@@ -279,7 +281,7 @@ export default function ChatScreen() {
         {loading && (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color="#00C853" />
-            <Text style={styles.loadingText}>Thinking…</Text>
+            <Text style={styles.loadingText}>{t('chat.thinking')}</Text>
           </View>
         )}
 
@@ -287,7 +289,7 @@ export default function ChatScreen() {
         {(isListening || transcribing) && (
           <View style={styles.listeningHint}>
             <Text style={styles.listeningHintText}>
-              {transcribing ? '⏳ Transcribing…' : '🎙 Listening — tap ■ to send'}
+              {transcribing ? t('chat.transcribing') : t('chat.listeningHint')}
             </Text>
           </View>
         )}
@@ -313,7 +315,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <TextInput
               style={styles.input}
-              placeholder="Message BikAI…"
+              placeholder={t('chat.inputPlaceholder')}
               placeholderTextColor="#7A7A7A"
               value={input}
               onChangeText={setInput}

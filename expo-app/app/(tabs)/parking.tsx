@@ -7,6 +7,7 @@ import {
   Text,
   RefreshControl,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { filterParkingByDistance } from '../../src/utils/parkingFilter';
@@ -24,6 +25,7 @@ interface Station {
 }
 
 export default function ParkingScreen() {
+  const { t } = useTranslation();
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,7 +36,7 @@ export default function ParkingScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setError('Location permission required to show nearby parking');
+        setError(t('parking.locationPermissionRequired'));
         return;
       }
 
@@ -61,9 +63,9 @@ export default function ParkingScreen() {
 
       setStations([...biciboxFiltered, ...biciparkFiltered]);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load parking data');
+      setError(e instanceof Error ? e.message : t('parking.failedToLoad'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     (async () => {
@@ -83,7 +85,7 @@ export default function ParkingScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color="#00C853" size="large" />
-        <Text style={styles.loadingText}>Finding nearby parking…</Text>
+        <Text style={styles.loadingText}>{t('parking.findingNearby')}</Text>
       </View>
     );
   }
@@ -96,9 +98,9 @@ export default function ParkingScreen() {
       {!error && stations.length === 0 && (
         <View style={styles.centered}>
           <Ionicons name="bicycle-outline" size={52} color="#444" />
-          <Text style={styles.emptyText}>No bike parking within 500m</Text>
+          <Text style={styles.emptyText}>{t('parking.emptyTitle')}</Text>
           <Text style={styles.emptySubText}>
-            Move closer to the city centre or pull down to refresh
+            {t('parking.emptySubtitle')}
           </Text>
         </View>
       )}
@@ -108,7 +110,7 @@ export default function ParkingScreen() {
         renderItem={({ item }) => (
           <ParkingCard
             type={item._type}
-            name={(item['EQUIPAMENT'] as string) ?? (item['NOM'] as string) ?? 'Parking'}
+            name={(item['EQUIPAMENT'] as string) ?? (item['NOM'] as string) ?? t('parking.defaultName')}
             distanceMetres={item.distanceMetres}
           />
         )}
@@ -123,7 +125,7 @@ export default function ParkingScreen() {
         ListHeaderComponent={
           stations.length > 0 ? (
             <Text style={styles.header}>
-              {stations.length} spots within 500m
+              {t('parking.spotsWithin', { count: stations.length })}
             </Text>
           ) : null
         }

@@ -11,6 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   signInAnonymously,
   signInWithEmailAndPassword,
@@ -18,22 +20,23 @@ import {
 } from 'firebase/auth';
 import { auth } from '../src/firebase/config';
 
-function firebaseErrorMessage(e: unknown): string {
+function firebaseErrorMessage(e: unknown, t: TFunction): string {
   const code = (e as { code?: string }).code ?? '';
   const map: Record<string, string> = {
-    'auth/network-request-failed': 'No internet connection. Check your network.',
-    'auth/too-many-requests': 'Too many attempts. Wait a minute and try again.',
-    'auth/invalid-api-key': 'App configuration error. Contact support.',
-    'auth/email-already-in-use': 'Email already registered. Try signing in.',
-    'auth/wrong-password': 'Wrong email or password.',
-    'auth/invalid-credential': 'Wrong email or password.',
-    'auth/user-not-found': 'No account found. Try signing up.',
-    'auth/weak-password': 'Password must be at least 6 characters.',
+    'auth/network-request-failed': t('auth.errorNetwork'),
+    'auth/too-many-requests': t('auth.errorTooManyRequests'),
+    'auth/invalid-api-key': t('auth.errorConfig'),
+    'auth/email-already-in-use': t('auth.errorEmailInUse'),
+    'auth/wrong-password': t('auth.errorWrongPassword'),
+    'auth/invalid-credential': t('auth.errorWrongPassword'),
+    'auth/user-not-found': t('auth.errorUserNotFound'),
+    'auth/weak-password': t('auth.errorWeakPassword'),
   };
-  return map[code] ?? (e instanceof Error ? e.message : 'Something went wrong. Try again.');
+  return map[code] ?? (e instanceof Error ? e.message : t('auth.errorGeneric'));
 }
 
 export default function AuthScreen() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -47,7 +50,7 @@ export default function AuthScreen() {
       await signInAnonymously(auth);
       router.replace('/(tabs)/map');
     } catch (e: unknown) {
-      setError(firebaseErrorMessage(e));
+      setError(firebaseErrorMessage(e, t));
     } finally {
       setLoading(false);
     }
@@ -55,7 +58,7 @@ export default function AuthScreen() {
 
   const handleEmail = async () => {
     if (!email.trim() || !password.trim()) {
-      setError('Enter email and password');
+      setError(t('auth.errorEnterCredentials'));
       return;
     }
     setLoading(true);
@@ -68,7 +71,7 @@ export default function AuthScreen() {
       }
       router.replace('/(tabs)/map');
     } catch (e: unknown) {
-      setError(firebaseErrorMessage(e));
+      setError(firebaseErrorMessage(e, t));
     } finally {
       setLoading(false);
     }
@@ -81,26 +84,26 @@ export default function AuthScreen() {
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Text style={styles.emoji}>🚴</Text>
-        <Text style={styles.title}>Bike Tour Guide</Text>
-        <Text style={styles.subtitle}>Barcelona Cycling Guide</Text>
+        <Text style={styles.title}>{t('auth.appTitle')}</Text>
+        <Text style={styles.subtitle}>{t('auth.appSubtitle')}</Text>
 
         <TouchableOpacity style={styles.guestBtn} onPress={handleGuest} disabled={loading}>
           {loading ? (
             <ActivityIndicator color="#000" />
           ) : (
-            <Text style={styles.guestBtnText}>Explore as Guest</Text>
+            <Text style={styles.guestBtnText}>{t('auth.exploreAsGuest')}</Text>
           )}
         </TouchableOpacity>
 
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or sign in with email</Text>
+          <Text style={styles.dividerText}>{t('auth.orSignInWithEmail')}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('auth.emailPlaceholder')}
           placeholderTextColor="#666"
           keyboardType="email-address"
           autoCapitalize="none"
@@ -109,7 +112,7 @@ export default function AuthScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Password"
+          placeholder={t('auth.passwordPlaceholder')}
           placeholderTextColor="#666"
           secureTextEntry
           value={password}
@@ -119,12 +122,12 @@ export default function AuthScreen() {
         {error.length > 0 && <Text style={styles.error}>{error}</Text>}
 
         <TouchableOpacity style={styles.emailBtn} onPress={handleEmail} disabled={loading}>
-          <Text style={styles.emailBtnText}>{isSignUp ? 'Sign Up' : 'Sign In'}</Text>
+          <Text style={styles.emailBtnText}>{isSignUp ? t('auth.signUp') : t('auth.signIn')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => setIsSignUp((v) => !v)} style={styles.toggleRow}>
           <Text style={styles.toggleText}>
-            {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            {isSignUp ? t('auth.toggleToSignIn') : t('auth.toggleToSignUp')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

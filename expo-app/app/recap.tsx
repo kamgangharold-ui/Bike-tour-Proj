@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -51,6 +52,7 @@ interface Pin {
 export default function RecapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   // Recap source: a specific past ride (Profile → history, by id) or, with no id,
@@ -163,9 +165,9 @@ export default function RecapScreen() {
     return (
       <View style={[styles.container, styles.centered]}>
         <Ionicons name="bicycle" size={40} color="#555" />
-        <Text style={styles.emptyText}>No recent ride to recap.</Text>
+        <Text style={styles.emptyText}>{t('recap.noRecentRide')}</Text>
         <TouchableOpacity style={styles.doneBtn} onPress={() => router.replace('/(tabs)/map')}>
-          <Text style={styles.doneBtnText}>Back to map</Text>
+          <Text style={styles.doneBtnText}>{t('recap.backToMap')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -176,9 +178,12 @@ export default function RecapScreen() {
   const landmarkCount = lastRide.visitedSlugs.length;
   const avgSpeedStr = `${lastRide.avgSpeedKmh.toFixed(1)} km/h`;
   const dateStr = fmtDate(lastRide.endedAt);
-  const caption =
-    `🚴 Barcelona CycleGuide — ${distanceStr} ridden, ${durationStr}, ` +
-    `${landmarkCount} landmark${landmarkCount === 1 ? '' : 's'} seen (${dateStr}).`;
+  const caption = t('recap.shareCaption', {
+    distance: distanceStr,
+    duration: durationStr,
+    count: landmarkCount,
+    date: dateStr,
+  });
 
   const handleShare = async () => {
     if (sharing) return;
@@ -190,7 +195,7 @@ export default function RecapScreen() {
       // differently and Android leaked a map image. RN Share.share with a message
       // is consistent everywhere and never attaches a location image.
       await Share.share({
-        message: `${caption}\nExplore Barcelona by bike with CycleGuide.`,
+        message: `${caption}\n${t('recap.shareTagline')}`,
       });
     } catch (e) {
       console.warn('[recap] share failed', e);
@@ -227,24 +232,24 @@ export default function RecapScreen() {
         </MapView>
         {pins.length === 0 && routeLine.length < 2 && (
           <View style={styles.mapEmpty} pointerEvents="none">
-            <Text style={styles.mapEmptyText}>Map preview unavailable</Text>
+            <Text style={styles.mapEmptyText}>{t('recap.mapPreviewUnavailable')}</Text>
           </View>
         )}
       </View>
 
       <View style={styles.body}>
         <Text style={styles.title}>
-          {lastRide.mode === 'tour' ? 'Tour complete' : 'Ride complete'} 🎉
+          {lastRide.mode === 'tour' ? t('recap.tourComplete') : t('recap.rideComplete')} 🎉
         </Text>
         <Text style={styles.date}>{dateStr}</Text>
 
         <View style={styles.statsRow}>
-          <Stat icon="navigate-outline" label="Distance" value={distanceStr} />
-          <Stat icon="time-outline" label="Duration" value={durationStr} />
+          <Stat icon="navigate-outline" label={t('recap.distance')} value={distanceStr} />
+          <Stat icon="time-outline" label={t('recap.duration')} value={durationStr} />
         </View>
         <View style={styles.statsRowLast}>
-          <Stat icon="speedometer-outline" label="Avg speed" value={avgSpeedStr} />
-          <Stat icon="flag-outline" label="Landmarks" value={String(landmarkCount)} />
+          <Stat icon="speedometer-outline" label={t('recap.avgSpeed')} value={avgSpeedStr} />
+          <Stat icon="flag-outline" label={t('recap.landmarks')} value={String(landmarkCount)} />
         </View>
 
         <TouchableOpacity
@@ -257,13 +262,13 @@ export default function RecapScreen() {
           ) : (
             <>
               <Ionicons name="share-social" size={18} color="#000" />
-              <Text style={styles.shareBtnText}> Share recap</Text>
+              <Text style={styles.shareBtnText}> {t('recap.shareRecap')}</Text>
             </>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.doneBtn} onPress={() => router.replace('/(tabs)/map')}>
-          <Text style={styles.doneBtnText}>Done</Text>
+          <Text style={styles.doneBtnText}>{t('recap.done')}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

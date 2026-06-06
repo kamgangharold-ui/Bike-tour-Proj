@@ -10,6 +10,7 @@ import {
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -46,6 +47,7 @@ function fmtKm(m: number): string {
 }
 
 export default function RideScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const rideActive = useAppStore((s) => s.rideActive);
   const rideMode = useAppStore((s) => s.rideMode);
@@ -213,26 +215,26 @@ export default function RideScreen() {
           <View style={styles.activeHeader}>
             <Ionicons name="bicycle" size={22} color="#00C853" />
             <Text style={styles.activeTitle}>
-              {rideMode === 'tour' ? activeTour?.name ?? 'Guided Tour' : 'Free ride'}
+              {rideMode === 'tour' ? activeTour?.name ?? t('ride.guidedTour') : t('ride.freeRide')}
             </Text>
           </View>
 
           {rideMode === 'tour' ? (
             <Text style={styles.nextStop}>
-              {targetName ? `Next stop: ${targetName}` : 'Tour complete 🎉'}
+              {targetName ? t('ride.nextStop', { name: targetName }) : t('ride.tourComplete')}
             </Text>
           ) : (
             <Text style={styles.nextStop}>
-              {rideFreeTarget ? `Heading to ${rideFreeTarget.name}` : 'Heading to the nearest landmark'}
+              {rideFreeTarget ? t('ride.headingTo', { name: rideFreeTarget.name }) : t('ride.headingNearest')}
             </Text>
           )}
 
           <View style={styles.metricsRow}>
-            <Metric icon="time-outline" label="Elapsed" value={fmtElapsed(elapsed)} />
-            <Metric icon="navigate-outline" label="Ridden" value={fmtKm(rideDistanceMeters)} />
+            <Metric icon="time-outline" label={t('ride.elapsed')} value={fmtElapsed(elapsed)} />
+            <Metric icon="navigate-outline" label={t('ride.ridden')} value={fmtKm(rideDistanceMeters)} />
             <Metric
               icon="flag-outline"
-              label="Seen"
+              label={t('ride.seen')}
               value={
                 rideMode === 'tour'
                   ? `${rideVisited.length}/${rideTourStops.length}`
@@ -244,11 +246,11 @@ export default function RideScreen() {
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.mapBtn} onPress={() => router.push('/(tabs)/map')}>
               <Ionicons name="map-outline" size={18} color="#000" />
-              <Text style={styles.mapBtnText}> View on Map</Text>
+              <Text style={styles.mapBtnText}> {t('ride.viewOnMap')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
               <Ionicons name="stop-circle" size={18} color="#fff" />
-              <Text style={styles.endText}> End Ride</Text>
+              <Text style={styles.endText}> {t('ride.endRide')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -267,12 +269,12 @@ export default function RideScreen() {
           >
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.chooserTitle}>Choose a destination</Text>
+          <Text style={styles.chooserTitle}>{t('ride.chooseDestination')}</Text>
         </View>
 
         <TouchableOpacity style={styles.nearestBtn} onPress={() => startFree()}>
           <Ionicons name="locate" size={18} color="#000" />
-          <Text style={styles.nearestBtnText}> Nearest landmark</Text>
+          <Text style={styles.nearestBtnText}> {t('ride.nearestLandmark')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -280,14 +282,14 @@ export default function RideScreen() {
           onPress={() => { setChoosing(false); setSearch(''); router.push('/(tabs)/map'); }}
         >
           <Ionicons name="pin-outline" size={16} color="#00C853" />
-          <Text style={styles.dropBtnText}> Or drop a pin on the map</Text>
+          <Text style={styles.dropBtnText}> {t('ride.dropPin')}</Text>
         </TouchableOpacity>
 
         <View style={styles.searchRow}>
           <Ionicons name="search" size={16} color="#777" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search landmarks…"
+            placeholder={t('ride.searchLandmarks')}
             placeholderTextColor="#666"
             value={search}
             onChangeText={setSearch}
@@ -315,7 +317,7 @@ export default function RideScreen() {
           )}
           ListEmptyComponent={
             <Text style={styles.empty}>
-              {landmarks.length === 0 ? 'Loading landmarks…' : 'No matching landmarks.'}
+              {landmarks.length === 0 ? t('ride.loadingLandmarks') : t('ride.noMatchingLandmarks')}
             </Text>
           }
         />
@@ -326,20 +328,20 @@ export default function RideScreen() {
   // ── Start screen ──────────────────────────────────────────────────────────────
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.inner, styles.innerCentered, { paddingTop: insets.top + 20 }]}>
-      <Text style={styles.heading}>Guided Ride</Text>
-      <Text style={styles.subheading}>Hands-free landmark audio + turn-toward directions.</Text>
+      <Text style={styles.heading}>{t('ride.guidedRide')}</Text>
+      <Text style={styles.subheading}>{t('ride.subheading')}</Text>
 
       <TouchableOpacity style={styles.freeBtn} onPress={() => setChoosing(true)}>
         <Ionicons name="bicycle" size={20} color="#000" />
-        <Text style={styles.freeBtnText}> Start free ride</Text>
+        <Text style={styles.freeBtnText}> {t('ride.startFreeRide')}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.sectionLabel}>Curated tours</Text>
+      <Text style={styles.sectionLabel}>{t('ride.curatedTours')}</Text>
 
       {loading ? (
         <ActivityIndicator color="#00C853" style={{ marginTop: 24 }} />
       ) : tours.length === 0 ? (
-        <Text style={styles.empty}>No tours yet. Start a free ride to explore nearby landmarks.</Text>
+        <Text style={styles.empty}>{t('ride.noTours')}</Text>
       ) : (
         tours.map((tour) => (
           <TouchableOpacity
@@ -362,9 +364,9 @@ export default function RideScreen() {
             </View>
             {tour.description ? <Text style={styles.tourDesc} numberOfLines={2}>{tour.description}</Text> : null}
             <Text style={styles.tourMeta}>
-              {tour.distance_km > 0 ? `${tour.distance_km} km · ` : ''}
-              {tour.est_minutes > 0 ? `${tour.est_minutes} min · ` : ''}
-              {tour.location_slugs.length} stops
+              {tour.distance_km > 0 ? t('ride.metaKm', { km: tour.distance_km }) : ''}
+              {tour.est_minutes > 0 ? t('ride.metaMin', { min: tour.est_minutes }) : ''}
+              {t('ride.metaStops', { count: tour.location_slugs.length })}
             </Text>
           </TouchableOpacity>
         ))

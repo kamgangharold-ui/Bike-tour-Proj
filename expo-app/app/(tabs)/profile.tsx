@@ -8,6 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { router, type Href } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where, getDocs, DocumentData } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,7 @@ export default function ProfileScreen() {
   const [rides, setRides] = useState<{ count: number; km: number }>({ count: 0, km: 0 });
   const [landmarkNames, setLandmarkNames] = useState<Record<string, string>>({});
   const setSubscribed = useAppStore((s) => s.setSubscribed);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -101,8 +103,8 @@ export default function ProfileScreen() {
   const subStatus = (profile?.['subscription_status'] as string) ?? 'free';
   const isPremium = subStatus === 'active';
   const displayName = user?.isAnonymous
-    ? 'Guest Cyclist'
-    : user?.displayName ?? user?.email ?? 'Cyclist';
+    ? t('profile.guestCyclist')
+    : user?.displayName ?? user?.email ?? t('profile.cyclist');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.inner}>
@@ -126,7 +128,7 @@ export default function ProfileScreen() {
             color={isPremium ? '#00C853' : '#666'}
           />
           <Text style={[styles.chipText, { color: isPremium ? '#00C853' : '#666' }]}>
-            {' '}{isPremium ? 'Premium' : 'Free Plan'}
+            {' '}{isPremium ? t('profile.premium') : t('profile.freePlan')}
           </Text>
         </View>
       </View>
@@ -136,12 +138,12 @@ export default function ProfileScreen() {
         <View style={styles.statCard}>
           <Ionicons name="trophy" size={28} color="#00C853" />
           <Text style={[styles.statValue, { color: '#00C853' }]}>{points}</Text>
-          <Text style={styles.statLabel}>Points</Text>
+          <Text style={styles.statLabel}>{t('profile.points')}</Text>
         </View>
         <View style={styles.statCard}>
           <Ionicons name="location" size={28} color="#1565C0" />
           <Text style={[styles.statValue, { color: '#1565C0' }]}>{visited}</Text>
-          <Text style={styles.statLabel}>Visited</Text>
+          <Text style={styles.statLabel}>{t('profile.visited')}</Text>
         </View>
       </View>
 
@@ -154,19 +156,19 @@ export default function ProfileScreen() {
         >
           <Ionicons name="bicycle" size={28} color="#00C853" />
           <Text style={[styles.statValue, { color: '#00C853' }]}>{rides.count}</Text>
-          <Text style={styles.statLabel}>Rides ›</Text>
+          <Text style={styles.statLabel}>{t('profile.ridesLink')}</Text>
         </TouchableOpacity>
         <View style={styles.statCard}>
           <Ionicons name="speedometer" size={28} color="#1565C0" />
           <Text style={[styles.statValue, { color: '#1565C0' }]}>{rides.km}</Text>
-          <Text style={styles.statLabel}>km ridden</Text>
+          <Text style={styles.statLabel}>{t('profile.kmRidden')}</Text>
         </View>
       </View>
 
       {/* Visited landmarks (FIX 19) — populated when the rider comes within 100 m */}
       {visitedSlugs.length > 0 && (
         <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>VISITED LANDMARKS</Text>
+          <Text style={styles.historyTitle}>{t('profile.visitedLandmarks')}</Text>
           {visitedSlugs.map((slug) => (
             <View key={slug} style={styles.historyRow}>
               <Ionicons name="checkmark-circle" size={18} color="#43A047" />
@@ -182,14 +184,14 @@ export default function ProfileScreen() {
       {!isPremium && (
         <TouchableOpacity style={styles.upgradeBtn}>
           <Ionicons name="star" size={16} color="#000" />
-          <Text style={styles.upgradeBtnText}> Upgrade to Premium</Text>
+          <Text style={styles.upgradeBtnText}> {t('profile.upgradeToPremium')}</Text>
         </TouchableOpacity>
       )}
 
       {/* Sign out */}
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Ionicons name="log-out-outline" size={16} color="#EF5350" />
-        <Text style={styles.signOutText}> Sign Out</Text>
+        <Text style={styles.signOutText}> {t('profile.signOut')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

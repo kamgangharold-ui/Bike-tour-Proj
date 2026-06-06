@@ -4,6 +4,7 @@
 // dashboard. Returning null still keeps the hook alive (it runs before the return).
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter, type Href } from 'expo-router';
@@ -30,6 +31,7 @@ export default function RideBanner() {
   const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const guidance = useRideGuidance(); // must run unconditionally while mounted
 
   // Drop 2: ride start/end events + the ongoing "ride in progress" notification.
@@ -42,8 +44,8 @@ export default function RideBanner() {
       // you tap Start). The sticky "Ride in progress" below is the system
       // notification that persists once you background the app — no need for a
       // third transient one here.
-      void notify({ kind: 'info', title: 'Ride started', body: 'Tracking your ride.' });
-      void setRideOngoing('Ride in progress', 'Starting…');
+      void notify({ kind: 'info', title: t('rideBanner.rideStartedTitle'), body: t('rideBanner.rideStartedBody') });
+      void setRideOngoing(t('rideBanner.rideInProgress'), t('rideBanner.starting'));
     } else if (!rideActive && prevActiveRef.current) {
       prevActiveRef.current = false;
       void clearRideOngoing();
@@ -52,8 +54,10 @@ export default function RideBanner() {
       // there's no sticky to fall back on, so post a real system notification.
       void notify({
         kind: 'info',
-        title: 'Ride complete 🎉',
-        body: lr ? `${fmtDist(lr.distanceMeters)} · ${lr.visitedSlugs.length} seen` : 'Ride ended.',
+        title: t('rideBanner.rideCompleteTitle'),
+        body: lr
+          ? t('rideBanner.rideCompleteBody', { dist: fmtDist(lr.distanceMeters), count: lr.visitedSlugs.length })
+          : t('rideBanner.rideEnded'),
         alwaysNotify: true,
       });
     }
@@ -67,9 +71,16 @@ export default function RideBanner() {
     if (now - lastOngoingRef.current < 20000) return;
     lastOngoingRef.current = now;
     const body = guidance.targetName
-      ? `${fmtDist(guidance.distanceToTargetM)} to ${guidance.targetName} · ${fmtDist(guidance.distanceTraveledM)} ridden`
-      : `${fmtDist(guidance.distanceTraveledM)} ridden · ${guidance.visitedCount} seen`;
-    void setRideOngoing('Ride in progress', body);
+      ? t('rideBanner.ongoingToTarget', {
+          dist: fmtDist(guidance.distanceToTargetM),
+          target: guidance.targetName,
+          traveled: fmtDist(guidance.distanceTraveledM),
+        })
+      : t('rideBanner.ongoingFreeRide', {
+          traveled: fmtDist(guidance.distanceTraveledM),
+          count: guidance.visitedCount,
+        });
+    void setRideOngoing(t('rideBanner.rideInProgress'), body);
   }, [rideActive, guidance.distanceTraveledM, guidance.targetName, guidance.distanceToTargetM, guidance.visitedCount]);
 
   // Hide the UI on the Ride tab (own dashboard) and when no ride is active —
@@ -101,16 +112,25 @@ export default function RideBanner() {
         </View>
         <View style={styles.info}>
           <Text style={styles.target} numberOfLines={1}>
-            {guidance.targetName ?? 'Free ride'}
+            {guidance.targetName ?? t('rideBanner.freeRide')}
           </Text>
           <Text style={styles.sub} numberOfLines={1}>
             {hasTarget
-              ? `${fmtDist(guidance.distanceToTargetM)}${guidance.headingLabel ? ` · head ${guidance.headingLabel}` : ''} · ${fmtElapsed(guidance.elapsedSec)} · ${guidance.visitedCount} seen`
-              : `${fmtElapsed(guidance.elapsedSec)} · ${fmtDist(guidance.distanceTraveledM)} ridden · ${guidance.visitedCount} seen`}
+              ? t('rideBanner.subWithTarget', {
+                  dist: fmtDist(guidance.distanceToTargetM),
+                  head: guidance.headingLabel ? t('rideBanner.headSegment', { dir: guidance.headingLabel }) : '',
+                  elapsed: fmtElapsed(guidance.elapsedSec),
+                  count: guidance.visitedCount,
+                })
+              : t('rideBanner.subFreeRide', {
+                  elapsed: fmtElapsed(guidance.elapsedSec),
+                  traveled: fmtDist(guidance.distanceTraveledM),
+                  count: guidance.visitedCount,
+                })}
           </Text>
         </View>
         <TouchableOpacity onPress={handleEnd} style={styles.endBtn} hitSlop={HIT}>
-          <Text style={styles.endText}>End</Text>
+          <Text style={styles.endText}>{t('rideBanner.end')}</Text>
         </TouchableOpacity>
       </View>
     </View>

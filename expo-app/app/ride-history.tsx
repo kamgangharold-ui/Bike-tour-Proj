@@ -5,6 +5,7 @@
 
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../src/store/useAppStore';
@@ -29,6 +30,7 @@ export default function RideHistoryScreen() {
   // account's rides, and re-hydrate from disk on mount.
   const rideHistory = useAppStore((s) => s.rideHistory);
   const setRideHistory = useAppStore((s) => s.setRideHistory);
+  const { t } = useTranslation();
 
   useEffect(() => {
     void loadRideHistory().then(setRideHistory);
@@ -38,8 +40,8 @@ export default function RideHistoryScreen() {
     return (
       <View style={styles.empty}>
         <Ionicons name="bicycle-outline" size={56} color="#444" />
-        <Text style={styles.emptyText}>No rides yet</Text>
-        <Text style={styles.emptySub}>Start a ride from the map and it’ll show up here.</Text>
+        <Text style={styles.emptyText}>{t('rideHistory.emptyTitle')}</Text>
+        <Text style={styles.emptySub}>{t('rideHistory.emptySub')}</Text>
       </View>
     );
   }
@@ -57,7 +59,7 @@ export default function RideHistoryScreen() {
           <View style={styles.historyInfo}>
             <Text style={styles.historyDate}>{fmtDay(r.endedAt)}</Text>
             <Text style={styles.historyStats}>
-              {fmtKm(r.distanceMeters)} · {fmtDur(r.durationSec)} · {r.visitedSlugs.length} seen
+              {fmtKm(r.distanceMeters)} · {fmtDur(r.durationSec)} · {t('rideHistory.seenCount', { count: r.visitedSlugs.length })}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#555" />

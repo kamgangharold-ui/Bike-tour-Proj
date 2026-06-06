@@ -14,6 +14,7 @@ import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 're
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import {
   collection,
   getDocs,
@@ -167,12 +168,12 @@ const BICING_STATUS = 'https://api.bsmsa.eu/ext/api/bsm/gbfs/v2/en/station_statu
 const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeTourGuide/1.0' } };
 
 // Free on-device reverse geocode (no Google Places billing) — used for long-press drops.
-async function reverseGeocodeName(lat: number, lng: number): Promise<{ name: string; vicinity: string } | null> {
+async function reverseGeocodeName(lat: number, lng: number, fallbackName: string): Promise<{ name: string; vicinity: string } | null> {
   try {
     const [a] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
     if (!a) return null;
     const street = a.street ? (a.streetNumber ? `${a.street}, ${a.streetNumber}` : a.street) : '';
-    const name = a.name || street || 'Dropped pin';
+    const name = a.name || street || fallbackName;
     const vicinity = [street && street !== name ? street : '', a.postalCode, a.city].filter(Boolean).join(', ');
     return { name, vicinity };
   } catch {
@@ -192,16 +193,19 @@ function isNoCyclingZone(loc: LocationDoc): boolean {
 }
 
 // Human-readable warning for a route that crosses one or more no-cycling zones.
-function routeWarningText(conflicts: { name: string; fineEur: number }[]): string {
+function routeWarningText(
+  conflicts: { name: string; fineEur: number }[],
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
   if (conflicts.length === 1) {
     const c = conflicts[0];
-    const fine = c.fineEur > 0 ? `, €${Math.round(c.fineEur)} fine` : '';
-    return `This route crosses ${c.name} — cycling prohibited${fine}. Dismount or reroute.`;
+    const fine = c.fineEur > 0 ? t('map.fineSuffixInline', { fine: Math.round(c.fineEur) }) : '';
+    return t('map.routeCrossesOne', { name: c.name, fine });
   }
   const names = conflicts.map((c) => c.name).join(', ');
   const maxFine = Math.max(...conflicts.map((c) => c.fineEur));
-  const fine = maxFine > 0 ? ` (up to €${Math.round(maxFine)} fine)` : '';
-  return `Route crosses ${conflicts.length} no-cycling zones${fine}: ${names}. Dismount or reroute.`;
+  const fine = maxFine > 0 ? t('map.fineSuffixUpTo', { fine: Math.round(maxFine) }) : '';
+  return t('map.routeCrossesMany', { count: conflicts.length, fine, names });
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -283,6 +287,8 @@ export default function MapScreen() {
   const appLocale = useSettingsStore((s) => s.appLocale);
   const setVoiceGuidanceEnabled = useSettingsStore((s) => s.setVoiceGuidanceEnabled);
   const devLocation = useSettingsStore((s) => s.devLocation);
+
+  const { t } = useTranslation();
 
   useGeofencing();
 
@@ -421,7 +427,7 @@ export default function MapScreen() {
                   ),
                 );
                 if (!qs.empty) {
-                  void notify({ kind: 'info', title: `Quiz available — ${enteredName}`, body: 'Test your knowledge.', data: { slug: enteredSlug } });
+                  void notify({ kind: 'info', title: t('map.quizAvailableTitle', { name: enteredName }), body: t('map.quizAvailableBody'), data: { slug: enteredSlug } });
                 }
               } catch {
                 /* ignore */
@@ -438,7 +444,7 @@ export default function MapScreen() {
         : false;
       if (!stillNear) store.exitLandmark(store.activeSlug);
     }
-  }, [userLocation, locations]);
+  }, [userLocation, locations, t]);
 
   // Visited sweep (FIX 19): a landmark counts as "visited" within 100 m — looser
   // than the 40 m arrival geofence above (40 m rarely trips at cycling speed / GPS
@@ -747,9 +753,9 @@ export default function MapScreen() {
       setShowFullDetails(false);
       setCardData(null);
       if (activeSlug) exitLandmark(activeSlug);
-      setTappedMapPoint({ latitude, longitude, name: (name ?? 'Place').split('\n')[0] });
+      setTappedMapPoint({ latitude, longitude, name: (name ?? t('map.placeFallback')).split('\n')[0] });
     },
-    [activeSlug, exitLandmark],
+    [activeSlug, exitLandmark, t],
   );
 
   // Long-press drops a pin and reverse-geocodes it (free, on-device). Single taps
@@ -760,8 +766,9 @@ export default function MapScreen() {
     setShowFullDetails(false);
     setCardData(null);
     if (activeSlug) exitLandmark(activeSlug);
-    setTappedMapPoint({ latitude, longitude, name: 'Dropped pin' });
-    const addr = await reverseGeocodeName(latitude, longitude);
+    const droppedPinName = t('map.droppedPin');
+    setTappedMapPoint({ latitude, longitude, name: droppedPinName });
+    const addr = await reverseGeocodeName(latitude, longitude, droppedPinName);
     if (addr) {
       setTappedMapPoint((prev) =>
         prev && prev.latitude === latitude && prev.longitude === longitude
@@ -769,7 +776,7 @@ export default function MapScreen() {
           : prev,
       );
     }
-  }, [activeSlug, exitLandmark]);
+  }, [activeSlug, exitLandmark, t]);
 
   // Reset turn-by-turn tracking (new route or cleared route).
   const resetNav = useCallback((steps: ManeuverStep[]) => {
@@ -860,14 +867,14 @@ export default function MapScreen() {
         offRouteCountRef.current += 1;
         if (offRouteCountRef.current >= 3) {
           offRouteCountRef.current = 0;
-          void notify({ kind: 'navigation', title: 'Rerouting', body: 'Recalculating the route.', speak: 'Recalculating route' });
+          void notify({ kind: 'navigation', title: t('map.reroutingTitle'), body: t('map.reroutingBody'), speak: 'Recalculating route' });
           void fetchRoute(routeDest.latitude, routeDest.longitude);
         }
       } else {
         offRouteCountRef.current = 0;
       }
     }
-  }, [userLocation, navSteps, routeCoords, routeDest, rideActive, fetchRoute]);
+  }, [userLocation, navSteps, routeCoords, routeDest, rideActive, fetchRoute, t]);
 
   // ── Voice command & control (Group G) ────────────────────────────────────────
   // Landmarks in the shape the system prompt + STT boost expect.
@@ -1529,7 +1536,7 @@ export default function MapScreen() {
               <Text style={styles.previewRegText}>
                 {tappedLandmark.regulatoryMessage}
                 {tappedLandmark.regulatoryFineEur > 0
-                  ? ` — Fine: €${Math.round(tappedLandmark.regulatoryFineEur)}`
+                  ? t('map.fineLabel', { fine: Math.round(tappedLandmark.regulatoryFineEur) })
                   : ''}
               </Text>
             </View>
@@ -1541,16 +1548,16 @@ export default function MapScreen() {
 
           {userLocation !== null && (
             <Text style={styles.previewDist}>
-              📍{' '}
-              {Math.round(
-                haversineMetres(
-                  userLocation.latitude,
-                  userLocation.longitude,
-                  tappedLandmark.coordinates.latitude,
-                  tappedLandmark.coordinates.longitude,
+              {t('map.distanceAway', {
+                metres: Math.round(
+                  haversineMetres(
+                    userLocation.latitude,
+                    userLocation.longitude,
+                    tappedLandmark.coordinates.latitude,
+                    tappedLandmark.coordinates.longitude,
+                  ),
                 ),
-              )}{' '}
-              m away
+              })}
             </Text>
           )}
 
@@ -1560,10 +1567,10 @@ export default function MapScreen() {
               onPress={() => handleAskAI(tappedLandmark.name)}
             >
               <Ionicons name="chatbubble-ellipses-outline" size={14} color="#00C853" />
-              <Text style={styles.previewAIBtnText}> Ask AI about this place</Text>
+              <Text style={styles.previewAIBtnText}> {t('map.askAIaboutPlace')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.previewDetailsBtn} onPress={handleFullDetails}>
-              <Text style={styles.previewDetailsBtnText}>Full details →</Text>
+              <Text style={styles.previewDetailsBtnText}>{t('map.fullDetails')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1573,7 +1580,7 @@ export default function MapScreen() {
       {tappedMapPoint !== null && tappedLandmark === null && activeSlug.length === 0 && (() => {
         const pt = tappedMapPoint;
         const typeColor = PLACE_TYPE_COLORS[pt.type ?? ''] ?? '#1565C0';
-        const typeLabel = PLACE_TYPE_LABELS[pt.type ?? ''] ?? 'Location';
+        const typeLabel = PLACE_TYPE_LABELS[pt.type ?? ''] ?? t('map.locationLabel');
         return (
           <View style={styles.previewSheet}>
             <View style={styles.previewHeader}>
@@ -1600,14 +1607,14 @@ export default function MapScreen() {
                 onPress={() => handleAskAI(pt.name)}
               >
                 <Ionicons name="chatbubble-ellipses-outline" size={14} color="#00C853" />
-                <Text style={styles.previewAIBtnText}> Ask AI about this</Text>
+                <Text style={styles.previewAIBtnText}> {t('map.askAIaboutThis')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.previewDetailsBtn}
                 onPress={() => void fetchRoute(pt.latitude, pt.longitude)}
               >
                 <Ionicons name="navigate" size={14} color="#fff" />
-                <Text style={styles.previewDetailsBtnText}> Directions</Text>
+                <Text style={styles.previewDetailsBtnText}> {t('map.directions')}</Text>
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -1621,7 +1628,7 @@ export default function MapScreen() {
               }}
             >
               <Ionicons name="bicycle" size={16} color="#000" />
-              <Text style={styles.startHereText}> Start ride here</Text>
+              <Text style={styles.startHereText}> {t('map.startRideHere')}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -1631,7 +1638,7 @@ export default function MapScreen() {
       {(locationsLoading || !mapReady) && (
         <View style={styles.mapOverlay}>
           <ActivityIndicator color="#00C853" size="large" />
-          <Text style={styles.mapLoadingText}>Loading Barcelona…</Text>
+          <Text style={styles.mapLoadingText}>{t('map.loadingBarcelona')}</Text>
         </View>
       )}
 
@@ -1649,10 +1656,10 @@ export default function MapScreen() {
           </View>
           <Text style={styles.tourBannerMeta}>
             {tourRouteMeta
-              ? `${tourStops.length} stops · ${tourRouteMeta.distance} · ${tourRouteMeta.duration} by bike`
+              ? t('map.tourStopsMeta', { count: tourStops.length, distance: tourRouteMeta.distance, duration: tourRouteMeta.duration })
               : tourRouteLoading
-                ? `${tourStops.length} stops · loading route…`
-                : `${tourStops.length} stops`}
+                ? t('map.tourStopsLoading', { count: tourStops.length })
+                : t('map.tourStops', { count: tourStops.length })}
           </Text>
           <TouchableOpacity
             style={styles.tourStartBtn}
@@ -1662,7 +1669,7 @@ export default function MapScreen() {
             }}
           >
             <Ionicons name="play" size={16} color="#000" />
-            <Text style={styles.tourStartBtnText}>Start Tour</Text>
+            <Text style={styles.tourStartBtnText}>{t('map.startTour')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1671,12 +1678,12 @@ export default function MapScreen() {
       {rideActive && rideMode === 'tour' && tourStops.length > 0 && (
         <View style={styles.tourBanner}>
           <Text style={styles.tourBannerTitle}>
-            {`Stop ${Math.min(rideVisited.length + 1, rideTourStops.length)}/${rideTourStops.length}`}
+            {t('map.stopProgress', { current: Math.min(rideVisited.length + 1, rideTourStops.length), total: rideTourStops.length })}
           </Text>
           <Text style={styles.tourBannerMeta}>
             {rideTargetSlug
-              ? `Next: ${tourStops.find((s) => s.slug === rideTargetSlug)?.name ?? rideTargetSlug}`
-              : 'Tour complete 🎉'}
+              ? t('map.nextStop', { name: tourStops.find((s) => s.slug === rideTargetSlug)?.name ?? rideTargetSlug })
+              : t('map.tourComplete')}
           </Text>
         </View>
       )}
@@ -1688,13 +1695,13 @@ export default function MapScreen() {
           {activeConflicts.length > 0 && (
             <View style={styles.routeWarnBanner}>
               <Ionicons name="warning" size={18} color="#fff" />
-              <Text style={styles.routeWarnText}>{routeWarningText(activeConflicts)}</Text>
+              <Text style={styles.routeWarnText}>{routeWarningText(activeConflicts, t)}</Text>
             </View>
           )}
           {tourStops.length === 0 && routeInfo ? (
             <View style={styles.routeBanner}>
               <Ionicons name="bicycle" size={16} color="#fff" />
-              <Text style={styles.routeText}>{routeInfo.distance} · {routeInfo.duration} by bike</Text>
+              <Text style={styles.routeText}>{t('map.routeByBike', { distance: routeInfo.distance, duration: routeInfo.duration })}</Text>
               <TouchableOpacity onPress={clearSingleRoute}>
                 <Ionicons name="close-circle" size={20} color="#fff" />
               </TouchableOpacity>
@@ -1702,7 +1709,7 @@ export default function MapScreen() {
           ) : tourStops.length === 0 && routeLoading ? (
             <View style={styles.routeBanner}>
               <ActivityIndicator size="small" color="#fff" />
-              <Text style={styles.routeText}>Loading route…</Text>
+              <Text style={styles.routeText}>{t('map.loadingRoute')}</Text>
               <TouchableOpacity onPress={clearSingleRoute}>
                 <Ionicons name="close-circle" size={20} color="#fff" />
               </TouchableOpacity>
@@ -1713,7 +1720,7 @@ export default function MapScreen() {
             <View style={styles.turnBanner}>
               <Ionicons name="navigate" size={16} color="#fff" />
               <Text style={styles.turnText} numberOfLines={2}>
-                {`In ${Math.max(10, Math.round(nextTurn.distanceM / 10) * 10)} m · ${nextTurn.instruction}`}
+                {t('map.turnInMeters', { metres: Math.max(10, Math.round(nextTurn.distanceM / 10) * 10), instruction: nextTurn.instruction })}
               </Text>
             </View>
           )}

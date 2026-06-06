@@ -1,8 +1,10 @@
 import { Tabs, router, type Href } from 'expo-router';
 import { TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
   return (
     <Tabs
       screenOptions={{
@@ -16,7 +18,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          title: 'Map',
+          title: t('tabs.map'),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="map-outline" size={size} color={color} />
@@ -26,7 +28,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="ride"
         options={{
-          title: 'Ride',
+          title: t('tabs.ride'),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bicycle-outline" size={size} color={color} />
@@ -40,7 +42,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: 'BikAI',
+          title: t('tabs.bikAI'),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
@@ -50,7 +52,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('tabs.profile'),
           headerRight: () => (
             <TouchableOpacity
               onPress={() => router.push('/settings' as Href)}
