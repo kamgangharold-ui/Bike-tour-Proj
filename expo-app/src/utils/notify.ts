@@ -100,11 +100,18 @@ export async function notify(o: NotifyOpts): Promise<void> {
   lastAt = now;
 
   const foreground = AppState.currentState === 'active';
+  const postSystem = !foreground || !!o.alwaysNotify;
   if (foreground) {
-    try { useEventBanner.getState().show({ kind: o.kind, title: o.title, body: o.body }); } catch { /* ignore */ }
+    // Show the in-app banner ONLY when we are NOT also posting a system
+    // notification — otherwise the rider sees the event twice (dark in-app banner +
+    // white OS notification). Each event surfaces exactly once. Spoken line still
+    // plays in the foreground regardless.
+    if (!postSystem) {
+      try { useEventBanner.getState().show({ kind: o.kind, title: o.title, body: o.body }); } catch { /* ignore */ }
+    }
     if (o.speak) speak(o.speak, { priority: o.kind === 'alert' ? 'urgent' : 'normal' });
   }
-  if (!foreground || o.alwaysNotify) {
+  if (postSystem) {
     try {
       await Notifications.scheduleNotificationAsync({
         content: { title: o.title, body: o.body, data: o.data, sound: o.kind === 'alert' },

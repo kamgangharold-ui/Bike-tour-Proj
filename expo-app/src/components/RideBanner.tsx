@@ -40,11 +40,9 @@ export default function RideBanner() {
   useEffect(() => {
     if (rideActive && !prevActiveRef.current) {
       prevActiveRef.current = true;
-      // In-app banner only when foreground (you're already looking at the app when
-      // you tap Start). The sticky "Ride in progress" below is the system
-      // notification that persists once you background the app — no need for a
-      // third transient one here.
-      void notify({ kind: 'info', title: t('rideBanner.rideStartedTitle'), body: t('rideBanner.rideStartedBody') });
+      // The green ride banner (this component) + the ongoing "Ride in progress"
+      // notification already signal the start — no extra in-app banner (that was the
+      // duplicate). Just post the ongoing notification.
       void setRideOngoing(t('rideBanner.rideInProgress'), t('rideBanner.starting'));
     } else if (!rideActive && prevActiveRef.current) {
       prevActiveRef.current = false;
