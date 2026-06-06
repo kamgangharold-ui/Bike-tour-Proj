@@ -3,6 +3,7 @@
 // every screen while a ride is active — except the Ride tab, which shows its own
 // dashboard. Returning null still keeps the hook alive (it runs before the return).
 
+import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter, type Href } from 'expo-router';
@@ -10,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { useRideGuidance } from '../hooks/useRideGuidance';
 import { endRideAndSave } from '../utils/rides';
+import { notify, setRideOngoing, clearRideOngoing } from '../utils/notify';
 import { OFFLINE_BANNER_HEIGHT } from './OfflineBanner';
 
 const HIT = { top: 10, bottom: 10, left: 10, right: 10 };
@@ -30,8 +32,41 @@ export default function RideBanner() {
   const insets = useSafeAreaInsets();
   const guidance = useRideGuidance(); // must run unconditionally while mounted
 
+  // Drop 2: ride start/end events + the ongoing "ride in progress" notification.
+  // These effects run regardless of the early return below (they're hooks).
+  const prevActiveRef = useRef(false);
+  useEffect(() => {
+    if (rideActive && !prevActiveRef.current) {
+      prevActiveRef.current = true;
+      void notify({ kind: 'info', title: 'Ride started', body: 'Tracking your ride.' });
+      void setRideOngoing('Ride in progress', 'Starting…');
+    } else if (!rideActive && prevActiveRef.current) {
+      prevActiveRef.current = false;
+      void clearRideOngoing();
+      const lr = useAppStore.getState().lastRide;
+      void notify({
+        kind: 'info',
+        title: 'Ride complete 🎉',
+        body: lr ? `${fmtDist(lr.distanceMeters)} · ${lr.visitedSlugs.length} seen` : 'Ride ended.',
+      });
+    }
+  }, [rideActive]);
+
+  // Refresh the ongoing notification (distance + next stop) — throttled ~20 s.
+  const lastOngoingRef = useRef(0);
+  useEffect(() => {
+    if (!rideActive) return;
+    const now = Date.now();
+    if (now - lastOngoingRef.current < 20000) return;
+    lastOngoingRef.current = now;
+    const body = guidance.targetName
+      ? `${fmtDist(guidance.distanceToTargetM)} to ${guidance.targetName} · ${fmtDist(guidance.distanceTraveledM)} ridden`
+      : `${fmtDist(guidance.distanceTraveledM)} ridden · ${guidance.visitedCount} seen`;
+    void setRideOngoing('Ride in progress', body);
+  }, [rideActive, guidance.distanceTraveledM, guidance.targetName, guidance.distanceToTargetM, guidance.visitedCount]);
+
   // Hide the UI on the Ride tab (own dashboard) and when no ride is active —
-  // the hook above keeps running regardless.
+  // the hooks above keep running regardless.
   if (!rideActive || (pathname?.includes('/ride') ?? false)) return null;
 
   const handleEnd = () => {

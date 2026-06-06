@@ -19,7 +19,7 @@ module.exports = {
       // which failed the "Configure expo-updates" phase.) Defensive native-module
       // imports are the crash backstop regardless.
       runtimeVersion: { policy: 'appVersion' },
-      permissions: ['RECORD_AUDIO', 'VIBRATE'],
+      permissions: ['RECORD_AUDIO', 'VIBRATE', 'POST_NOTIFICATIONS'],
       ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
         ? { config: { googleMaps: { apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY } } }
         : {}),

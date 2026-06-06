@@ -9,8 +9,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Local geofence notifications work in Expo Go foreground only
 import * as Notifications from 'expo-notifications';
 import * as Updates from 'expo-updates';
+import { router } from 'expo-router';
 import RideBanner from '../src/components/RideBanner';
 import OfflineBanner from '../src/components/OfflineBanner';
+import EventBanner from '../src/components/EventBanner';
+import { setupNotifications } from '../src/utils/notify';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -53,6 +56,16 @@ export default function RootLayout() {
     return unsub;
   }, []);
 
+  // Drop 2: notification permission + Android channels, and route a notification
+  // tap to the map.
+  useEffect(() => {
+    void setupNotifications();
+    const sub = Notifications.addNotificationResponseReceivedListener(() => {
+      try { router.push('/(tabs)/map'); } catch { /* ignore */ }
+    });
+    return () => sub.remove();
+  }, []);
+
   if (!authReady) return null;
 
   return (
@@ -73,6 +86,7 @@ export default function RootLayout() {
       </Stack>
       <RideBanner />
       <OfflineBanner />
+      <EventBanner />
     </SafeAreaProvider>
   );
 }

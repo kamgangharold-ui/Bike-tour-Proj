@@ -46,6 +46,7 @@ import { runCommand, parseLocalIntent, isAffirmative, isNegative, type CommandCo
 import { phrases } from '../../src/intents/phrases';
 import { bestLandmarkMatch, dedupeBySlug } from '../../src/utils/landmarks';
 import { fetchNearestParking } from '../../src/utils/parkingService';
+import { notify } from '../../src/utils/notify';
 import { endRideAndSave } from '../../src/utils/rides';
 import MicButton, { type MicState } from '../../src/components/MicButton';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
@@ -382,16 +383,51 @@ export default function MapScreen() {
           activeAffiliateUrl: inside.affiliateUrl,
           activeAudioUrl: inside.audioUrl,
         });
-        // Hands-free arrival/regulatory announcement. The native background task
-        // (geofenceTask) speaks this on Android; that task can't run in Expo Go,
-        // so iOS gets it here from the foreground geofence. iOS-only to avoid
-        // Android speaking twice. speak() self-gates on voiceGuidanceEnabled.
-        if (Platform.OS === 'ios') {
+        // Foreground arrival/regulatory event → unified dispatcher (in-app banner
+        // + spoken line). The background geofence task covers the backgrounded
+        // case; notify()'s 5 s dedupe prevents a double when both fire. Gated by
+        // the same Settings toggles as the system notification.
+        const set = useSettingsStore.getState();
+        const allowed = inside.isRegulatory ? set.safetyAlertsEnabled : set.landmarkAlertsEnabled;
+        if (allowed) {
           if (inside.isRegulatory) {
             const fineText = inside.regulatoryFineEur > 0 ? ` Fine: ${Math.round(inside.regulatoryFineEur)} euros.` : '';
-            speak(`Warning: ${inside.name}. ${inside.regulatoryMessage}${fineText}`, { priority: 'urgent' });
+            void notify({
+              kind: 'alert',
+              title: `⚠️ ${inside.name}`,
+              body: `${inside.regulatoryMessage}${fineText}`,
+              speak: `Warning: ${inside.name}. ${inside.regulatoryMessage}${fineText}`,
+              alwaysNotify: true,
+              data: { slug: inside.slug },
+            });
           } else {
-            speak(`You're arriving at ${inside.name}.${inside.description ? ' ' + inside.description : ''}`);
+            void notify({
+              kind: 'navigation',
+              title: inside.name,
+              body: inside.description,
+              speak: `You're arriving at ${inside.name}.${inside.description ? ' ' + inside.description : ''}`,
+              data: { slug: inside.slug },
+            });
+            // Quiz-available event (Drop 2): surface it if this landmark has one.
+            const enteredSlug = inside.slug;
+            const enteredName = inside.name;
+            void (async () => {
+              try {
+                const qs = await getDocs(
+                  query(
+                    collection(db, 'quizzes'),
+                    where('location_slug', '==', enteredSlug),
+                    where('is_active', '==', true),
+                    limit(1),
+                  ),
+                );
+                if (!qs.empty) {
+                  void notify({ kind: 'info', title: `Quiz available — ${enteredName}`, body: 'Test your knowledge.', data: { slug: enteredSlug } });
+                }
+              } catch {
+                /* ignore */
+              }
+            })();
           }
         }
       }
@@ -796,7 +832,7 @@ export default function MapScreen() {
         offRouteCountRef.current += 1;
         if (offRouteCountRef.current >= 3) {
           offRouteCountRef.current = 0;
-          speak('Recalculating route', { lang: 'en' });
+          void notify({ kind: 'navigation', title: 'Rerouting', body: 'Recalculating the route.', speak: 'Recalculating route' });
           void fetchRoute(routeDest.latitude, routeDest.longitude);
         }
       } else {

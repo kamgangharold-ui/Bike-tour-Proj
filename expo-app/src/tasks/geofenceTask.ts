@@ -1,11 +1,10 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import * as Notifications from 'expo-notifications';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAppStore } from '../store/useAppStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { speak } from '../utils/voice';
+import { notify } from '../utils/notify';
 
 export const GEOFENCE_TASK = 'BIKE_TOUR_GEOFENCE';
 
@@ -47,31 +46,34 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
     const { landmarkAlertsEnabled, safetyAlertsEnabled } = useSettingsStore.getState();
     const notifyAllowed = isRegulatory ? safetyAlertsEnabled : landmarkAlertsEnabled;
 
-    if (notifyAllowed) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: ((loc['name'] as string | undefined) ?? 'Landmark'),
-          body: isRegulatory
-            ? `⚠️ ${(regAlert?.['message'] as string) ?? ''}`
-            : (loc['short_description'] as string) ?? '',
-          data: { slug },
-        },
-        trigger: null,
-      });
-    }
-
-    // Hands-free voice announcement. Gated by voiceGuidanceEnabled inside speak()
-    // (the settings store was rehydrated just above for this background context).
-    // Regulatory zones speak an URGENT, queue-preempting warning.
+    // Route arrival/regulatory through the unified dispatcher: in this background
+    // context it posts a system notification (TTS only plays in foreground); the
+    // foreground geofence in map.tsx covers the in-app banner + voice. The 5 s
+    // dedupe in notify() prevents a double when both fire. Gated by Settings.
     const name = (loc['name'] as string) ?? 'a landmark';
-    if (isRegulatory) {
-      const message = (regAlert?.['message'] as string) ?? 'cycling restriction ahead';
-      const fine = (regAlert?.['fine_eur'] as number) ?? 0;
-      const fineText = fine > 0 ? ` Fine: ${Math.round(fine)} euros.` : '';
-      speak(`Warning: ${name}. ${message}${fineText}`, { priority: 'urgent' });
-    } else {
-      const desc = (loc['short_description'] as string) ?? '';
-      speak(`You're arriving at ${name}.${desc ? ' ' + desc : ''}`);
+    if (notifyAllowed) {
+      if (isRegulatory) {
+        const message = (regAlert?.['message'] as string) ?? 'cycling restriction ahead';
+        const fine = (regAlert?.['fine_eur'] as number) ?? 0;
+        const fineText = fine > 0 ? ` Fine: ${Math.round(fine)} euros.` : '';
+        await notify({
+          kind: 'alert',
+          title: `⚠️ ${name}`,
+          body: `${message}${fineText}`,
+          speak: `Warning: ${name}. ${message}${fineText}`,
+          alwaysNotify: true,
+          data: { slug },
+        });
+      } else {
+        const desc = (loc['short_description'] as string) ?? '';
+        await notify({
+          kind: 'navigation',
+          title: name,
+          body: desc,
+          speak: `You're arriving at ${name}.${desc ? ' ' + desc : ''}`,
+          data: { slug },
+        });
+      }
     }
 
     // If a guided ride is active, record the visit (and advance the tour target).
