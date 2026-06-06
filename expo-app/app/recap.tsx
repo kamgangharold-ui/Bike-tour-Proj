@@ -208,7 +208,7 @@ export default function RecapScreen() {
         <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFill}
-          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+          provider={Platform.OS === 'android' && process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
           mapType="standard"
           onMapReady={() => setMapReady(true)}
           initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.05, longitudeDelta: 0.05 }}

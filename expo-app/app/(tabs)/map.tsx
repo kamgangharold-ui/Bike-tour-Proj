@@ -31,6 +31,7 @@ import { useGeofencing } from '../../src/hooks/useGeofencing';
 import LandmarkCard from '../../src/components/LandmarkCard';
 import { BARCELONA_CENTER, DISMOUNT_ZONE_CATEGORY } from '../../constants/rules';
 import { haversineMetres } from '../../src/utils/haversine';
+import { speak } from '../../src/utils/voice';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { checkRouteAgainstZones, type RouteZone } from '../../src/utils/routeSafety';
 import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
@@ -295,7 +296,11 @@ export default function MapScreen() {
   // map always follows the real user, anywhere.
   const hasAutoCenteredRef = useRef(false);
   useEffect(() => {
-    if (hasAutoCenteredRef.current || !userLocation || !mapReady || tourStops.length > 0) return;
+    if (hasAutoCenteredRef.current || !userLocation || !mapReady) return;
+    // If a tour owns the camera right now, mark auto-center done WITHOUT snapping —
+    // otherwise the effect would re-run when the tour later clears (tourStops → 0)
+    // and yank the camera off wherever the user had panned.
+    if (tourStops.length > 0) { hasAutoCenteredRef.current = true; return; }
     hasAutoCenteredRef.current = true;
     mapRef.current?.animateToRegion({
       ...userLocation,
@@ -330,6 +335,18 @@ export default function MapScreen() {
           activeAffiliateUrl: inside.affiliateUrl,
           activeAudioUrl: inside.audioUrl,
         });
+        // Hands-free arrival/regulatory announcement. The native background task
+        // (geofenceTask) speaks this on Android; that task can't run in Expo Go,
+        // so iOS gets it here from the foreground geofence. iOS-only to avoid
+        // Android speaking twice. speak() self-gates on voiceGuidanceEnabled.
+        if (Platform.OS === 'ios') {
+          if (inside.isRegulatory) {
+            const fineText = inside.regulatoryFineEur > 0 ? ` Fine: ${Math.round(inside.regulatoryFineEur)} euros.` : '';
+            speak(`Warning: ${inside.name}. ${inside.regulatoryMessage}${fineText}`, { priority: 'urgent' });
+          } else {
+            speak(`You're arriving at ${inside.name}.${inside.description ? ' ' + inside.description : ''}`);
+          }
+        }
       }
     } else if (store.activeSlug) {
       // Hysteresis: only exit once clearly outside the active landmark's radius.
@@ -861,7 +878,7 @@ export default function MapScreen() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+        provider={Platform.OS === 'android' && process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
         mapType="standard"
         showsPointsOfInterest
         onPoiClick={handlePoiClick}
@@ -989,11 +1006,11 @@ export default function MapScreen() {
         {/* Group C: finish pin at a single/free-ride destination — tied to the
             real route line so it can't outlive it (no orphan on a failed fetch). */}
         {routeDest && routeCoords.length > 0 && tourStops.length === 0 && (
-          <Marker coordinate={routeDest} anchor={{ x: 0.5, y: 0.5 }} zIndex={15} tracksViewChanges={false}>
+          <TrackedMarker coordinate={routeDest} trackKey="finish" anchor={{ x: 0.5, y: 0.5 }} zIndex={15}>
             <View style={styles.finishPin}>
               <Ionicons name="flag" size={14} color="#fff" />
             </View>
-          </Marker>
+          </TrackedMarker>
         )}
       </MapView>
 

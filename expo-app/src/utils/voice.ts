@@ -18,13 +18,22 @@
 import * as Speech from 'expo-speech';
 import { useSettingsStore } from '../store/useSettingsStore';
 
-export type VoicePriority = 'normal' | 'high';
+// Priority ranks: 'urgent' (regulatory/safety warnings) outranks everything and
+// can never be silenced by a lower cue; 'high' (e.g. an explicit chat answer)
+// preempts ambient 'normal' ride cues but NOT an in-flight 'urgent' warning.
+export type VoicePriority = 'normal' | 'high' | 'urgent';
+const RANK: Record<VoicePriority, number> = { normal: 0, high: 1, urgent: 2 };
+
 export interface SpeakOptions {
   lang?: string;
   priority?: VoicePriority;
   rate?: number;
   pitch?: number;
 }
+
+// Android TextToSpeech rejects input over ~4000 chars (SpeechInputIsToLong),
+// which would leave the queue stuck `speaking`. Clamp well under that.
+const MAX_SPEECH_CHARS = 3900;
 
 // BCP-47 voice codes for the languages the app supports.
 const BCP47: Record<string, string> = {
@@ -51,16 +60,19 @@ function guidanceOn(): boolean {
 interface QueueItem { text: string; opts: SpeakOptions }
 const queue: QueueItem[] = [];
 let speaking = false;
+let currentRank = -1; // rank of the cue currently speaking (-1 = idle)
 let gen = 0;
 
 function playNext(myGen: number): void {
-  if (myGen !== gen) return; // superseded by a stop()/high-priority cue
+  if (myGen !== gen) return; // superseded by a stop()/preempting cue
   const next = queue.shift();
   if (!next) {
     speaking = false;
+    currentRank = -1;
     return;
   }
   speaking = true;
+  currentRank = RANK[next.opts.priority ?? 'normal'];
   Speech.speak(next.text, {
     language: langToBcp47(next.opts.lang),
     rate: next.opts.rate ?? 0.95,
@@ -72,14 +84,23 @@ function playNext(myGen: number): void {
 
 // Fire-and-forget. No-op when guidance is muted or the text is empty.
 export function speak(text: string, opts: SpeakOptions = {}): void {
-  const clean = text.trim();
+  const clean = text.trim().slice(0, MAX_SPEECH_CHARS);
   if (!clean || !guidanceOn()) return;
+  const rank = RANK[opts.priority ?? 'normal'];
 
-  if (opts.priority === 'high') {
+  // high/urgent cues preempt — but NEVER knock out an in-flight cue that
+  // outranks them (a chat reply must not silence a regulatory warning); those
+  // queue behind it instead.
+  if (rank >= RANK.high) {
+    if (speaking && rank < currentRank) {
+      queue.push({ text: clean, opts });
+      return;
+    }
     gen += 1; // invalidate any in-flight cue
     queue.length = 0;
     Speech.stop();
     speaking = false;
+    currentRank = -1;
     queue.push({ text: clean, opts });
     playNext(gen);
     return;
@@ -93,6 +114,7 @@ export function stop(): void {
   gen += 1;
   queue.length = 0;
   speaking = false;
+  currentRank = -1;
   Speech.stop();
 }
 

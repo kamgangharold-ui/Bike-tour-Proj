@@ -68,7 +68,7 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
       const message = (regAlert?.['message'] as string) ?? 'cycling restriction ahead';
       const fine = (regAlert?.['fine_eur'] as number) ?? 0;
       const fineText = fine > 0 ? ` Fine: ${Math.round(fine)} euros.` : '';
-      speak(`Warning: ${name}. ${message}${fineText}`, { priority: 'high' });
+      speak(`Warning: ${name}. ${message}${fineText}`, { priority: 'urgent' });
     } else {
       const desc = (loc['short_description'] as string) ?? '';
       speak(`You're arriving at ${name}.${desc ? ' ' + desc : ''}`);

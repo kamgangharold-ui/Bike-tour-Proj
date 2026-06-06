@@ -105,6 +105,8 @@ EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
 
 `EXPO_PUBLIC_*` vars are inlined at build time and visible in the bundle — this is acceptable for Firebase client config (access controlled by Firestore Security Rules). Restrict the Maps API key in Google Cloud Console by package name / bundle ID.
 
+**`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` is REQUIRED for the Android build.** The Android map uses `PROVIDER_GOOGLE`, which needs this key in the AndroidManifest (injected by `app.config.js`). The local `.env` is gitignored and does NOT reach EAS cloud builders — set the key as an **EAS environment variable / secret** scoped to the `preview` and `production` profiles (`eas env:create`), or the Android APK shows a blank/grey map (the code falls back to `PROVIDER_DEFAULT` when the key is absent, but on Android that still needs the key). This same key is reused for the Google Cloud Speech-to-Text API (voice input) — enable Speech-to-Text on it. iOS uses Apple Maps (no key needed). Always verify live map tiles on the built APK before distributing.
+
 ---
 
 ## Development Commands
