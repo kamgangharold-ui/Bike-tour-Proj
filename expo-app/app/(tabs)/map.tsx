@@ -30,7 +30,7 @@ import { db, auth } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useGeofencing } from '../../src/hooks/useGeofencing';
 import LandmarkCard from '../../src/components/LandmarkCard';
-import { BARCELONA_CENTER, DISMOUNT_ZONE_CATEGORY } from '../../constants/rules';
+import { BARCELONA_CENTER, DISMOUNT_ZONE_CATEGORY, VISITED_RADIUS_METRES } from '../../constants/rules';
 import { haversineMetres } from '../../src/utils/haversine';
 import { speak, stop as stopSpeaking, isSpeaking, getLastSpoken } from '../../src/utils/voice';
 import {
@@ -438,6 +438,35 @@ export default function MapScreen() {
         : false;
       if (!stillNear) store.exitLandmark(store.activeSlug);
     }
+  }, [userLocation, locations]);
+
+  // Visited sweep (FIX 19): a landmark counts as "visited" within 100 m — looser
+  // than the 40 m arrival geofence above (40 m rarely trips at cycling speed / GPS
+  // jitter, so "seen" stayed 0). Depends only on userLocation, so it works with or
+  // without an active ride. Newly-crossed slugs persist to the user's profile
+  // (arrayUnion + merge); a per-session Set avoids re-writing on every GPS tick.
+  const persistedVisitedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!userLocation || locations.length === 0) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const fresh: string[] = [];
+    for (const loc of locations) {
+      if (!loc.slug || persistedVisitedRef.current.has(loc.slug)) continue;
+      if (!loc.coordinates.latitude && !loc.coordinates.longitude) continue;
+      const d = haversineMetres(
+        userLocation.latitude, userLocation.longitude,
+        loc.coordinates.latitude, loc.coordinates.longitude,
+      );
+      if (d <= VISITED_RADIUS_METRES) fresh.push(loc.slug);
+    }
+    if (fresh.length === 0) return;
+    fresh.forEach((s) => persistedVisitedRef.current.add(s));
+    void setDoc(
+      doc(db, 'users', uid),
+      { visited_location_slugs: arrayUnion(...fresh) },
+      { merge: true },
+    ).catch((e) => console.warn('[Visited] persist failed', e));
   }, [userLocation, locations]);
 
   // ── Firestore: load landmarks ────────────────────────────────────────────────
@@ -866,31 +895,38 @@ export default function MapScreen() {
   // store actions, parking service), let the hybrid router execute + return the
   // spoken reply, then speak it. Rebuilt each render so it reads fresh state; the
   // voice hook always calls the latest via its options ref.
+  // Start (or retarget) navigation to a resolved point + speak the destination and
+  // distance. No ride → auto-start a free ride so turn-by-turn runs. Active FREE
+  // ride → retarget. Active TOUR → don't hijack; ask the rider to finish it.
+  // Hoisted to component scope so BOTH the voice 'navigate' intent AND the pin
+  // card's "Get Directions" button drive the exact same flow (route + ride +
+  // turn-by-turn), instead of the button just drawing a static line.
+  const doNavigate = useCallback(async (lat: number, lng: number, name: string): Promise<string> => {
+    const ph = phrases(appLocale);
+    const st = useAppStore.getState();
+    if (!st.rideActive) {
+      st.startRide({ mode: 'free', freeTarget: { slug: null, lat, lng, name } });
+    } else if (st.rideMode === 'free') {
+      st.setRideFreeTarget({ slug: null, lat, lng, name });
+    } else {
+      return ph.navBusyTour;
+    }
+    // Claim the dedup key only when GPS is ready (so fetchRoute actually runs and
+    // we skip the free-route effect's duplicate). On a cold start with no fix yet,
+    // leave it unset so that effect performs the fetch once GPS arrives — otherwise
+    // a stale key would suppress it and no route would ever draw (Get Directions).
+    if (st.userLat != null && st.userLng != null) freeRouteKeyRef.current = `${lat},${lng}`;
+    await fetchRoute(lat, lng);
+    const d =
+      st.userLat != null && st.userLng != null
+        ? haversineMetres(st.userLat, st.userLng, lat, lng)
+        : null;
+    const distStr = d == null ? '' : d < 1000 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(1)} km`;
+    return distStr ? ph.headingTo(name, distStr) : ph.routing(name);
+  }, [appLocale, fetchRoute]);
+
   const handleCommand = async (transcript: string, forceNavigate = false) => {
     const ph = phrases(appLocale);
-
-    // Start (or retarget) navigation to a resolved point + speak the destination
-    // and distance. No ride → auto-start a free ride so turn-by-turn runs. Active
-    // FREE ride → retarget (keep guidance/banner/voice in sync with the new route).
-    // Active TOUR → don't silently hijack the tour; ask the rider to finish it.
-    const doNavigate = async (lat: number, lng: number, name: string): Promise<string> => {
-      const st = useAppStore.getState();
-      if (!st.rideActive) {
-        st.startRide({ mode: 'free', freeTarget: { slug: null, lat, lng, name } });
-      } else if (st.rideMode === 'free') {
-        st.setRideFreeTarget({ slug: null, lat, lng, name });
-      } else {
-        return ph.navBusyTour;
-      }
-      freeRouteKeyRef.current = `${lat},${lng}`; // we fetch now → skip the free-route effect's duplicate fetch
-      await fetchRoute(lat, lng);
-      const d =
-        st.userLat != null && st.userLng != null
-          ? haversineMetres(st.userLat, st.userLng, lat, lng)
-          : null;
-      const distStr = d == null ? '' : d < 1000 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(1)} km`;
-      return distStr ? ph.headingTo(name, distStr) : ph.routing(name);
-    };
 
     // If we asked "did you mean X?", this turn may be the yes/no answer — BUT a
     // fresh explicit command (e.g. "stop the ride", "where can I park") must win
@@ -1719,7 +1755,13 @@ export default function MapScreen() {
                 onDismiss={handleDismissCard}
                 onQuizCorrect={handleQuizCorrect}
                 onGetDirections={fullLat !== undefined && fullLng !== undefined
-                  ? () => void fetchRoute(fullLat, fullLng)
+                  ? () => {
+                      const lat = fullLat, lng = fullLng, name = fullName || 'destination';
+                      handleDismissCard(); // close the sheet so the route + turn banner are visible
+                      void doNavigate(lat, lng, name).then((line) => {
+                        if (line && line.trim()) speak(line, { lang: appLocale, priority: 'high' });
+                      });
+                    }
                   : undefined}
               />
             </ScrollView>

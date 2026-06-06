@@ -1,4 +1,8 @@
 export const GEOFENCE_RADIUS_METRES = 40;
+// A landmark counts as "visited" once the rider comes within this radius (looser
+// than the 40 m arrival geofence, which is too tight to reliably trip at cycling
+// speed / GPS jitter — that's why "seen" counts stayed 0). FIX 19.
+export const VISITED_RADIUS_METRES = 100;
 export const FINE_SIDEWALK_EUR = 500;
 export const FINE_EARPHONES_EUR = 100;
 export const DISMOUNT_ZONE_CATEGORY = 'dismount_zone';
