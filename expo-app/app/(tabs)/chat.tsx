@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -21,6 +22,9 @@ import { haversineMetres } from '../../src/utils/haversine';
 import * as voice from '../../src/utils/voice';
 import { callAnthropic } from '../../src/utils/anthropic';
 import { buildBikAISystemPrompt, type LandmarkInfo } from '../../src/utils/systemPrompt';
+import { dedupeBySlug } from '../../src/utils/landmarks';
+import { parseLocalIntent } from '../../src/intents/router';
+import { phrases } from '../../src/intents/phrases';
 import { useVoiceChat } from '../../src/hooks/useVoiceChat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -62,8 +66,10 @@ export default function ChatScreen() {
     onError: (msg) => Alert.alert('Voice', msg),
   });
 
+  const router = useRouter();
   const chatPrefill = useAppStore((s) => s.chatPrefill);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
+  const setNavRequest = useAppStore((s) => s.setNavRequest);
   // activeName/activeSlug drive the context pill; the rest of the live geofence
   // context is read inside buildBikAISystemPrompt via the store directly.
   const activeSlug = useAppStore((s) => s.activeSlug);
@@ -106,7 +112,7 @@ export default function ChatScreen() {
         const snap = await getDocs(
           query(collection(db, 'locations'), where('is_active', '==', true)),
         );
-        setLandmarks(snap.docs.map((d) => d.data() as LandmarkInfo));
+        setLandmarks(dedupeBySlug(snap.docs.map((d) => d.data() as LandmarkInfo)));
       } catch (e) {
         console.warn('[Chat] landmark fetch failed', e);
       }
@@ -125,6 +131,23 @@ export default function ChatScreen() {
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
+
+    // Live-guidance handoff: a navigate command typed/spoken in chat starts REAL
+    // turn-by-turn on the map (grounded in live location), instead of a static
+    // step list. The map consumes navRequest and speaks "Heading to X".
+    const local = parseLocalIntent(trimmed, appLocale);
+    if (local && local.kind === 'navigate') {
+      voice.stop();
+      setNavRequest(local.query);
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now().toString(), role: 'user', content: trimmed },
+        { id: (Date.now() + 1).toString(), role: 'assistant', content: phrases(appLocale).routing(local.query) },
+      ]);
+      setInput('');
+      router.push('/(tabs)/map');
+      return;
+    }
 
     voice.stop();
 

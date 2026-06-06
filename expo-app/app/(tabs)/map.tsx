@@ -42,8 +42,9 @@ import {
 } from '../../src/utils/routing';
 import { useVoiceChat } from '../../src/hooks/useVoiceChat';
 import { buildBikAISystemPrompt, type LandmarkInfo } from '../../src/utils/systemPrompt';
-import { runCommand, type CommandContext } from '../../src/intents/router';
+import { runCommand, isAffirmative, isNegative, type CommandContext } from '../../src/intents/router';
 import { phrases } from '../../src/intents/phrases';
+import { bestLandmarkMatch, dedupeBySlug } from '../../src/utils/landmarks';
 import { fetchNearestParking } from '../../src/utils/parkingService';
 import { endRideAndSave } from '../../src/utils/rides';
 import MicButton, { type MicState } from '../../src/components/MicButton';
@@ -280,33 +281,53 @@ export default function MapScreen() {
   const showBicing = useSettingsStore((s) => s.showBicing);
   const appLocale = useSettingsStore((s) => s.appLocale);
   const setVoiceGuidanceEnabled = useSettingsStore((s) => s.setVoiceGuidanceEnabled);
+  const devLocation = useSettingsStore((s) => s.devLocation);
 
   useGeofencing();
 
-  // ── Feature 4: Real-time position tracking ──────────────────────────────────
+  // ── Feature 4: Real-time position tracking (works ANYWHERE — no city gate) ───
   useEffect(() => {
+    // TEMP dev override: pin the position so outside-Barcelona behavior is testable
+    // without traveling. Remove before ship.
+    if (devLocation) {
+      setUserLocation({ latitude: devLocation.lat, longitude: devLocation.lng });
+      return;
+    }
     let sub: Location.LocationSubscription | null = null;
+    let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const initial = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      setUserLocation({
-        latitude: initial.coords.latitude,
-        longitude: initial.coords.longitude,
-      });
-      sub = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
-        (pos) =>
-          setUserLocation({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-          }),
-      );
+      if (status !== 'granted') {
+        speak(phrases(appLocale).needLocation, { lang: appLocale, priority: 'high' });
+        return;
+      }
+      // Robust first fix: race a timeout, then fall back to last-known. Never hang
+      // silently — if we truly can't locate, SAY so.
+      let coords: Coords | null = null;
+      try {
+        const initial = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+        ]);
+        coords = { latitude: initial.coords.latitude, longitude: initial.coords.longitude };
+      } catch {
+        const last = await Location.getLastKnownPositionAsync().catch(() => null);
+        if (last) coords = { latitude: last.coords.latitude, longitude: last.coords.longitude };
+      }
+      if (cancelled) return;
+      if (coords) setUserLocation(coords);
+      else speak(phrases(appLocale).needLocation, { lang: appLocale, priority: 'high' });
+      try {
+        sub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
+          (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        );
+      } catch (e) {
+        console.warn('[Map] watchPosition failed', e);
+      }
     })();
-    return () => { sub?.remove(); };
-  }, []);
+    return () => { cancelled = true; sub?.remove(); };
+  }, [devLocation, appLocale]);
 
   // Mirror the live position into the store so the AI chat reads the SAME
   // position the map uses (single source of truth).
@@ -415,12 +436,7 @@ export default function MapScreen() {
           affiliateUrl: (data['getyourguide_affiliate_url'] as string) ?? '',
         } satisfies LocationDoc;
       });
-      const seen = new Set<string>();
-      const deduplicated = docs.filter((loc) => {
-        if (seen.has(loc.slug)) return false;
-        seen.add(loc.slug);
-        return true;
-      });
+      const deduplicated = dedupeBySlug(docs); // duplicate Firestore docs can exist
       setLocations(deduplicated);
       // Cache for offline use (Group C), gated by the Settings toggle. Never
       // overwrite a good cache with an empty/partial result.
@@ -807,66 +823,99 @@ export default function MapScreen() {
   );
 
   const [micPhase, setMicPhase] = useState<'idle' | 'thinking' | 'speaking'>('idle');
+  // A low-confidence destination awaiting a spoken yes/no confirmation.
+  const pendingNavRef = useRef<{ lat: number; lng: number; name: string } | null>(null);
 
   // Run a recognized utterance: build the executors (reuse the route pipeline,
   // store actions, parking service), let the hybrid router execute + return the
   // spoken reply, then speak it. Rebuilt each render so it reads fresh state; the
   // voice hook always calls the latest via its options ref.
-  const handleCommand = async (transcript: string) => {
+  const handleCommand = async (transcript: string, forceNavigate = false) => {
     const ph = phrases(appLocale);
+
+    // Start (or retarget) navigation to a resolved point + speak the destination
+    // and distance. Auto-starts a free ride if none is active so turn-by-turn runs.
+    const doNavigate = async (lat: number, lng: number, name: string): Promise<string> => {
+      const st = useAppStore.getState();
+      if (!st.rideActive) {
+        st.startRide({ mode: 'free', freeTarget: { slug: null, lat, lng, name } });
+      }
+      await fetchRoute(lat, lng);
+      const d =
+        st.userLat != null && st.userLng != null
+          ? haversineMetres(st.userLat, st.userLng, lat, lng)
+          : null;
+      const distStr = d == null ? '' : d < 1000 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(1)} km`;
+      return distStr ? ph.headingTo(name, distStr) : ph.routing(name);
+    };
+
+    // If we asked "did you mean X?", this turn is the yes/no answer.
+    if (pendingNavRef.current) {
+      const pend = pendingNavRef.current;
+      if (isAffirmative(transcript, appLocale)) {
+        pendingNavRef.current = null;
+        setMicPhase('speaking');
+        speak(await doNavigate(pend.lat, pend.lng, pend.name), { lang: appLocale, priority: 'high' });
+        return;
+      }
+      if (isNegative(transcript, appLocale)) {
+        pendingNavRef.current = null;
+        setMicPhase('speaking');
+        speak(ph.cancelled, { lang: appLocale, priority: 'high' });
+        return;
+      }
+      pendingNavRef.current = null; // not a yes/no → treat as a fresh command
+    }
+
     const ctx: CommandContext = {
       locale: appLocale,
       systemContext: () => buildBikAISystemPrompt(landmarkInfos, appLocale),
       navigate: async (query) => {
         const s = useAppStore.getState();
         if (s.userLat == null || s.userLng == null) return ph.needLocation;
-        const stripArticle = (str: string) =>
-          str.replace(/^(the|el|la|los|las|le|les|l'|il|lo|der|die|das)\s+/i, '').trim();
-        // Resolve to a known landmark: exact name → ranked substring (length-
-        // guarded so short words can't mis-match; prefer startsWith, then closest
-        // length). Try the raw query and an article-stripped variant.
-        const resolveLandmark = (): LandmarkInfo | null => {
-          const forms = [query.toLowerCase().trim(), stripArticle(query).toLowerCase()];
-          for (const q of forms) {
-            if (!q) continue;
-            const exact = landmarkInfos.find((l) => (l.name ?? '').toLowerCase() === q);
-            if (exact) return exact;
+        // 1) Best landmark match over the deduped list (accent/case-insensitive,
+        // similarity-scored). Confident → go; plausible → confirm; weak → geocode.
+        const m = bestLandmarkMatch(query, landmarkInfos);
+        if (m && m.item.coordinates) {
+          if (m.score >= 0.6) {
+            return doNavigate(m.item.coordinates.latitude, m.item.coordinates.longitude, m.item.name ?? query);
           }
-          const q = forms[0];
-          if (q.length < 4) return null;
-          const subs = landmarkInfos.filter((l) => {
-            const n = (l.name ?? '').toLowerCase();
-            return !!n && (n.includes(q) || (n.length >= 4 && q.includes(n)));
-          });
-          if (!subs.length) return null;
-          subs.sort((a, b) => {
-            const an = (a.name ?? '').toLowerCase();
-            const bn = (b.name ?? '').toLowerCase();
-            const aStarts = an.startsWith(q) ? 0 : 1;
-            const bStarts = bn.startsWith(q) ? 0 : 1;
-            if (aStarts !== bStarts) return aStarts - bStarts;
-            return Math.abs(an.length - q.length) - Math.abs(bn.length - q.length);
-          });
-          return subs[0];
-        };
-        const match = resolveLandmark();
-        let dest: Coords | null = match?.coordinates ?? null;
-        const name = match?.name ?? query;
-        if (!dest) {
-          // Geocode the full name first, then an article-stripped variant.
-          for (const g of [query, stripArticle(query)]) {
-            if (!g) continue;
-            try {
-              const geo = await Location.geocodeAsync(/barcelona/i.test(g) ? g : `${g}, Barcelona`);
-              if (geo[0]) { dest = { latitude: geo[0].latitude, longitude: geo[0].longitude }; break; }
-            } catch {
-              /* try next form */
+          if (m.score >= 0.4) {
+            pendingNavRef.current = {
+              lat: m.item.coordinates.latitude,
+              lng: m.item.coordinates.longitude,
+              name: m.item.name ?? query,
+            };
+            return ph.didYouMean(m.item.name ?? query);
+          }
+        }
+        // 2) Geocode, biased to the user's region (city from reverse-geocode), and
+        // pick the candidate nearest the user — never a same-named place elsewhere.
+        let city = '';
+        try {
+          const rg = await Location.reverseGeocodeAsync({ latitude: s.userLat, longitude: s.userLng });
+          city = rg[0]?.city ?? rg[0]?.region ?? '';
+        } catch {
+          /* no reverse geocode → use raw query */
+        }
+        const forms = city ? [`${query}, ${city}`, query] : [query];
+        let dest: Coords | null = null;
+        for (const g of forms) {
+          try {
+            const geo = await Location.geocodeAsync(g);
+            if (geo.length) {
+              const nearest = geo
+                .map((p) => ({ p, d: haversineMetres(s.userLat!, s.userLng!, p.latitude, p.longitude) }))
+                .sort((a, b) => a.d - b.d)[0];
+              dest = { latitude: nearest.p.latitude, longitude: nearest.p.longitude };
+              break;
             }
+          } catch {
+            /* try next form */
           }
         }
         if (!dest) return ph.notFound(query);
-        await fetchRoute(dest.latitude, dest.longitude);
-        return ph.routing(name);
+        return doNavigate(dest.latitude, dest.longitude, query);
       },
       reroute: async () => {
         if (!routeDest) return ph.noRoute;
@@ -930,7 +979,7 @@ export default function MapScreen() {
 
     setMicPhase('thinking');
     try {
-      const spoken = await runCommand(transcript, ctx);
+      const spoken = forceNavigate ? await ctx.navigate(transcript) : await runCommand(transcript, ctx);
       if (spoken && spoken.trim()) {
         setMicPhase('speaking');
         speak(spoken, { lang: appLocale, priority: 'high' });
@@ -979,6 +1028,18 @@ export default function MapScreen() {
     const max = setTimeout(() => setMicPhase('idle'), 30000);
     return () => { clearInterval(id); clearTimeout(max); };
   }, [micPhase]);
+
+  // Consume a chat → map navigation hand-off ("guide me to X" typed in BikAI):
+  // run it straight through the navigate executor (real turn-by-turn).
+  const navRequest = useAppStore((s) => s.navRequest);
+  const setNavRequest = useAppStore((s) => s.setNavRequest);
+  useEffect(() => {
+    if (!navRequest) return;
+    const q = navRequest;
+    setNavRequest(null);
+    void handleCommand(q, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navRequest]);
 
   const fetchTourRoute = useCallback(async (stops: TourStop[]) => {
     if (stops.length < 2) return;
@@ -1151,7 +1212,7 @@ export default function MapScreen() {
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
-        mapPadding={{ top: 0, left: 0, right: 0, bottom: rideActive ? 96 : 8 }}
+        mapPadding={{ top: 0, left: 0, right: 0, bottom: tourBannerVisible ? 100 : 8 }}
       >
         {/* Tour stop pins — shown during preview or active tour */}
         {tourStops.map((stop, i, arr) => {
@@ -1296,10 +1357,14 @@ export default function MapScreen() {
         <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
       </TouchableOpacity>
 
-      {/* Hands-free tap-to-talk — shown during a ride, above the bottom banners */}
-      {rideActive && (
-        <MicButton state={micState} onPress={onMicPress} bottom={tourBannerVisible ? 156 : 96} />
-      )}
+      {/* Hands-free tap-to-talk — ALWAYS available; sits directly above the two
+          map control buttons (recenter + chat), tracking their position. */}
+      <MicButton
+        state={micState}
+        onPress={onMicPress}
+        right={2}
+        bottom={(sheetVisible ? 372 : tourBannerVisible ? 212 : 76) + 56}
+      />
 
       {/* Feature 2: Landmark preview sheet */}
       {showPreview && tappedLandmark && (

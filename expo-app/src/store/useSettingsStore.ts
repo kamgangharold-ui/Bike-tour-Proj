@@ -22,6 +22,10 @@ interface SettingsState {
   // TTS speech rate (expo-speech). Voice command "slower" lowers it. ~0.5–1.0.
   voiceRate: number;
   setVoiceRate: (value: number) => void;
+  // TEMP dev-only location override (Settings) to test outside-Barcelona behavior
+  // without traveling. Remove before ship. null = use real GPS.
+  devLocation: { lat: number; lng: number } | null;
+  setDevLocation: (value: { lat: number; lng: number } | null) => void;
   // Notifications — gate the geofence-entry notifications. Default ON.
   landmarkAlertsEnabled: boolean;
   setLandmarkAlertsEnabled: (value: boolean) => void;
@@ -47,6 +51,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAppLocale: (value) => set({ appLocale: value }),
       voiceRate: 0.95,
       setVoiceRate: (value) => set({ voiceRate: value }),
+      devLocation: null,
+      setDevLocation: (value) => set({ devLocation: value }),
       landmarkAlertsEnabled: true,
       setLandmarkAlertsEnabled: (value) => set({ landmarkAlertsEnabled: value }),
       safetyAlertsEnabled: true,
@@ -64,6 +70,7 @@ export const useSettingsStore = create<SettingsState>()(
         voiceGuidanceEnabled: s.voiceGuidanceEnabled,
         appLocale: s.appLocale,
         voiceRate: s.voiceRate,
+        devLocation: s.devLocation,
         landmarkAlertsEnabled: s.landmarkAlertsEnabled,
         safetyAlertsEnabled: s.safetyAlertsEnabled,
         offlineCacheEnabled: s.offlineCacheEnabled,

@@ -19,6 +19,7 @@ import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { endRideAndSave } from '../../src/utils/rides';
 import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
 import { haversineMetres } from '../../src/utils/haversine';
+import { dedupeBySlug } from '../../src/utils/landmarks';
 
 interface Tour {
   id: string;
@@ -30,6 +31,7 @@ interface Tour {
 }
 
 interface Landmark {
+  id: string; // Firestore doc id — the guaranteed-unique React key
   slug: string;
   name: string;
   latitude: number;
@@ -98,20 +100,23 @@ export default function RideScreen() {
         });
         setLocNames(names);
         setLandmarks(
-          locSnap.docs
-            .map((d) => {
-              const data = d.data();
-              const c = data['coordinates'] as { latitude?: number; longitude?: number } | null;
-              return c?.latitude != null && c?.longitude != null
-                ? {
-                    slug: (data['slug'] as string) ?? d.id,
-                    name: (data['name'] as string) ?? '',
-                    latitude: c.latitude,
-                    longitude: c.longitude,
-                  }
-                : null;
-            })
-            .filter((l): l is Landmark => l !== null),
+          dedupeBySlug(
+            locSnap.docs
+              .map((d) => {
+                const data = d.data();
+                const c = data['coordinates'] as { latitude?: number; longitude?: number } | null;
+                return c?.latitude != null && c?.longitude != null
+                  ? {
+                      id: d.id,
+                      slug: (data['slug'] as string) ?? d.id,
+                      name: (data['name'] as string) ?? '',
+                      latitude: c.latitude,
+                      longitude: c.longitude,
+                    }
+                  : null;
+              })
+              .filter((l): l is Landmark => l !== null),
+          ),
         );
         // Never overwrite a good cache with an empty/partial result.
         if (mappedTours.length && useSettingsStore.getState().offlineCacheEnabled) {
@@ -132,14 +137,17 @@ export default function RideScreen() {
           cachedLocs.data.forEach((l) => names.set(l.slug, l.name));
           setLocNames(names);
           setLandmarks(
-            cachedLocs.data
-              .filter((l) => l.coordinates)
-              .map((l) => ({
-                slug: l.slug,
-                name: l.name,
-                latitude: l.coordinates!.latitude,
-                longitude: l.coordinates!.longitude,
-              })),
+            dedupeBySlug(
+              cachedLocs.data
+                .filter((l) => l.coordinates)
+                .map((l) => ({
+                  id: l.slug,
+                  slug: l.slug,
+                  name: l.name,
+                  latitude: l.coordinates!.latitude,
+                  longitude: l.coordinates!.longitude,
+                })),
+            ),
           );
         }
       } finally {
@@ -290,7 +298,7 @@ export default function RideScreen() {
 
         <FlatList
           data={landmarkList}
-          keyExtractor={(l) => l.slug}
+          keyExtractor={(l) => l.id}
           keyboardShouldPersistTaps="handled"
           style={{ marginTop: 4 }}
           renderItem={({ item }) => (

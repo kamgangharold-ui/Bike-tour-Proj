@@ -6,6 +6,7 @@ import {
   Switch,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Alert,
   Linking,
   ActivityIndicator,
@@ -45,6 +46,8 @@ export default function SettingsScreen() {
   const setVoiceGuidanceEnabled = useSettingsStore((s) => s.setVoiceGuidanceEnabled);
   const appLocale = useSettingsStore((s) => s.appLocale);
   const setAppLocale = useSettingsStore((s) => s.setAppLocale);
+  const devLocation = useSettingsStore((s) => s.devLocation);
+  const setDevLocation = useSettingsStore((s) => s.setDevLocation);
   const landmarkAlertsEnabled = useSettingsStore((s) => s.landmarkAlertsEnabled);
   const setLandmarkAlertsEnabled = useSettingsStore((s) => s.setLandmarkAlertsEnabled);
   const safetyAlertsEnabled = useSettingsStore((s) => s.safetyAlertsEnabled);
@@ -59,6 +62,8 @@ export default function SettingsScreen() {
   const setRideHistory = useAppStore((s) => s.setRideHistory);
   const historyCount = useAppStore((s) => s.rideHistory.length);
 
+  const [devLat, setDevLat] = useState(devLocation ? String(devLocation.lat) : '');
+  const [devLng, setDevLng] = useState(devLocation ? String(devLocation.lng) : '');
   const [cacheUpdated, setCacheUpdated] = useState<number | null>(null);
   const [clearingHistory, setClearingHistory] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
@@ -246,6 +251,57 @@ export default function SettingsScreen() {
         />
       </Section>
 
+      <Section title="Developer (temporary)">
+        <View style={styles.devRow}>
+          <Ionicons name="bug-outline" size={20} color="#9E9E9E" style={styles.rowIcon} />
+          <View style={styles.rowText}>
+            <Text style={styles.rowLabel}>Location override</Text>
+            <Text style={styles.rowSub}>
+              {devLocation ? `Active: ${devLocation.lat.toFixed(4)}, ${devLocation.lng.toFixed(4)}` : 'Off — using real GPS'}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.devInputs}>
+          <TextInput
+            style={styles.devInput}
+            placeholder="lat (e.g. 48.8566)"
+            placeholderTextColor="#666"
+            value={devLat}
+            onChangeText={setDevLat}
+            keyboardType="numbers-and-punctuation"
+            autoCorrect={false}
+          />
+          <TextInput
+            style={styles.devInput}
+            placeholder="lng (e.g. 2.3522)"
+            placeholderTextColor="#666"
+            value={devLng}
+            onChangeText={setDevLng}
+            keyboardType="numbers-and-punctuation"
+            autoCorrect={false}
+          />
+        </View>
+        <View style={styles.devBtns}>
+          <TouchableOpacity
+            style={[styles.devBtn, styles.devBtnApply]}
+            onPress={() => {
+              const la = parseFloat(devLat);
+              const ln = parseFloat(devLng);
+              if (Number.isFinite(la) && Number.isFinite(ln)) setDevLocation({ lat: la, lng: ln });
+              else Alert.alert('Invalid', 'Enter valid numeric lat/lng.');
+            }}
+          >
+            <Text style={styles.devBtnApplyText}>Apply override</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.devBtn, styles.devBtnClear]}
+            onPress={() => { setDevLocation(null); setDevLat(''); setDevLng(''); }}
+          >
+            <Text style={styles.devBtnClearText}>Use real GPS</Text>
+          </TouchableOpacity>
+        </View>
+      </Section>
+
       <Section title="About">
         <ActionRow icon="information-circle-outline" label="App version" value={appVersion} />
         <ActionRow
@@ -413,4 +469,22 @@ const styles = StyleSheet.create({
   langChipActive: { backgroundColor: '#10301C', borderColor: '#00C853' },
   langChipText: { color: '#bbb', fontSize: 13, fontWeight: '600' },
   langChipTextActive: { color: '#00C853' },
+
+  devRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
+  devInputs: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingBottom: 10 },
+  devInput: {
+    flex: 1,
+    backgroundColor: '#2A2A2A',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: '#fff',
+    fontSize: 13,
+  },
+  devBtns: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingBottom: 14 },
+  devBtn: { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  devBtnApply: { backgroundColor: '#1565C0' },
+  devBtnApplyText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  devBtnClear: { backgroundColor: '#2A2A2A' },
+  devBtnClearText: { color: '#bbb', fontWeight: '700', fontSize: 13 },
 });

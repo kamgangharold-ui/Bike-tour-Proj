@@ -26,6 +26,9 @@ export interface Phrases {
   didntCatch: string;
   cantDo: string;
   assistantUnreachable: string;
+  headingTo: (name: string, dist: string) => string;
+  didYouMean: (name: string) => string;
+  cancelled: string;
 }
 
 const EN: Phrases = {
@@ -50,6 +53,9 @@ const EN: Phrases = {
   didntCatch: "Sorry, I didn't catch that.",
   cantDo: "Sorry, I couldn't do that.",
   assistantUnreachable: "I couldn't reach the assistant. Please try again.",
+  headingTo: (n, d) => `Heading to ${n}, ${d}.`,
+  didYouMean: (n) => `Did you mean ${n}?`,
+  cancelled: 'Okay, cancelled.',
 };
 
 const ES: Phrases = {
@@ -74,6 +80,9 @@ const ES: Phrases = {
   didntCatch: 'Perdona, no te he entendido.',
   cantDo: 'Perdona, no he podido hacerlo.',
   assistantUnreachable: 'No he podido contactar con el asistente. Inténtalo de nuevo.',
+  headingTo: (n, d) => `Vamos a ${n}, ${d}.`,
+  didYouMean: (n) => `¿Querías decir ${n}?`,
+  cancelled: 'Vale, cancelado.',
 };
 
 const CA: Phrases = {
@@ -98,6 +107,9 @@ const CA: Phrases = {
   didntCatch: "Perdona, no t'he entès.",
   cantDo: 'Perdona, no ho he pogut fer.',
   assistantUnreachable: "No he pogut contactar amb l'assistent. Torna-ho a provar.",
+  headingTo: (n, d) => `Anem a ${n}, ${d}.`,
+  didYouMean: (n) => `Volies dir ${n}?`,
+  cancelled: "D'acord, cancel·lat.",
 };
 
 const FR: Phrases = {
@@ -122,6 +134,9 @@ const FR: Phrases = {
   didntCatch: "Désolé, je n'ai pas compris.",
   cantDo: "Désolé, je n'ai pas pu faire ça.",
   assistantUnreachable: "Je n'ai pas pu joindre l'assistant. Réessayez.",
+  headingTo: (n, d) => `Direction ${n}, ${d}.`,
+  didYouMean: (n) => `Vouliez-vous dire ${n} ?`,
+  cancelled: "D'accord, annulé.",
 };
 
 const DE: Phrases = {
@@ -146,6 +161,9 @@ const DE: Phrases = {
   didntCatch: 'Entschuldige, das habe ich nicht verstanden.',
   cantDo: 'Entschuldige, das konnte ich nicht tun.',
   assistantUnreachable: 'Ich konnte den Assistenten nicht erreichen. Versuch es erneut.',
+  headingTo: (n, d) => `Auf dem Weg nach ${n}, ${d}.`,
+  didYouMean: (n) => `Meintest du ${n}?`,
+  cancelled: 'Okay, abgebrochen.',
 };
 
 const IT: Phrases = {
@@ -170,6 +188,9 @@ const IT: Phrases = {
   didntCatch: 'Scusa, non ho capito.',
   cantDo: 'Scusa, non sono riuscito a farlo.',
   assistantUnreachable: "Non sono riuscito a contattare l'assistente. Riprova.",
+  headingTo: (n, d) => `Andiamo a ${n}, ${d}.`,
+  didYouMean: (n) => `Intendevi ${n}?`,
+  cancelled: 'Va bene, annullato.',
 };
 
 const TABLE: Record<AppLocale, Phrases> = { en: EN, es: ES, ca: CA, fr: FR, de: DE, it: IT };

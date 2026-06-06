@@ -21,10 +21,12 @@ export default function MicButton({
   state,
   onPress,
   bottom,
+  right = 2,
 }: {
   state: MicState;
   onPress: () => void;
   bottom: number;
+  right?: number;
 }) {
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -51,7 +53,7 @@ export default function MicButton({
     state === 'listening' ? 'stop' : state === 'speaking' ? 'volume-high' : 'mic';
 
   return (
-    <View style={[styles.wrap, { bottom }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { bottom, right }]} pointerEvents="box-none">
       {state === 'listening' && (
         <Animated.View
           style={[
@@ -80,9 +82,10 @@ const SIZE = 72;
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    width: SIZE,
+    height: SIZE,
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 1001,
   },
   btn: {

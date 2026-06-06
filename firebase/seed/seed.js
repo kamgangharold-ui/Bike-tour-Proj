@@ -19,15 +19,29 @@ const db = admin.firestore();
 const ts = admin.firestore.FieldValue.serverTimestamp();
 const geo = (lat, lng) => new admin.firestore.GeoPoint(lat, lng);
 
-async function seed(collectionName, docs, useSlugAsId = false) {
+// Idempotent: every doc gets a DETERMINISTIC id, so re-running the seeder
+// updates the same docs instead of creating duplicates. (merge:true preserves
+// any fields added later, e.g. by the generator.)
+async function seed(collectionName, docs) {
   console.log(`\n📦  Seeding "${collectionName}"...`);
   const col = db.collection(collectionName);
   for (const doc of docs) {
     const { _id, ...data } = doc;
-    const ref = _id ? col.doc(_id) : col.doc();
-    await ref.set({ ...data, created_at: ts, updated_at: ts });
-    console.log(`   ✅  ${_id || ref.id} — ${data.name || data.question || data.slug || ''}`);
+    if (!_id) throw new Error(`seed("${collectionName}") doc missing _id — every doc needs a deterministic id`);
+    await col.doc(_id).set({ ...data, created_at: ts, updated_at: ts }, { merge: true });
+    console.log(`   ✅  ${_id} — ${data.name || data.question || data.slug || ''}`);
   }
+}
+
+// Deterministic ids: locations by slug; quizzes/faqs by location_slug + sequence.
+const withSlugId = (arr) => arr.map((d) => (d._id ? d : { ...d, _id: d.slug }));
+function withSeqId(arr, prefix) {
+  const counts = {};
+  return arr.map((d) => {
+    if (d._id) return d;
+    counts[d.location_slug] = (counts[d.location_slug] ?? 0) + 1;
+    return { ...d, _id: `${d.location_slug}-${prefix}${counts[d.location_slug]}` };
+  });
 }
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
@@ -898,33 +912,22 @@ const tours = [
   },
 ];
 
-async function addMoreLandmarks() {
-  console.log('\n🗺️  Adding 5 new landmarks...');
-  await seed('locations', moreLocations);
-  await seed('quizzes', moreQuizzes);
-  await seed('faqs', moreFaqs);
-  console.log('\n✅  New landmarks seeded:');
-  console.log(`    • locations → ${moreLocations.length} new documents`);
-  console.log(`    • quizzes  → ${moreQuizzes.length} new documents`);
-  console.log(`    • faqs     → ${moreFaqs.length} new documents`);
-}
-
 // ─── RUN ──────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log('\n🚴  Barcelona Bike Tour — Firestore Seeder');
+  console.log('\n🚴  Barcelona Bike Tour — Firestore Seeder (idempotent — upserts by id)');
   console.log('==========================================');
   try {
-    await seed('locations', locations);
-    await seed('quizzes', quizzes);
-    await seed('faqs', faqs);
+    // All landmark/quiz/faq docs get deterministic ids so re-runs never duplicate.
+    await seed('locations', withSlugId([...locations, ...moreLocations]));
+    await seed('quizzes', withSeqId([...quizzes, ...moreQuizzes], 'sq'));
+    await seed('faqs', withSeqId([...faqs, ...moreFaqs], 'sf'));
     await seed('logistics', logistics);
-    await addMoreLandmarks();
     await seed('tours', tours);
-    console.log('\n✅  All done! Your Firestore database is fully seeded.');
+    console.log('\n✅  All done! Your Firestore database is fully seeded (idempotent).');
     console.log('    Collections seeded:');
-    console.log(`    • locations  → ${locations.length} documents`);
-    console.log(`    • quizzes   → ${quizzes.length} documents`);
-    console.log(`    • faqs      → ${faqs.length} documents`);
+    console.log(`    • locations  → ${locations.length + moreLocations.length} documents`);
+    console.log(`    • quizzes   → ${quizzes.length + moreQuizzes.length} documents`);
+    console.log(`    • faqs      → ${faqs.length + moreFaqs.length} documents`);
     console.log(`    • logistics → ${logistics.length} documents`);
     console.log(`    • tours     → ${tours.length} documents`);
   } catch (err) {

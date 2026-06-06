@@ -57,7 +57,7 @@ interface LocalPatterns {
 
 const LOCAL: Record<AppLocale, LocalPatterns> = {
   en: {
-    navigate: ['take me to', 'navigate to', 'directions to', 'go to', 'route to'],
+    navigate: ['take me to', 'navigate to', 'guide me to', 'directions to', 'go to', 'route to'],
     find_parking: ['where can i park', 'find parking', 'bike parking', 'park my bike', 'parking'],
     skip_stop: ['skip', 'next stop'],
     status: ['how far', 'how long', 'where am i', "what's next", 'what is next', 'distance to'],
@@ -70,7 +70,7 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     reroute: ['reroute', 'recalculate', 'new route'],
   },
   es: {
-    navigate: ['llévame a', 'llevame a', 'navega a', 'cómo llego a', 'como llego a', 'ir a', 'ruta a', 'vamos a'],
+    navigate: ['llévame a', 'llevame a', 'guíame a', 'guiame a', 'navega a', 'cómo llego a', 'como llego a', 'ir a', 'ruta a', 'vamos a'],
     find_parking: ['dónde aparco', 'donde aparco', 'aparcamiento', 'aparcar', 'dónde dejo la bici', 'donde dejo la bici'],
     skip_stop: ['salta', 'siguiente parada', 'omitir'],
     status: ['cuánto falta', 'cuanto falta', 'dónde estoy', 'donde estoy', 'qué sigue', 'que sigue', 'distancia'],
@@ -83,7 +83,7 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     reroute: ['recalcula', 'recalcular', 'nueva ruta'],
   },
   ca: {
-    navigate: ["porta'm a", 'porta a', 'navega a', 'com arribo a', 'anar a', 'ruta a', 'vés a', 'ves a'],
+    navigate: ["porta'm a", "guia'm a", 'porta a', 'navega a', 'com arribo a', 'anar a', 'ruta a', 'vés a', 'ves a'],
     find_parking: ['on aparco', 'aparcament', 'aparcar', 'on deixo la bici'],
     skip_stop: ['salta', 'següent parada', 'seguent parada', 'ometre'],
     status: ['quant falta', 'on soc', 'on sóc', 'què ve ara', 'que ve ara', 'distància', 'distancia'],
@@ -96,7 +96,7 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     reroute: ['recalcula', 'recalcular', 'nova ruta'],
   },
   fr: {
-    navigate: ['emmène-moi à', 'emmene moi à', "emmène-moi au", 'va à', 'aller à', 'itinéraire vers', 'route vers', "amène-moi à"],
+    navigate: ['emmène-moi à', 'emmene moi à', "emmène-moi au", 'guide-moi vers', 'guide moi vers', 'va à', 'aller à', 'itinéraire vers', 'route vers', "amène-moi à"],
     find_parking: ['où me garer', 'ou me garer', 'stationnement', 'garer mon vélo', 'parking vélo', 'parking'],
     skip_stop: ['passer', 'arrêt suivant', 'arret suivant', 'sauter'],
     status: ['combien de temps', 'à quelle distance', 'a quelle distance', 'où suis-je', 'ou suis je', 'quelle est la suite', 'distance'],
@@ -109,7 +109,7 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     reroute: ['recalcule', 'recalculer', 'nouvel itinéraire'],
   },
   de: {
-    navigate: ['bring mich zur', 'bring mich zu', 'navigiere zu', 'fahr zur', 'fahr zu', 'fahr nach', 'route nach'],
+    navigate: ['bring mich zur', 'bring mich zu', 'führe mich zu', 'fuhre mich zu', 'navigiere zu', 'fahr zur', 'fahr zu', 'fahr nach', 'route nach'],
     find_parking: ['wo kann ich parken', 'fahrradparkplatz', 'parken', 'parkplatz', 'rad abstellen'],
     skip_stop: ['überspringen', 'uberspringen', 'nächster halt', 'nachster halt'],
     status: ['wie weit', 'wie lange', 'wo bin ich', 'was kommt als nächstes', 'was kommt als nachstes', 'entfernung'],
@@ -122,7 +122,7 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     reroute: ['neu berechnen', 'neue route'],
   },
   it: {
-    navigate: ['portami a', 'portami al', 'naviga verso', 'vai a', 'andare a', 'percorso per', 'rotta per'],
+    navigate: ['portami a', 'portami al', 'guidami a', 'guidami verso', 'naviga verso', 'vai a', 'andare a', 'percorso per', 'rotta per'],
     find_parking: ['dove posso parcheggiare', 'parcheggio', 'parcheggiare', 'dove lascio la bici'],
     skip_stop: ['salta', 'prossima tappa', 'ometti'],
     status: ['quanto manca', 'quanto dista', 'dove sono', 'cosa viene dopo', 'distanza'],
@@ -152,6 +152,32 @@ function boundedMatchEnd(text: string, phrase: string): number {
     if (!isLetter(before) && !isLetter(after)) return endIdx;
     from = i + 1;
   }
+}
+
+const YES: Record<AppLocale, string[]> = {
+  en: ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'correct', 'right', 'go'],
+  es: ['sí', 'si', 'vale', 'correcto', 'claro', 'venga'],
+  ca: ['sí', 'si', "d'acord", 'correcte', 'va'],
+  fr: ['oui', 'ouais', "d'accord", 'ok', 'correct', 'vas-y'],
+  de: ['ja', 'genau', 'ok', 'okay', 'richtig', 'klar'],
+  it: ['sì', 'si', 'ok', 'va bene', 'esatto', 'certo'],
+};
+const NO: Record<AppLocale, string[]> = {
+  en: ['no', 'nope', 'cancel', 'stop', 'nevermind', 'never mind'],
+  es: ['no', 'cancela', 'cancelar', 'para'],
+  ca: ['no', 'cancel·la', 'cancella', 'atura'],
+  fr: ['non', 'annule', 'annuler', 'stop'],
+  de: ['nein', 'abbrechen', 'stopp', 'stop'],
+  it: ['no', 'annulla', 'ferma', 'stop'],
+};
+
+export function isAffirmative(raw: string, locale: AppLocale): boolean {
+  const t = raw.trim().toLowerCase();
+  return (YES[locale] ?? YES.en).some((w) => t === w || t.startsWith(w + ' '));
+}
+export function isNegative(raw: string, locale: AppLocale): boolean {
+  const t = raw.trim().toLowerCase();
+  return (NO[locale] ?? NO.en).some((w) => t === w || t.startsWith(w + ' '));
 }
 
 export function parseLocalIntent(raw: string, locale: AppLocale): CommandIntent | null {

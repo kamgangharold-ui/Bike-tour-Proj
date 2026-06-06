@@ -89,6 +89,10 @@ interface AppState extends LandmarkData, RideState, RideActions {
   biciboxJson: string;
   biciparkJson: string;
   chatPrefill: string;
+  // Voice navigation hand-off: chat sets a destination query → the map consumes it
+  // and starts turn-by-turn (so "guide me to X" in chat runs real navigation).
+  navRequest: string | null;
+  setNavRequest: (q: string | null) => void;
   // Live GPS position — single source of truth shared by the map + AI chat.
   userLat: number | null;
   userLng: number | null;
@@ -146,6 +150,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   biciboxJson: '',
   biciparkJson: '',
   chatPrefill: '',
+  navRequest: null,
+  setNavRequest: (q) => set({ navRequest: q }),
   userLat: null,
   userLng: null,
   tourPreview: null,

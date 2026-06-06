@@ -69,6 +69,10 @@ export function buildBikAISystemPrompt(landmarks: LandmarkInfo[], locale?: AppLo
     `\nNearby landmarks within 500 m (distance-sorted):\n${nearbyStr}\n\n` +
     `Cycling regulations: sidewalk riding = €500 fine, both earphones = €100 fine, ` +
     `Gothic Quarter = mandatory dismount zone.\n` +
+    (hasPos
+      ? `IMPORTANT: you ALWAYS have the user's live GPS position (given above). NEVER say you lack access to their location or ask them to share/type it. ` +
+        `If they ask for real-time turn-by-turn guidance to a place, tell them to say "take me to <place>" (or tap the mic) and you'll guide them turn-by-turn — do NOT dump a static list of directions.\n`
+      : '') +
     `Answer concisely and helpfully. If unsure, say so honestly. ` +
     (locale
       ? `Respond ONLY in ${LOCALE_LABELS[locale]} (locale ${locale}), regardless of the language the question is in. `
