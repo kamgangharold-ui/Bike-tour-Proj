@@ -13,11 +13,14 @@ import { router } from 'expo-router';
 import RideBanner from '../src/components/RideBanner';
 import OfflineBanner from '../src/components/OfflineBanner';
 import EventBanner from '../src/components/EventBanner';
+import VoiceDebugOverlay from '../src/components/VoiceDebugOverlay';
 import { setupNotifications } from '../src/utils/notify';
 
+// SDK 54: shouldShowAlert is deprecated — present via shouldShowBanner + shouldShowList
+// (+ shouldPlaySound). Note: full expo-notifications support needs a dev build; in
+// Expo Go local notifications are limited and the foreground banner is best-effort.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
     shouldShowBanner: true,
@@ -88,6 +91,7 @@ export default function RootLayout() {
       <RideBanner />
       <OfflineBanner />
       <EventBanner />
+      {__DEV__ && <VoiceDebugOverlay />}
     </SafeAreaProvider>
   );
 }
