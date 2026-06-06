@@ -34,7 +34,11 @@ export const SPEECH_HINTS = [
   'where can I park', 'repeat', 'mute', 'louder', 'slower', 'stop the ride',
 ];
 
-const SPEECH_DB = -40;      // dBFS; metering above this counts as the user speaking
+// expo-audio metering scales differ by platform: iOS reports averagePower (RMS-style
+// dBFS), Android reports 20*log10(maxAmplitude/32767) — a PEAK over the poll window,
+// which runs much hotter, so it needs a higher threshold. The Android value is a
+// starting point; the debug overlay logs live dB so it can be calibrated on-device.
+const SPEECH_DB = Platform.OS === 'android' ? -22 : -40; // dBFS; above this = speaking
 const METER_INTERVAL = 200; // ms between metering polls (silence detection)
 // Don't let a brief mid-sentence pause auto-stop the recording: require this much
 // speech since it began before the trailing-silence timer is allowed to fire.
@@ -99,6 +103,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   const speechStartedAt = useRef(0);
   const finishing = useRef(false);
   const starting = useRef(false); // synchronous guard against re-entrant startListening
+  const startSeq = useRef(0);     // token to detect teardown during the start awaits
 
   const clearTimers = () => {
     if (maxTimer.current) { clearTimeout(maxTimer.current); maxTimer.current = null; }
@@ -113,12 +118,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     let level = -160;
     try { level = recorder.getStatus().metering ?? -160; } catch { /* ignore */ }
     if (level > SPEECH_DB) {
-      if (!speechDetected.current) { speechStartedAt.current = Date.now(); vlog('speech detected'); }
+      if (!speechDetected.current) { speechStartedAt.current = Date.now(); vlog(`speech detected @ ${level.toFixed(0)}dB`); }
       speechDetected.current = true;
       if (silenceTimer.current) { clearTimeout(silenceTimer.current); silenceTimer.current = null; }
     } else if (speechDetected.current && !silenceTimer.current) {
       const spokenFor = Date.now() - speechStartedAt.current;
       const extra = Math.max(0, MIN_UTTERANCE_MS - spokenFor);
+      vlog(`silence @ ${level.toFixed(0)}dB → stop in ${silenceMs + extra}ms`);
       silenceTimer.current = setTimeout(() => void stopListening(), silenceMs + extra);
     }
   };
@@ -210,6 +216,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   };
 
   const stopListening = async () => {
+    startSeq.current += 1; // invalidate any in-flight start (so it releases its capture)
     if (finishing.current) return;
     finishing.current = true;
     const uri = await stopRecording();
@@ -218,6 +225,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   };
 
   const cancel = async () => {
+    startSeq.current += 1; // invalidate any in-flight start
     finishing.current = true;
     await stopRecording();
     finishing.current = false;
@@ -226,10 +234,12 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   const startListening = async () => {
     if (recordingActiveRef.current || transcribing || starting.current) return;
     starting.current = true;
+    const seq = ++startSeq.current; // this start's token; teardown bumps startSeq
     let entered = false;
     try {
       vlog('mic tapped → requesting permission');
       const { granted } = await requestRecordingPermissionsAsync();
+      if (seq !== startSeq.current) return; // cancelled/unmounted during await
       if (!granted) {
         vlog('mic permission DENIED');
         optsRef.current.onError?.('Microphone permission is required for voice.');
@@ -237,10 +247,14 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
       }
       await enterListenMode();
       entered = true;
+      // If we were torn down during permission/enter, release the capture we just
+      // took so activeCaptures never strands at +1 (which would mute TTS forever).
+      if (seq !== startSeq.current) { entered = false; await exitListenMode(); return; }
       speechDetected.current = false;
       speechStartedAt.current = 0;
       finishing.current = false;
       await recorder.prepareToRecordAsync();
+      if (seq !== startSeq.current) { entered = false; await exitListenMode(); return; }
       recorder.record();
       recordingActiveRef.current = true;
       setIsListening(true);
