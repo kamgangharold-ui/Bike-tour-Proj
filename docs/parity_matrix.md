@@ -79,3 +79,16 @@ iOS ships via **Expo Go**; Android via **Expo Go (testing)** and a **standalone 
 | Reply in the user's language | ✅ | ✅ | **Fixed** | Typed → Claude replies in the message's language; TTS voice from the reply. Voice → Settings language drives STT + reply + TTS. No English lock anywhere. |
 | BikAI "Near {landmark}" chip | removed | removed | **Fixed** | Header context pill removed. |
 | BikAI input bar polish | ✅ | ✅ | **Fixed** | Aligned 42px mic + rounded field + send, even padding, hairline borders, "Message BikAI…" placeholder. |
+
+## Phase 2 — FIX PACK round 3 (post on-device — voice regression + notifications + UI)
+
+| Item | iOS | Android | Status | Notes |
+|---|---|---|---|---|
+| TTS audible again (FIX 11) | ✅ | ✅ | **Fixed** | New `audioSession.ts` manager: STT recording flips the session to listen-mode and back to speak-mode (`allowsRecordingIOS:false`) when the last capture ends, so playback leaves the earpiece; `playsInSilentModeIOS:true` so cues play with the ring switch on silent. `speak()` retries once on the default voice if a locale voice is missing. **Never** sets `staysActiveInBackground` (the original crash). Capture-counted so the two mic instances (chat+map) can't corrupt each other. |
+| STT hears the selected language (FIX 12) | ✅ | ✅ | **Fixed** | iOS sends the WAV with no declared encoding (Google reads the RIFF header — `LINEAR16` was parsing the header as audio → garbage); dropped English-biasing `alternativeLanguageCodes`; English hint phrases only for the EN locale; boost 15→10. Set FR → speak FR → transcribes FR. |
+| Not cut off mid-sentence (FIX 12) | ✅ | ✅ | **Fixed** | Map silence window 1.5→1.9 s + a 900 ms min-utterance guard before auto-stop can fire. |
+| System notifications outside the app (FIX 13) | ✅ | ✅ | **Fixed** | `setupNotifications` verifies the grant (Android 13+ silently no-ops otherwise). Ride start posts a sticky "Ride in progress" that persists when backgrounded; ride complete posts a real system notification (`alwaysNotify`). Landmark/safety alerts post from the background geofence task. *Honest limit:* a true persistent foreground-service ongoing notification + background TTS need a dev build; iOS Expo Go can't run the background geofence. |
+| BikAI input bar (FIX 14) | ✅ | ✅ | **Fixed** | Text vertically centered identically on Android (`textAlignVertical:'center'` + `includeFontPadding:false`); higher-contrast 44 px pill + matched mic/send buttons. (Prior "looks unchanged" was a stale bundle — a fresh Metro bundle now carries it.) |
+| Tap "Rides" → Ride History screen (FIX 15) | ✅ | ✅ | **Fixed** | Profile "Rides" stat card is pressable → dedicated `app/ride-history.tsx` (reuses the AsyncStorage history + row → recap nav; reads live from the store so sign-out can't leak a previous account's rides). |
+
+**Round 3 delivery:** all JS-only (no new native module / permission / app.config change) → OTA / Metro-testable in Expo Go on both platforms; no APK rebuild required for these fixes.

@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where, DocumentData } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
@@ -148,11 +148,15 @@ export default function ProfileScreen() {
 
       {/* Ride history */}
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
+        <TouchableOpacity
+          style={styles.statCard}
+          activeOpacity={0.8}
+          onPress={() => router.push('/ride-history' as Href)}
+        >
           <Ionicons name="bicycle" size={28} color="#00C853" />
           <Text style={[styles.statValue, { color: '#00C853' }]}>{rides.count}</Text>
-          <Text style={styles.statLabel}>Rides</Text>
-        </View>
+          <Text style={styles.statLabel}>Rides ›</Text>
+        </TouchableOpacity>
         <View style={styles.statCard}>
           <Ionicons name="speedometer" size={28} color="#1565C0" />
           <Text style={[styles.statValue, { color: '#1565C0' }]}>{rides.km}</Text>
