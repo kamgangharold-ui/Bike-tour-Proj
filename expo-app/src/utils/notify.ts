@@ -33,14 +33,26 @@ const CHANNEL: Record<NotifKind, string> = {
   info: 'info',
 };
 
-// Permission + Android channels. Call once at startup.
-export async function setupNotifications(): Promise<void> {
+// Permission + Android channels. Call once at startup. Returns whether the OS
+// will actually present notifications — on Android 13+ and iOS, everything below
+// silently no-ops until the user grants permission, so we check the result
+// instead of assuming the manifest entry is enough.
+export async function setupNotifications(): Promise<boolean> {
+  let granted = false;
   try {
-    await Notifications.requestPermissionsAsync();
-  } catch {
-    /* user can grant later */
+    const current = await Notifications.getPermissionsAsync();
+    const status =
+      current.granted || current.status === 'granted'
+        ? current
+        : await Notifications.requestPermissionsAsync();
+    granted = status.granted || status.status === 'granted';
+    if (!granted) {
+      console.warn('[Notify] notification permission not granted — system notifications will not appear');
+    }
+  } catch (e) {
+    console.warn('[Notify] permission check failed', e);
   }
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android') return granted;
   const H = Notifications.AndroidImportance.HIGH;
   const D = Notifications.AndroidImportance.DEFAULT;
   const L = Notifications.AndroidImportance.LOW;
@@ -52,6 +64,7 @@ export async function setupNotifications(): Promise<void> {
   } catch {
     /* ignore */
   }
+  return granted;
 }
 
 function androidTrigger(channelId: string): Notifications.NotificationTriggerInput | null {

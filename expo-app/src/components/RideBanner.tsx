@@ -38,16 +38,23 @@ export default function RideBanner() {
   useEffect(() => {
     if (rideActive && !prevActiveRef.current) {
       prevActiveRef.current = true;
+      // In-app banner only when foreground (you're already looking at the app when
+      // you tap Start). The sticky "Ride in progress" below is the system
+      // notification that persists once you background the app — no need for a
+      // third transient one here.
       void notify({ kind: 'info', title: 'Ride started', body: 'Tracking your ride.' });
       void setRideOngoing('Ride in progress', 'Starting…');
     } else if (!rideActive && prevActiveRef.current) {
       prevActiveRef.current = false;
       void clearRideOngoing();
       const lr = useAppStore.getState().lastRide;
+      // alwaysNotify: at ride end the app is often backgrounded (phone pocketed) and
+      // there's no sticky to fall back on, so post a real system notification.
       void notify({
         kind: 'info',
         title: 'Ride complete 🎉',
         body: lr ? `${fmtDist(lr.distanceMeters)} · ${lr.visitedSlugs.length} seen` : 'Ride ended.',
+        alwaysNotify: true,
       });
     }
   }, [rideActive]);
