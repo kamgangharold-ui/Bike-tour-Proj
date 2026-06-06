@@ -62,6 +62,20 @@ const queue: QueueItem[] = [];
 let speaking = false;
 let currentRank = -1; // rank of the cue currently speaking (-1 = idle)
 let gen = 0;
+let lastSpokenText = ''; // for the voice "repeat" command
+
+// Last thing the app spoke (used by the "repeat" intent).
+export function getLastSpoken(): string {
+  return lastSpokenText;
+}
+
+function settingsRate(): number {
+  try {
+    return useSettingsStore.getState().voiceRate;
+  } catch {
+    return 0.95;
+  }
+}
 
 function playNext(myGen: number): void {
   if (myGen !== gen) return; // superseded by a stop()/preempting cue
@@ -73,9 +87,10 @@ function playNext(myGen: number): void {
   }
   speaking = true;
   currentRank = RANK[next.opts.priority ?? 'normal'];
+  lastSpokenText = next.text;
   Speech.speak(next.text, {
     language: langToBcp47(next.opts.lang),
-    rate: next.opts.rate ?? 0.95,
+    rate: next.opts.rate ?? settingsRate(),
     pitch: next.opts.pitch ?? 1.0,
     onDone: () => playNext(myGen),
     onError: () => playNext(myGen),

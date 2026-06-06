@@ -19,6 +19,9 @@ interface SettingsState {
   // overridable in Settings. Used for both Google STT and expo-speech.
   appLocale: AppLocale;
   setAppLocale: (value: AppLocale) => void;
+  // TTS speech rate (expo-speech). Voice command "slower" lowers it. ~0.5–1.0.
+  voiceRate: number;
+  setVoiceRate: (value: number) => void;
   // Notifications — gate the geofence-entry notifications. Default ON.
   landmarkAlertsEnabled: boolean;
   setLandmarkAlertsEnabled: (value: boolean) => void;
@@ -42,6 +45,8 @@ export const useSettingsStore = create<SettingsState>()(
       setVoiceGuidanceEnabled: (value) => set({ voiceGuidanceEnabled: value }),
       appLocale: deviceDefaultLocale(),
       setAppLocale: (value) => set({ appLocale: value }),
+      voiceRate: 0.95,
+      setVoiceRate: (value) => set({ voiceRate: value }),
       landmarkAlertsEnabled: true,
       setLandmarkAlertsEnabled: (value) => set({ landmarkAlertsEnabled: value }),
       safetyAlertsEnabled: true,
@@ -58,6 +63,7 @@ export const useSettingsStore = create<SettingsState>()(
         avoidNoCyclingZones: s.avoidNoCyclingZones,
         voiceGuidanceEnabled: s.voiceGuidanceEnabled,
         appLocale: s.appLocale,
+        voiceRate: s.voiceRate,
         landmarkAlertsEnabled: s.landmarkAlertsEnabled,
         safetyAlertsEnabled: s.safetyAlertsEnabled,
         offlineCacheEnabled: s.offlineCacheEnabled,

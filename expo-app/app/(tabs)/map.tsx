@@ -8,6 +8,7 @@ import {
   ScrollView,
   PanResponder,
   Platform,
+  Vibration,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +32,7 @@ import { useGeofencing } from '../../src/hooks/useGeofencing';
 import LandmarkCard from '../../src/components/LandmarkCard';
 import { BARCELONA_CENTER, DISMOUNT_ZONE_CATEGORY } from '../../constants/rules';
 import { haversineMetres } from '../../src/utils/haversine';
-import { speak } from '../../src/utils/voice';
+import { speak, stop as stopSpeaking, isSpeaking, getLastSpoken } from '../../src/utils/voice';
 import {
   parseOsrmSteps,
   nextManeuver,
@@ -39,6 +40,13 @@ import {
   type ManeuverStep,
   type OsrmRoute,
 } from '../../src/utils/routing';
+import { useVoiceChat } from '../../src/hooks/useVoiceChat';
+import { buildBikAISystemPrompt, type LandmarkInfo } from '../../src/utils/systemPrompt';
+import { runCommand, type CommandContext } from '../../src/intents/router';
+import { phrases } from '../../src/intents/phrases';
+import { fetchNearestParking } from '../../src/utils/parkingService';
+import { endRideAndSave } from '../../src/utils/rides';
+import MicButton, { type MicState } from '../../src/components/MicButton';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { checkRouteAgainstZones, type RouteZone } from '../../src/utils/routeSafety';
 import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
@@ -271,6 +279,7 @@ export default function MapScreen() {
   const avoidNoCyclingZones = useSettingsStore((s) => s.avoidNoCyclingZones);
   const showBicing = useSettingsStore((s) => s.showBicing);
   const appLocale = useSettingsStore((s) => s.appLocale);
+  const setVoiceGuidanceEnabled = useSettingsStore((s) => s.setVoiceGuidanceEnabled);
 
   useGeofencing();
 
@@ -779,6 +788,161 @@ export default function MapScreen() {
     }
   }, [userLocation, navSteps, routeCoords, routeDest, rideActive, fetchRoute]);
 
+  // ── Voice command & control (Group G) ────────────────────────────────────────
+  // Landmarks in the shape the system prompt + STT boost expect.
+  const landmarkInfos = useMemo<LandmarkInfo[]>(
+    () =>
+      locations.map((l) => ({
+        name: l.name,
+        slug: l.slug,
+        short_description: l.description,
+        category: l.category,
+        coordinates: l.coordinates,
+        geofence_radius_metres: l.geofenceRadius,
+        regulatory_alert: l.isRegulatory
+          ? { message: l.regulatoryMessage, fine_eur: l.regulatoryFineEur }
+          : undefined,
+      })),
+    [locations],
+  );
+
+  const [micPhase, setMicPhase] = useState<'idle' | 'thinking' | 'speaking'>('idle');
+
+  // Run a recognized utterance: build the executors (reuse the route pipeline,
+  // store actions, parking service), let the hybrid router execute + return the
+  // spoken reply, then speak it. Rebuilt each render so it reads fresh state; the
+  // voice hook always calls the latest via its options ref.
+  const handleCommand = async (transcript: string) => {
+    const ph = phrases(appLocale);
+    const ctx: CommandContext = {
+      locale: appLocale,
+      systemContext: () => buildBikAISystemPrompt(landmarkInfos),
+      navigate: async (query) => {
+        const s = useAppStore.getState();
+        if (s.userLat == null || s.userLng == null) return ph.needLocation;
+        const q = query.toLowerCase();
+        const match =
+          landmarkInfos.find((l) => (l.name ?? '').toLowerCase() === q) ??
+          landmarkInfos.find((l) => {
+            const n = (l.name ?? '').toLowerCase();
+            return !!n && (n.includes(q) || q.includes(n));
+          });
+        let dest: Coords | null = match?.coordinates ?? null;
+        const name = match?.name ?? query;
+        if (!dest) {
+          try {
+            const geo = await Location.geocodeAsync(/barcelona/i.test(query) ? query : `${query}, Barcelona`);
+            if (geo[0]) dest = { latitude: geo[0].latitude, longitude: geo[0].longitude };
+          } catch {
+            /* geocode failed → not found */
+          }
+        }
+        if (!dest) return ph.notFound(query);
+        await fetchRoute(dest.latitude, dest.longitude);
+        return ph.routing(name);
+      },
+      reroute: async () => {
+        if (!routeDest) return ph.noRoute;
+        await fetchRoute(routeDest.latitude, routeDest.longitude);
+        return ph.rerouting;
+      },
+      skipStop: () => {
+        const s = useAppStore.getState();
+        if (s.rideMode !== 'tour' || s.rideTourStops.length === 0) return ph.skipNone;
+        const idx = s.rideTargetSlug ? s.rideTourStops.indexOf(s.rideTargetSlug) : -1;
+        const next = s.rideTourStops.slice(idx + 1).find((x) => !s.rideVisited.includes(x)) ?? null;
+        s.setRideTarget(next);
+        if (!next) return ph.skipNone;
+        return ph.skipped(landmarkInfos.find((l) => l.slug === next)?.name ?? next);
+      },
+      findParking: async () => {
+        const s = useAppStore.getState();
+        if (s.userLat == null || s.userLng == null) return ph.needLocation;
+        try {
+          const list = await fetchNearestParking(s.userLat, s.userLng, 1500);
+          if (!list.length) return ph.parkingNone;
+          const n = list[0];
+          setTappedMapPoint({ latitude: n.latitude, longitude: n.longitude, name: n.name });
+          return ph.parkingFound(n.name, n.distanceMetres);
+        } catch {
+          return ph.parkingError;
+        }
+      },
+      status: () => {
+        const parts: string[] = [];
+        if (nextTurn) parts.push(ph.statusToTurn(Math.max(10, Math.round(nextTurn.distanceM / 10) * 10)));
+        if (routeInfo) parts.push(ph.statusToDest(routeInfo.distance, routeInfo.duration));
+        return parts.length ? parts.join(' ') : ph.statusNoRoute;
+      },
+      repeat: () => getLastSpoken(),
+      setMuted: (muted) => {
+        setVoiceGuidanceEnabled(!muted);
+        if (muted) stopSpeaking();
+        return muted ? ph.muted : ph.unmuted;
+      },
+      slower: () => {
+        const cur = useSettingsStore.getState().voiceRate;
+        useSettingsStore.getState().setVoiceRate(Math.max(0.5, Math.round((cur - 0.15) * 100) / 100));
+        return ph.slower;
+      },
+      louder: () => ph.louderNote,
+      endRide: async () => {
+        const summary = await endRideAndSave();
+        if (summary) router.push('/recap');
+        return ph.ending;
+      },
+    };
+
+    setMicPhase('thinking');
+    try {
+      const spoken = await runCommand(transcript, ctx);
+      if (spoken && spoken.trim()) {
+        setMicPhase('speaking');
+        speak(spoken, { lang: appLocale, priority: 'high' });
+      } else {
+        setMicPhase('idle');
+      }
+    } catch {
+      setMicPhase('idle');
+    }
+  };
+
+  // Map tap-to-talk: silence auto-stop (~1.5 s) + 8 s cap. startListening() is the
+  // single entry a future wake-word engine can call.
+  const commandVoice = useVoiceChat({
+    onTranscript: (t) => void handleCommand(t),
+    phrases: () => landmarkInfos.map((l) => l.name ?? '').filter(Boolean),
+    silenceMs: 1500,
+    maxMs: 8000,
+    onError: () => setMicPhase('idle'),
+  });
+
+  // Tap while speaking → barge-in (interrupt + listen); while listening → stop.
+  const onMicPress = () => {
+    if (commandVoice.isListening) {
+      void commandVoice.stopListening();
+      return;
+    }
+    if (isSpeaking()) stopSpeaking();
+    setMicPhase('idle');
+    Vibration.vibrate(20); // short tactile start cue (hands-free, screen-free)
+    void commandVoice.startListening();
+  };
+
+  const micState: MicState = commandVoice.isListening
+    ? 'listening'
+    : commandVoice.transcribing
+      ? 'thinking'
+      : micPhase;
+
+  // Drop back to idle once TTS finishes (expo-speech has no per-call done hook here).
+  useEffect(() => {
+    if (micPhase !== 'speaking') return;
+    const id = setInterval(() => { if (!isSpeaking()) setMicPhase('idle'); }, 300);
+    const max = setTimeout(() => setMicPhase('idle'), 30000);
+    return () => { clearInterval(id); clearTimeout(max); };
+  }, [micPhase]);
+
   const fetchTourRoute = useCallback(async (stops: TourStop[]) => {
     if (stops.length < 2) return;
     const waypoints = stops
@@ -950,6 +1114,7 @@ export default function MapScreen() {
         showsUserLocation
         onMapReady={() => setMapReady(true)}
         initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
+        mapPadding={{ top: 0, left: 0, right: 0, bottom: rideActive ? 96 : 8 }}
       >
         {/* Tour stop pins — shown during preview or active tour */}
         {tourStops.map((stop, i, arr) => {
@@ -1093,6 +1258,11 @@ export default function MapScreen() {
       >
         <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
       </TouchableOpacity>
+
+      {/* Hands-free tap-to-talk — shown during a ride, above the bottom banners */}
+      {rideActive && (
+        <MicButton state={micState} onPress={onMicPress} bottom={tourBannerVisible ? 156 : 96} />
+      )}
 
       {/* Feature 2: Landmark preview sheet */}
       {showPreview && tappedLandmark && (

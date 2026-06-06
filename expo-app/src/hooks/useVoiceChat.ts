@@ -48,7 +48,10 @@ export interface VoiceChat {
 }
 
 export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
-  const { onTranscript, phrases, silenceMs, maxMs = 60000, onError } = options;
+  // Keep the latest options/callbacks in a ref so a timer-fired stop (silence/max)
+  // always uses the current handler, never a stale closure from an earlier render.
+  const optsRef = useRef(options);
+  optsRef.current = options;
 
   const [isListening, setIsListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -83,7 +86,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   const transcribe = async (uri: string) => {
     const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
     if (!apiKey) {
-      onError?.('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set.');
+      optsRef.current.onError?.('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set.');
       return;
     }
     setTranscribing(true);
@@ -92,7 +95,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
       const { languageCode, alternativeLanguageCodes } = sttLanguageConfig(
         useSettingsStore.getState().appLocale,
       );
-      const boost = [...(phrases?.() ?? []), ...SPEECH_HINTS].filter(Boolean);
+      const boost = [...(optsRef.current.phrases?.() ?? []), ...SPEECH_HINTS].filter(Boolean);
       const res = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,15 +123,15 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
         error?: { message: string; status: string };
       };
       if (data.error) {
-        onError?.(`${data.error.status}: ${data.error.message}`);
+        optsRef.current.onError?.(`${data.error.status}: ${data.error.message}`);
         return;
       }
       const transcript = data.results?.[0]?.alternatives?.[0]?.transcript?.trim() ?? '';
-      if (transcript) onTranscript(transcript);
-      else onError?.('No speech detected');
+      if (transcript) optsRef.current.onTranscript(transcript);
+      else optsRef.current.onError?.('No speech detected');
     } catch (e) {
       console.warn('[Voice] transcribe failed', e);
-      onError?.(String(e));
+      optsRef.current.onError?.(String(e));
     } finally {
       setTranscribing(false);
       await FileSystem.deleteAsync(uri, { idempotent: true });
@@ -150,6 +153,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   };
 
   const onStatus = (status: Audio.RecordingStatus) => {
+    const silenceMs = optsRef.current.silenceMs;
     if (!status.isRecording || !silenceMs) return;
     const level = status.metering ?? -160;
     if (level > SPEECH_DB) {
@@ -166,7 +170,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        onError?.('Microphone permission is required for voice.');
+        optsRef.current.onError?.('Microphone permission is required for voice.');
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
@@ -201,10 +205,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
       );
       recordingRef.current = recording;
       setIsListening(true);
-      maxTimer.current = setTimeout(() => void stopListening(), maxMs);
+      maxTimer.current = setTimeout(() => void stopListening(), optsRef.current.maxMs ?? 60000);
     } catch (e) {
       console.warn('[Voice] start failed', e);
-      onError?.(`Could not start recording: ${String(e)}`);
+      optsRef.current.onError?.(`Could not start recording: ${String(e)}`);
     }
   };
 
