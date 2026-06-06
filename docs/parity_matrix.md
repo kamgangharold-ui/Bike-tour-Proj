@@ -69,3 +69,13 @@ iOS ships via **Expo Go**; Android via **Expo Go (testing)** and a **standalone 
 | Active-tour navigate guard | ✅ | ✅ | **By design** | Saying "take me to X" during a curated tour asks you to finish the tour first (no silent hijack / invisible route). |
 | Tactile cues (mic start / mute) | ✅ | ✅ | **Fixed** | Android `VIBRATE` permission now declared (native → APK rebuild at deploy). |
 | Dev location override leak guard | ✅ | ✅ | **Fixed** | `__DEV__`-only + not persisted — cannot ship an override. |
+
+## Phase 2 — Drop 1 FIX PACK round 2 (post on-device)
+
+| Item | iOS | Android | Status | Notes |
+|---|---|---|---|---|
+| Route clears on End; no inheritance | ✅ | ✅ | **Fixed** | Ride/nav end clears route geometry + maneuver steps + next-turn + destination + polyline (single source of truth); tour route auto-clears. A → End → B shows only B. |
+| "Where am I" answers anywhere | ✅ | ✅ | **Fixed** | Split `where_am_i` from route `status`: reverse-geocodes live GPS ("You're at …"), coordinate fallback if unnamed, no route or city needed. Route questions with no route → graceful "say take me to…". |
+| Reply in the user's language | ✅ | ✅ | **Fixed** | Typed → Claude replies in the message's language; TTS voice from the reply. Voice → Settings language drives STT + reply + TTS. No English lock anywhere. |
+| BikAI "Near {landmark}" chip | removed | removed | **Fixed** | Header context pill removed. |
+| BikAI input bar polish | ✅ | ✅ | **Fixed** | Aligned 42px mic + rounded field + send, even padding, hairline borders, "Message BikAI…" placeholder. |
