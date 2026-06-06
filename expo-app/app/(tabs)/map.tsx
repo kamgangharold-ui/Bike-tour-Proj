@@ -383,10 +383,10 @@ export default function MapScreen() {
           activeAffiliateUrl: inside.affiliateUrl,
           activeAudioUrl: inside.audioUrl,
         });
-        // Foreground arrival/regulatory event → unified dispatcher (in-app banner
-        // + spoken line). The background geofence task covers the backgrounded
-        // case; notify()'s 5 s dedupe prevents a double when both fire. Gated by
-        // the same Settings toggles as the system notification.
+        // FOREGROUND ownership: in-app banner + spoken line only. The background
+        // geofence task (a separate JS runtime) owns the SYSTEM notification, so
+        // no alwaysNotify here — avoids a duplicate system notif on a dev build
+        // where both runtimes fire. Gated by the same Settings toggles.
         const set = useSettingsStore.getState();
         const allowed = inside.isRegulatory ? set.safetyAlertsEnabled : set.landmarkAlertsEnabled;
         if (allowed) {
@@ -397,7 +397,6 @@ export default function MapScreen() {
               title: `⚠️ ${inside.name}`,
               body: `${inside.regulatoryMessage}${fineText}`,
               speak: `Warning: ${inside.name}. ${inside.regulatoryMessage}${fineText}`,
-              alwaysNotify: true,
               data: { slug: inside.slug },
             });
           } else {

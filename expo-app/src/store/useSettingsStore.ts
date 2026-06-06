@@ -26,7 +26,11 @@ interface SettingsState {
   // without traveling. Remove before ship. null = use real GPS.
   devLocation: { lat: number; lng: number } | null;
   setDevLocation: (value: { lat: number; lng: number } | null) => void;
-  // Notifications — gate the geofence-entry notifications. Default ON.
+  // Notifications — master switch for ALL real-time notifications (banners,
+  // system notifications, ongoing ride notification). Default ON.
+  notificationsEnabled: boolean;
+  setNotificationsEnabled: (value: boolean) => void;
+  // Gate the geofence-entry notifications specifically. Default ON.
   landmarkAlertsEnabled: boolean;
   setLandmarkAlertsEnabled: (value: boolean) => void;
   safetyAlertsEnabled: boolean;
@@ -53,6 +57,8 @@ export const useSettingsStore = create<SettingsState>()(
       setVoiceRate: (value) => set({ voiceRate: value }),
       devLocation: null,
       setDevLocation: (value) => set({ devLocation: value }),
+      notificationsEnabled: true,
+      setNotificationsEnabled: (value) => set({ notificationsEnabled: value }),
       landmarkAlertsEnabled: true,
       setLandmarkAlertsEnabled: (value) => set({ landmarkAlertsEnabled: value }),
       safetyAlertsEnabled: true,
@@ -68,6 +74,7 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (s) => ({
         avoidNoCyclingZones: s.avoidNoCyclingZones,
         voiceGuidanceEnabled: s.voiceGuidanceEnabled,
+        notificationsEnabled: s.notificationsEnabled,
         appLocale: s.appLocale,
         voiceRate: s.voiceRate,
         // devLocation is intentionally NOT persisted — a dev-only override must

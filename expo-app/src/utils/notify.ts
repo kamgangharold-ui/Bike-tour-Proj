@@ -14,7 +14,16 @@
 import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useEventBanner, type BannerKind } from '../store/useEventBanner';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { speak } from './voice';
+
+function notificationsOn(): boolean {
+  try {
+    return useSettingsStore.getState().notificationsEnabled;
+  } catch {
+    return true;
+  }
+}
 
 export type NotifKind = BannerKind; // 'navigation' | 'alert' | 'info'
 
@@ -59,15 +68,19 @@ export interface NotifyOpts {
   data?: Record<string, unknown>;
 }
 
-// Coordinate against double-announce: the same event from two paths (e.g. the
-// background geofence task AND the foreground geofence) within a short window is
-// dispatched once.
+// Within-runtime de-bounce of repeated dispatches (keyed by the stable slug when
+// present, so two physically-distinct same-named landmarks are NOT collapsed).
+// NOTE: this is per-JS-runtime; the foreground (app) and background (geofence
+// task) runtimes don't share it. Cross-runtime double-fire is prevented by
+// OWNERSHIP instead: the foreground path emits banner+voice only, the background
+// task owns the system notification (see geofenceTask + map foreground geofence).
 let lastKey = '';
 let lastAt = 0;
 
 // Dispatch one event. Never throws.
 export async function notify(o: NotifyOpts): Promise<void> {
-  const key = `${o.kind}:${o.title}`;
+  if (!notificationsOn()) return; // master switch (Settings)
+  const key = `${o.kind}:${(o.data?.slug as string | undefined) ?? o.title}`;
   const now = Date.now();
   if (key === lastKey && now - lastAt < 5000) return;
   lastKey = key;
@@ -94,6 +107,7 @@ export async function notify(o: NotifyOpts): Promise<void> {
 const RIDE_NOTIF_ID = 'ride-ongoing';
 
 export async function setRideOngoing(title: string, body: string): Promise<void> {
+  if (!notificationsOn()) return;
   try {
     await Notifications.scheduleNotificationAsync({
       identifier: RIDE_NOTIF_ID, // stable id → updates replace, not stack

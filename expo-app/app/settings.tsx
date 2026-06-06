@@ -48,6 +48,8 @@ export default function SettingsScreen() {
   const setAppLocale = useSettingsStore((s) => s.setAppLocale);
   const devLocation = useSettingsStore((s) => s.devLocation);
   const setDevLocation = useSettingsStore((s) => s.setDevLocation);
+  const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
+  const setNotificationsEnabled = useSettingsStore((s) => s.setNotificationsEnabled);
   const landmarkAlertsEnabled = useSettingsStore((s) => s.landmarkAlertsEnabled);
   const setLandmarkAlertsEnabled = useSettingsStore((s) => s.setLandmarkAlertsEnabled);
   const safetyAlertsEnabled = useSettingsStore((s) => s.safetyAlertsEnabled);
@@ -184,6 +186,13 @@ export default function SettingsScreen() {
       </Section>
 
       <Section title="Notifications">
+        <ToggleRow
+          icon="notifications-circle-outline"
+          label="All notifications"
+          sublabel="Master switch for banners, alerts & the ride notification"
+          value={notificationsEnabled}
+          onValueChange={setNotificationsEnabled}
+        />
         <ToggleRow
           icon="notifications-outline"
           label="Landmark alerts"
