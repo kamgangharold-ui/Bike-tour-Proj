@@ -146,7 +146,7 @@ This project ships Android and iOS differently. There is NO Apple Developer acco
 
 ## Development Conventions
 
-- Branch for all work: `claude/elegant-shannon-Ybnzo`
+- Source-of-truth branch: `feature/safe-routing-recap-offline-settings` (current dev line, descends from the older `claude/elegant-shannon-Ybnzo`). Branch all new work from it.
 - Run `npx tsc --noEmit` before every commit — must report 0 errors
 - `TaskManager.defineTask(GEOFENCE_TASK, ...)` must stay at module top-level in `geofenceTask.ts` — moving it inside a function breaks background execution
 - Never commit `.env`; never hardcode API keys — use `process.env.EXPO_PUBLIC_*`
