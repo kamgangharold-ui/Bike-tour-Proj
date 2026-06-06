@@ -1060,12 +1060,13 @@ export default function MapScreen() {
     }
   };
 
-  // Map tap-to-talk: silence auto-stop (~1.5 s) + 8 s cap. startListening() is the
-  // single entry a future wake-word engine can call.
+  // Map tap-to-talk: silence auto-stop (~1.9 s) + 8 s cap. The longer window (plus
+  // the hook's min-utterance guard) stops a natural mid-sentence pause from cutting
+  // the rider off. startListening() is the single entry a wake-word engine can call.
   const commandVoice = useVoiceChat({
     onTranscript: (t) => void handleCommand(t),
     phrases: () => landmarkInfos.map((l) => l.name ?? '').filter(Boolean),
-    silenceMs: 1500,
+    silenceMs: 1900,
     maxMs: 8000,
     onError: () => setMicPhase('idle'),
   });

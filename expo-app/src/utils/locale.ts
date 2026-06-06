@@ -72,16 +72,10 @@ export function detectLang(text: string, fallback: AppLocale = 'en'): AppLocale 
   return fallback;
 }
 
-// Google STT config: the selected locale as primary, up to 3 others as
-// alternatives so a rider speaking another supported language is still understood.
-export function sttLanguageConfig(locale: AppLocale): {
-  languageCode: string;
-  alternativeLanguageCodes: string[];
-} {
-  return {
-    languageCode: localeToBcp47(locale),
-    alternativeLanguageCodes: SUPPORTED_LOCALES.filter((l) => l !== locale)
-      .map(localeToBcp47)
-      .slice(0, 3),
-  };
+// Google STT config: recognize in the SELECTED locale. We deliberately do NOT send
+// alternativeLanguageCodes — they're ignored by the latest_long model anyway, and
+// letting Google fall back to other languages (with English hint phrases) was the
+// "only ever hears English" bug. The user picks the language in Settings.
+export function sttLanguageConfig(locale: AppLocale): { languageCode: string } {
+  return { languageCode: localeToBcp47(locale) };
 }

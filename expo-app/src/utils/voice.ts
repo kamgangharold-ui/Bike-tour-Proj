@@ -17,6 +17,7 @@
 
 import * as Speech from 'expo-speech';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { ensureSpeakMode } from './audioSession';
 
 // Priority ranks: 'urgent' (regulatory/safety warnings) outranks everything and
 // can never be silenced by a lower cue; 'high' (e.g. an explicit chat answer)
@@ -104,7 +105,7 @@ function settingsRate(): number {
   }
 }
 
-function playNext(myGen: number): void {
+async function playNext(myGen: number): Promise<void> {
   if (myGen !== gen) return; // superseded by a stop()/preempting cue
   const next = queue.shift();
   if (!next) {
@@ -115,12 +116,33 @@ function playNext(myGen: number): void {
   speaking = true;
   currentRank = RANK[next.opts.priority ?? 'normal'];
   lastSpoken = { text: next.text, lang: next.opts.lang };
-  Speech.speak(next.text, {
-    language: resolveSpeakLang(next.opts.lang),
-    rate: next.opts.rate ?? settingsRate(),
-    pitch: next.opts.pitch ?? 1.0,
-    onDone: () => playNext(myGen),
-    onError: () => playNext(myGen),
+  // Flip the audio session to playback (loudspeaker + silent-mode) before the
+  // first utterance, so TTS is audible — even right after a voice recording left
+  // the session in record/earpiece mode, and even with the ring switch on silent.
+  // No-op while a recording is active, and never throws.
+  await ensureSpeakMode();
+  if (myGen !== gen) return; // stop()/preempt may have fired during the await
+  speakItem(next, myGen, false);
+}
+
+// Speak one queue item. On error, retry ONCE with a guaranteed-installed default
+// voice (en-US) before giving up — a missing locale voice must never silence
+// guidance. Every onDone/onError is logged for diagnosability.
+function speakItem(item: QueueItem, myGen: number, isRetry: boolean): void {
+  const language = isRetry ? 'en-US' : resolveSpeakLang(item.opts.lang);
+  Speech.speak(item.text, {
+    language,
+    rate: item.opts.rate ?? settingsRate(),
+    pitch: item.opts.pitch ?? 1.0,
+    onDone: () => { void playNext(myGen); },
+    onError: (e) => {
+      console.warn('[Voice] TTS error', e);
+      if (!isRetry && language !== 'en-US' && myGen === gen) {
+        speakItem(item, myGen, true); // fall back to the default voice, still speak
+      } else {
+        void playNext(myGen);
+      }
+    },
   });
 }
 
@@ -144,12 +166,12 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
     speaking = false;
     currentRank = -1;
     queue.push({ text: clean, opts });
-    playNext(gen);
+    void playNext(gen);
     return;
   }
 
   queue.push({ text: clean, opts });
-  if (!speaking) playNext(gen);
+  if (!speaking) void playNext(gen);
 }
 
 export function stop(): void {

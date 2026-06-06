@@ -11,6 +11,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { sttLanguageConfig } from '../utils/locale';
+import { enterListenMode, exitListenMode } from '../utils/audioSession';
 
 // Cycling domain terms that boost Google STT accuracy. Landmark names are added
 // per-call via the `phrases` option.
@@ -25,6 +26,9 @@ export const SPEECH_HINTS = [
 
 const SPEECH_DB = -35;      // metering above this counts as the user speaking
 const METER_INTERVAL = 150; // ms between recording status updates
+// Don't let a brief mid-sentence pause auto-stop the recording: require this much
+// speech since it began before the trailing-silence timer is allowed to fire.
+const MIN_UTTERANCE_MS = 900;
 
 export interface UseVoiceChatOptions {
   // Called with the recognized text. The hook never sends to Claude itself.
@@ -60,7 +64,9 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   const maxTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechDetected = useRef(false);
+  const speechStartedAt = useRef(0);
   const finishing = useRef(false);
+  const starting = useRef(false); // synchronous guard against re-entrant startListening
 
   const clearTimers = () => {
     if (maxTimer.current) { clearTimeout(maxTimer.current); maxTimer.current = null; }
@@ -68,6 +74,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   };
 
   // Stop the active recording and return its file URI (or null). Idempotent.
+  // Flips the audio session back to speak-mode (loudspeaker + silent-mode playback)
+  // ONLY when this instance actually held a recording — a no-op stop on an idle
+  // instance must not clear the shared capture count and yank the other instance's
+  // live mic into playback. The error/abort paths still pair their enter.
   const stopRecording = async (): Promise<string | null> => {
     clearTimers();
     const rec = recordingRef.current;
@@ -80,6 +90,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     } catch (e) {
       console.warn('[Voice] stop failed', e);
       return null;
+    } finally {
+      await exitListenMode(); // pairs the enterListenMode() from startListening
     }
   };
 
@@ -92,23 +104,36 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     setTranscribing(true);
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      const { languageCode, alternativeLanguageCodes } = sttLanguageConfig(
-        useSettingsStore.getState().appLocale,
-      );
-      const boost = [...(optsRef.current.phrases?.() ?? []), ...SPEECH_HINTS].filter(Boolean);
+      const appLocale = useSettingsStore.getState().appLocale;
+      // Recognize in the SELECTED language only. We drop alternativeLanguageCodes:
+      // they're silently ignored by latest_long AND they let Google fall back to
+      // English, which (with the English hint phrases) was the "only hears English"
+      // bug. The user picks the language in Settings, so trust the explicit primary.
+      const { languageCode } = sttLanguageConfig(appLocale);
+      // English command/domain hints bias recognition toward English tokens, so
+      // only send them for an English locale. Dynamic landmark names are proper
+      // nouns and help every language, so they're always included.
+      const dynamicPhrases = (optsRef.current.phrases?.() ?? []).filter(Boolean);
+      const boost = appLocale === 'en' ? [...dynamicPhrases, ...SPEECH_HINTS] : dynamicPhrases;
+      // iOS records a headerful WAV (LINEARPCM): omit encoding+sampleRateHertz so
+      // Google reads the RIFF header (sending LINEAR16 made it parse the 44-byte
+      // header as samples → garbage). Android AMR_WB is headerless at a fixed
+      // 16 kHz, so it MUST declare encoding+rate.
+      const audioConfig =
+        Platform.OS === 'android'
+          ? { encoding: 'AMR_WB', sampleRateHertz: 16000 }
+          : {};
       const res = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           config: {
-            encoding: Platform.OS === 'android' ? 'AMR_WB' : 'LINEAR16',
-            sampleRateHertz: 16000,
+            ...audioConfig,
             languageCode,
-            alternativeLanguageCodes,
             model: 'latest_long',
             useEnhanced: true,
             enableAutomaticPunctuation: true,
-            speechContexts: [{ phrases: boost, boost: 15 }],
+            ...(boost.length ? { speechContexts: [{ phrases: boost, boost: 10 }] } : {}),
             metadata: {
               interactionType: 'DICTATION',
               microphoneDistance: 'NEARFIELD',
@@ -161,24 +186,37 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     // SPEECH_DB threshold means the same loudness on both platforms.
     if (Platform.OS === 'android') level *= 2.302585;
     if (level > SPEECH_DB) {
+      if (!speechDetected.current) speechStartedAt.current = Date.now();
       speechDetected.current = true;
       if (silenceTimer.current) { clearTimeout(silenceTimer.current); silenceTimer.current = null; }
     } else if (speechDetected.current && !silenceTimer.current) {
-      // trailing silence after speech → auto-stop
-      silenceTimer.current = setTimeout(() => void stopListening(), silenceMs);
+      // Trailing silence after speech → auto-stop, but never before the user has
+      // spoken for at least MIN_UTTERANCE_MS (so a short word + a natural pause
+      // doesn't cut them off). Extend the wait by whatever min time remains.
+      const spokenFor = Date.now() - speechStartedAt.current;
+      const extra = Math.max(0, MIN_UTTERANCE_MS - spokenFor);
+      silenceTimer.current = setTimeout(() => void stopListening(), silenceMs + extra);
     }
   };
 
   const startListening = async () => {
-    if (recordingRef.current || transcribing) return;
+    // `starting` is a synchronous guard: recordingRef/transcribing/isListening all
+    // lag behind the awaits below, so a fast double-tap (or the map auto-arm firing
+    // alongside a tap) could start two recorders and orphan the first. This rejects
+    // the second caller before any await.
+    if (recordingRef.current || transcribing || starting.current) return;
+    starting.current = true;
+    let entered = false; // did we reach enterListenMode? (so the catch pairs exactly)
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
         optsRef.current.onError?.('Microphone permission is required for voice.');
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await enterListenMode();
+      entered = true;
       speechDetected.current = false;
+      speechStartedAt.current = 0;
       finishing.current = false;
       const { recording } = await Audio.Recording.createAsync(
         {
@@ -213,6 +251,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     } catch (e) {
       console.warn('[Voice] start failed', e);
       optsRef.current.onError?.(`Could not start recording: ${String(e)}`);
+      // If the recorder failed to start AFTER enterListenMode, pair the exit so the
+      // capture count is balanced (otherwise ensureSpeakMode would stay blocked and
+      // TTS muted). Only when we actually entered — never decrement another
+      // instance's live capture.
+      if (entered) await exitListenMode();
+    } finally {
+      starting.current = false;
     }
   };
 
