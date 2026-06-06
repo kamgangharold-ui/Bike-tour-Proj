@@ -968,15 +968,18 @@ export default function MapScreen() {
       whereAmI: async () => {
         const s = useAppStore.getState();
         if (s.userLat == null || s.userLng == null) return ph.needLocation;
+        // GPS present but the name can't be resolved (offline / remote) → still
+        // answer with coordinates rather than falsely claiming we lack location.
+        const coords = ph.youAreNearCoords(s.userLat.toFixed(4), s.userLng.toFixed(4));
         try {
           const a = (await Location.reverseGeocodeAsync({ latitude: s.userLat, longitude: s.userLng }))[0];
-          if (!a) return ph.needLocation;
+          if (!a) return coords;
           const street = a.street || a.name || '';
           const area = a.district || a.subregion || a.city || a.region || '';
-          const place = [street, area].filter(Boolean).join(', ') || area || street;
-          return place ? ph.youAreAt(place) : ph.needLocation;
+          const place = [street, area].filter(Boolean).join(', ');
+          return place ? ph.youAreAt(place) : coords;
         } catch {
-          return ph.needLocation;
+          return coords;
         }
       },
       repeat: () => {

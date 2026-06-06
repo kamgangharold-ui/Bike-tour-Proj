@@ -24,6 +24,7 @@ export interface Phrases {
   statusNoRoute: string;
   needLocation: string;
   youAreAt: (place: string) => string;
+  youAreNearCoords: (lat: string, lng: string) => string;
   didntCatch: string;
   cantDo: string;
   assistantUnreachable: string;
@@ -53,6 +54,7 @@ const EN: Phrases = {
   statusNoRoute: 'You don’t have a route yet — say take me to, to start one.',
   needLocation: 'I need your location first.',
   youAreAt: (place) => `You’re at ${place}.`,
+  youAreNearCoords: (lat, lng) => `You’re near ${lat}, ${lng}.`,
   didntCatch: "Sorry, I didn't catch that.",
   cantDo: "Sorry, I couldn't do that.",
   assistantUnreachable: "I couldn't reach the assistant. Please try again.",
@@ -82,6 +84,7 @@ const ES: Phrases = {
   statusNoRoute: 'Aún no tienes ruta — di llévame a, para empezar una.',
   needLocation: 'Primero necesito tu ubicación.',
   youAreAt: (place) => `Estás en ${place}.`,
+  youAreNearCoords: (lat, lng) => `Estás cerca de ${lat}, ${lng}.`,
   didntCatch: 'Perdona, no te he entendido.',
   cantDo: 'Perdona, no he podido hacerlo.',
   assistantUnreachable: 'No he podido contactar con el asistente. Inténtalo de nuevo.',
@@ -111,6 +114,7 @@ const CA: Phrases = {
   statusNoRoute: 'Encara no tens ruta — digues porta’m a, per començar-ne una.',
   needLocation: 'Primer necessito la teva ubicació.',
   youAreAt: (place) => `Ets a ${place}.`,
+  youAreNearCoords: (lat, lng) => `Ets a prop de ${lat}, ${lng}.`,
   didntCatch: "Perdona, no t'he entès.",
   cantDo: 'Perdona, no ho he pogut fer.',
   assistantUnreachable: "No he pogut contactar amb l'assistent. Torna-ho a provar.",
@@ -140,6 +144,7 @@ const FR: Phrases = {
   statusNoRoute: "Vous n’avez pas encore d’itinéraire — dites emmène-moi à, pour en lancer un.",
   needLocation: "J'ai d'abord besoin de votre position.",
   youAreAt: (place) => `Vous êtes à ${place}.`,
+  youAreNearCoords: (lat, lng) => `Vous êtes près de ${lat}, ${lng}.`,
   didntCatch: "Désolé, je n'ai pas compris.",
   cantDo: "Désolé, je n'ai pas pu faire ça.",
   assistantUnreachable: "Je n'ai pas pu joindre l'assistant. Réessayez.",
@@ -169,6 +174,7 @@ const DE: Phrases = {
   statusNoRoute: 'Du hast noch keine Route — sag bring mich zu, um eine zu starten.',
   needLocation: 'Ich brauche zuerst deinen Standort.',
   youAreAt: (place) => `Du bist bei ${place}.`,
+  youAreNearCoords: (lat, lng) => `Du bist in der Nähe von ${lat}, ${lng}.`,
   didntCatch: 'Entschuldige, das habe ich nicht verstanden.',
   cantDo: 'Entschuldige, das konnte ich nicht tun.',
   assistantUnreachable: 'Ich konnte den Assistenten nicht erreichen. Versuch es erneut.',
@@ -198,6 +204,7 @@ const IT: Phrases = {
   statusNoRoute: "Non hai ancora un percorso — di' portami a, per iniziarne uno.",
   needLocation: 'Mi serve prima la tua posizione.',
   youAreAt: (place) => `Sei a ${place}.`,
+  youAreNearCoords: (lat, lng) => `Sei vicino a ${lat}, ${lng}.`,
   didntCatch: 'Scusa, non ho capito.',
   cantDo: 'Scusa, non sono riuscito a farlo.',
   assistantUnreachable: "Non sono riuscito a contattare l'assistente. Riprova.",
