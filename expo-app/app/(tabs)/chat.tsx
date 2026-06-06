@@ -13,12 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as Speech from 'expo-speech';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { haversineMetres } from '../../src/utils/haversine';
+import * as voice from '../../src/utils/voice';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -279,7 +279,9 @@ export default function ChatScreen() {
       }
       const transcript = data.results?.[0]?.alternatives?.[0]?.transcript ?? '';
       if (transcript) {
-        setInput(transcript);
+        // Hands-free: send straight to BikAI so the answer is spoken back (the
+        // reply TTS in sendMessage). The user never has to touch the keyboard.
+        void sendMessage(transcript);
       } else {
         Alert.alert('No speech detected', 'Nothing was heard. Speak clearly and try again.');
       }
@@ -355,7 +357,7 @@ export default function ChatScreen() {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
-    Speech.stop();
+    voice.stop();
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -377,12 +379,13 @@ export default function ChatScreen() {
         ...prev,
         { id: (Date.now() + 1).toString(), role: 'assistant', content: aiText },
       ]);
-      if (speakerOn) {
-        const lang = /\b(je|vous|est|les|des|une|du|en|nous|qui|que|pas|sur|plus)\b/i.test(aiText)
-          ? 'fr'
-          : 'en';
-        Speech.speak(aiText, { language: lang, rate: 0.92, pitch: 1.0 });
-      }
+      // Speak the reply through the shared voice queue (self-gates on the
+      // voiceGuidanceEnabled setting). priority 'high' so an explicit question's
+      // answer takes precedence over any ambient ride-guidance cue.
+      const lang = /\b(je|vous|est|les|des|une|du|en|nous|qui|que|pas|sur|plus)\b/i.test(aiText)
+        ? 'fr'
+        : 'en';
+      voice.speak(aiText, { lang, rate: 0.92, priority: 'high' });
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -434,7 +437,7 @@ export default function ChatScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>BikAI</Text>
         <TouchableOpacity
-          onPress={() => { setVoiceGuidanceEnabled(!speakerOn); Speech.stop(); }}
+          onPress={() => { setVoiceGuidanceEnabled(!speakerOn); voice.stop(); }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons

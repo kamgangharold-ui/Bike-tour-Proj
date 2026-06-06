@@ -5,6 +5,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAppStore } from '../store/useAppStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { speak } from '../utils/voice';
 
 export const GEOFENCE_TASK = 'BIKE_TOUR_GEOFENCE';
 
@@ -57,6 +58,20 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: TaskManager.TaskMa
         },
         trigger: null,
       });
+    }
+
+    // Hands-free voice announcement. Gated by voiceGuidanceEnabled inside speak()
+    // (the settings store was rehydrated just above for this background context).
+    // Regulatory zones speak an URGENT, queue-preempting warning.
+    const name = (loc['name'] as string) ?? 'a landmark';
+    if (isRegulatory) {
+      const message = (regAlert?.['message'] as string) ?? 'cycling restriction ahead';
+      const fine = (regAlert?.['fine_eur'] as number) ?? 0;
+      const fineText = fine > 0 ? ` Fine: ${Math.round(fine)} euros.` : '';
+      speak(`Warning: ${name}. ${message}${fineText}`, { priority: 'high' });
+    } else {
+      const desc = (loc['short_description'] as string) ?? '';
+      speak(`You're arriving at ${name}.${desc ? ' ' + desc : ''}`);
     }
 
     // If a guided ride is active, record the visit (and advance the tour target).

@@ -3,7 +3,8 @@
 //  • watches GPS position (accumulates ride distance, computes distance-to-target),
 //  • watches device heading (for the on-screen arrow),
 //  • picks the effective target (curated tour → next stop; free roam → nearest
-//    unvisited landmark).
+//    unvisited landmark),
+//  • speaks a "Next stop" announcement and THROTTLED directional cues.
 // Mounted once (in the global RideBanner) so there is a single set of subscriptions.
 
 import { useEffect, useRef, useState } from 'react';
@@ -12,6 +13,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAppStore } from '../store/useAppStore';
 import { haversineMetres, bearing, bearingToCompass } from '../utils/haversine';
+import * as voice from '../utils/voice';
 
 interface Poi { slug: string; name: string; latitude: number; longitude: number }
 
@@ -30,6 +32,21 @@ export interface RideGuidance {
 
 function angleDiff(a: number, b: number): number {
   return ((((a - b) % 360) + 540) % 360) - 180; // signed shortest delta, −180..180
+}
+
+function relativeDirection(rotation: number): string {
+  const d = angleDiff(rotation, 0);
+  const a = Math.abs(d);
+  if (a < 25) return 'straight ahead';
+  const side = d > 0 ? 'right' : 'left';
+  if (a < 70) return `slightly to your ${side}`;
+  if (a < 115) return `to your ${side}`;
+  return `behind you, to the ${side}`;
+}
+
+export function formatSpokenDistance(m: number): string {
+  if (m < 1000) return `${Math.round(m / 10) * 10} metres`;
+  return `${(m / 1000).toFixed(1)} kilometres`;
 }
 
 export function useRideGuidance(): RideGuidance {
@@ -51,6 +68,8 @@ export function useRideGuidance(): RideGuidance {
 
   const lastPosRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const lastTrackRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const lastCueRef = useRef<{ t: number; bearing: number; dist: number }>({ t: 0, bearing: -999, dist: Infinity });
+  const prevTargetRef = useRef<string | null>(null);
 
   // Load active landmarks once per ride.
   useEffect(() => {
@@ -132,9 +151,9 @@ export function useRideGuidance(): RideGuidance {
     return () => { posSub?.remove(); headSub?.remove(); };
   }, [rideActive, addRideDistance, appendTrackPoint]);
 
-  // Elapsed timer.
+  // Elapsed timer + stop any speech when the ride ends.
   useEffect(() => {
-    if (!rideActive) { setElapsedSec(0); return; }
+    if (!rideActive) { setElapsedSec(0); voice.stop(); return; }
     const id = setInterval(() => setElapsedSec(Math.max(0, Math.floor((Date.now() - rideStartedAt) / 1000))), 1000);
     return () => clearInterval(id);
   }, [rideActive, rideStartedAt]);
@@ -180,6 +199,29 @@ export function useRideGuidance(): RideGuidance {
   const arrowRotation =
     bearingToTarget != null && deviceHeading != null ? bearingToTarget - deviceHeading : bearingToTarget ?? 0;
   const headingLabel = bearingToTarget != null ? bearingToCompass(bearingToTarget) : '';
+
+  // New-stop announcement + throttled directional cues (gated by voiceGuidanceEnabled
+  // inside voice.speak). Throttled so it never chatters: only on a new target, a
+  // >30° bearing change, a >100 m drop, or every 30 s.
+  useEffect(() => {
+    if (!rideActive || !target || distanceToTargetM == null || bearingToTarget == null) return;
+    const now = Date.now();
+    if (prevTargetRef.current !== target.slug) {
+      prevTargetRef.current = target.slug;
+      lastCueRef.current = { t: now, bearing: bearingToTarget, dist: distanceToTargetM };
+      voice.speak(`Next stop: ${target.name}, ${formatSpokenDistance(distanceToTargetM)} away.`);
+      return;
+    }
+    const last = lastCueRef.current;
+    const bearingChanged = Math.abs(angleDiff(bearingToTarget, last.bearing)) > 30;
+    const timeUp = now - last.t > 30000;
+    const distDrop = last.dist - distanceToTargetM > 100;
+    if (timeUp || bearingChanged || distDrop) {
+      lastCueRef.current = { t: now, bearing: bearingToTarget, dist: distanceToTargetM };
+      const rel = relativeDirection(arrowRotation);
+      voice.speak(`${target.name} is ${formatSpokenDistance(distanceToTargetM)} ${rel}.`);
+    }
+  }, [rideActive, target, distanceToTargetM, bearingToTarget, arrowRotation]);
 
   return {
     targetSlug: target?.slug ?? null,
