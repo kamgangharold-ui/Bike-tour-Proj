@@ -15,6 +15,9 @@ import OfflineBanner from '../src/components/OfflineBanner';
 import EventBanner from '../src/components/EventBanner';
 import VoiceDebugOverlay from '../src/components/VoiceDebugOverlay';
 import { setupNotifications } from '../src/utils/notify';
+import { useTranslation } from 'react-i18next';
+import i18n from '../src/i18n';
+import { useSettingsStore } from '../src/store/useSettingsStore';
 
 // SDK 54: shouldShowAlert is deprecated — present via shouldShowBanner + shouldShowList
 // (+ shouldPlaySound). Note: full expo-notifications support needs a dev build; in
@@ -32,6 +35,15 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [authReady, setAuthReady] = useState(false);
+  const { t } = useTranslation();
+
+  // ONE language control: keep the UI language in sync with the selected appLocale
+  // (which also drives STT/TTS/AI). Persisted appLocale → device → EN; updates the
+  // UI instantly with no reload.
+  const appLocale = useSettingsStore((s) => s.appLocale);
+  useEffect(() => {
+    if (i18n.language !== appLocale) void i18n.changeLanguage(appLocale);
+  }, [appLocale]);
 
   // Silently apply OTA JS updates on launch so the installed APK picks up
   // JS-only fixes without a reinstall. No-op in Expo Go / dev (Updates.isEnabled
@@ -84,9 +96,9 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="recap" options={{ headerShown: true, title: 'Ride recap' }} />
-        <Stack.Screen name="ride-history" options={{ headerShown: true, title: 'Ride history' }} />
-        <Stack.Screen name="settings" options={{ headerShown: true, title: 'Settings' }} />
+        <Stack.Screen name="recap" options={{ headerShown: true, title: t('nav.recap') }} />
+        <Stack.Screen name="ride-history" options={{ headerShown: true, title: t('nav.rideHistory') }} />
+        <Stack.Screen name="settings" options={{ headerShown: true, title: t('nav.settings') }} />
       </Stack>
       <RideBanner />
       <OfflineBanner />
