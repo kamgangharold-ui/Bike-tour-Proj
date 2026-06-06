@@ -134,7 +134,10 @@
     "appVersion": "Version de l'application",
     "termsOfService": "Conditions d'utilisation",
     "voiceLanguageLabel": "Langue",
-    "voiceLanguageSub": "Application, voix et assistant IA — tout en un"
+    "voiceLanguageSub": "Application, voix et assistant IA — tout en un",
+    "sectionHelp": "Aide",
+    "howToUse": "Comment utiliser l'app",
+    "howToUseSub": "Revoir le guide rapide"
   },
   "auth": {
     "errorNetwork": "Aucune connexion Internet. Vérifiez votre réseau.",
@@ -244,5 +247,18 @@
     "notifyArriving": "Vous arrivez à {{name}}.",
     "notifyFineSpeak": " Amende : {{euros}} euros.",
     "destinationFallback": "destination"
+  },
+  "onboarding": {
+    "skip": "Passer",
+    "next": "Suivant",
+    "done": "Commencer",
+    "s1Title": "Explorez Barcelone à vélo",
+    "s1Body": "La carte affiche les lieux autour de vous. Vous recevrez une alerte automatique avec des conseils et des avertissements de sécurité quand vous passez à proximité.",
+    "s2Title": "Démarrez un trajet guidé",
+    "s2Body": "Choisissez une destination ou une visite sélectionnée. Vous recevrez des indications virage par virage avec des annonces vocales, mains libres.",
+    "s3Title": "Parlez à BikAI",
+    "s3Body": "Touchez le micro et dites « emmène-moi à la Sagrada Família », ou posez une question sur les règles cyclistes. Il écoute et répond à voix haute.",
+    "s4Title": "Votre langue, partout",
+    "s4Body": "Changez la langue de l'application à tout moment dans les Réglages : elle change toute l'app, la voix et l'IA en même temps."
   }
 }

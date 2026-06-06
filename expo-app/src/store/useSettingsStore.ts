@@ -42,6 +42,9 @@ interface SettingsState {
   // Map layers — show the Bicing station overlay on the map. Default ON.
   showBicing: boolean;
   setShowBicing: (value: boolean) => void;
+  // Onboarding — false until the first-launch "How to use" guide is seen/skipped.
+  onboardingSeen: boolean;
+  setOnboardingSeen: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -67,6 +70,8 @@ export const useSettingsStore = create<SettingsState>()(
       setOfflineCacheEnabled: (value) => set({ offlineCacheEnabled: value }),
       showBicing: true,
       setShowBicing: (value) => set({ showBicing: value }),
+      onboardingSeen: false,
+      setOnboardingSeen: (value) => set({ onboardingSeen: value }),
     }),
     {
       name: 'cycleguide-settings',
@@ -83,6 +88,7 @@ export const useSettingsStore = create<SettingsState>()(
         safetyAlertsEnabled: s.safetyAlertsEnabled,
         offlineCacheEnabled: s.offlineCacheEnabled,
         showBicing: s.showBicing,
+        onboardingSeen: s.onboardingSeen,
       }),
     },
   ),

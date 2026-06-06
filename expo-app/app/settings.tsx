@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { signOut } from 'firebase/auth';
@@ -318,6 +318,16 @@ export default function SettingsScreen() {
         </View>
       </Section>
       )}
+
+      <Section title={t('settings.sectionHelp')}>
+        <ActionRow
+          icon="help-circle-outline"
+          label={t('settings.howToUse')}
+          sublabel={t('settings.howToUseSub')}
+          onPress={() => router.push('/onboarding?reopen=1' as Href)}
+          chevron
+        />
+      </Section>
 
       <Section title={t('settings.sectionAbout')}>
         <ActionRow icon="information-circle-outline" label={t('settings.appVersion')} value={appVersion} />

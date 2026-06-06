@@ -134,7 +134,10 @@
     "appVersion": "App version",
     "termsOfService": "Terms of Service",
     "voiceLanguageLabel": "Language",
-    "voiceLanguageSub": "App, voice & AI assistant — all in one"
+    "voiceLanguageSub": "App, voice & AI assistant — all in one",
+    "sectionHelp": "Help",
+    "howToUse": "How to use the app",
+    "howToUseSub": "Replay the quick guide"
   },
   "auth": {
     "errorNetwork": "No internet connection. Check your network.",
@@ -244,5 +247,18 @@
     "notifyArriving": "You’re arriving at {{name}}.",
     "notifyFineSpeak": " Fine: {{euros}} euros.",
     "destinationFallback": "destination"
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Get started",
+    "s1Title": "Explore Barcelona by bike",
+    "s1Body": "The map shows landmarks around you. You'll get an automatic alert with tips and safety warnings whenever you ride near one.",
+    "s2Title": "Start a Guided Ride",
+    "s2Body": "Pick a destination or a curated tour. You'll get turn-by-turn directions with spoken cues — hands-free.",
+    "s3Title": "Just talk to BikAI",
+    "s3Body": "Tap the mic and say \"take me to the Sagrada Família\", or ask about cycling rules. It listens and replies out loud.",
+    "s4Title": "Your language, everywhere",
+    "s4Body": "Change the app language anytime in Settings — it switches the whole app, the voice and the AI together."
   }
 }

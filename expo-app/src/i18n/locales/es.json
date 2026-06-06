@@ -134,7 +134,10 @@
     "appVersion": "Versión de la app",
     "termsOfService": "Términos del servicio",
     "voiceLanguageLabel": "Idioma",
-    "voiceLanguageSub": "App, voz y asistente de IA, todo en uno"
+    "voiceLanguageSub": "App, voz y asistente de IA, todo en uno",
+    "sectionHelp": "Ayuda",
+    "howToUse": "Cómo usar la app",
+    "howToUseSub": "Volver a ver la guía rápida"
   },
   "auth": {
     "errorNetwork": "Sin conexión a internet. Comprueba tu red.",
@@ -244,5 +247,18 @@
     "notifyArriving": "Estás llegando a {{name}}.",
     "notifyFineSpeak": " Multa: {{euros}} euros.",
     "destinationFallback": "destino"
+  },
+  "onboarding": {
+    "skip": "Saltar",
+    "next": "Siguiente",
+    "done": "Empezar",
+    "s1Title": "Explora Barcelona en bici",
+    "s1Body": "El mapa muestra los lugares de interés a tu alrededor. Recibirás un aviso automático con consejos y advertencias de seguridad cuando pases cerca de uno.",
+    "s2Title": "Inicia una ruta guiada",
+    "s2Body": "Elige un destino o una ruta seleccionada. Recibirás indicaciones giro a giro con avisos por voz, con las manos libres.",
+    "s3Title": "Habla con BikAI",
+    "s3Body": "Toca el micrófono y di «llévame a la Sagrada Família» o pregunta por las normas para ciclistas. Te escucha y responde en voz alta.",
+    "s4Title": "Tu idioma, en todo",
+    "s4Body": "Cambia el idioma de la app cuando quieras en Ajustes: cambia toda la app, la voz y la IA a la vez."
   }
 }

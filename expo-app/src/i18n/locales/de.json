@@ -134,7 +134,10 @@
     "appVersion": "App-Version",
     "termsOfService": "Nutzungsbedingungen",
     "voiceLanguageLabel": "Sprache",
-    "voiceLanguageSub": "App, Sprache & KI-Assistent — alles in einem"
+    "voiceLanguageSub": "App, Sprache & KI-Assistent — alles in einem",
+    "sectionHelp": "Hilfe",
+    "howToUse": "App-Anleitung",
+    "howToUseSub": "Kurzanleitung erneut ansehen"
   },
   "auth": {
     "errorNetwork": "Keine Internetverbindung. Prüfe dein Netzwerk.",
@@ -244,5 +247,18 @@
     "notifyArriving": "Du erreichst {{name}}.",
     "notifyFineSpeak": " Bußgeld: {{euros}} Euro.",
     "destinationFallback": "Ziel"
+  },
+  "onboarding": {
+    "skip": "Überspringen",
+    "next": "Weiter",
+    "done": "Loslegen",
+    "s1Title": "Erkunde Barcelona mit dem Rad",
+    "s1Body": "Die Karte zeigt Sehenswürdigkeiten in deiner Nähe. Du bekommst automatisch einen Hinweis mit Tipps und Sicherheitswarnungen, wenn du daran vorbeifährst.",
+    "s2Title": "Starte eine geführte Fahrt",
+    "s2Body": "Wähle ein Ziel oder eine kuratierte Tour. Du erhältst Abbiegehinweise mit gesprochenen Ansagen – freihändig.",
+    "s3Title": "Sprich einfach mit BikAI",
+    "s3Body": "Tippe auf das Mikrofon und sag „bring mich zur Sagrada Família“ oder frag nach den Radregeln. Es hört zu und antwortet laut.",
+    "s4Title": "Deine Sprache, überall",
+    "s4Body": "Ändere die App-Sprache jederzeit in den Einstellungen – sie stellt die ganze App, die Stimme und die KI zugleich um."
   }
 }
