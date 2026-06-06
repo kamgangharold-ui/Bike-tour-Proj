@@ -54,3 +54,18 @@ iOS ships via **Expo Go**; Android via **Expo Go (testing)** and a **standalone 
 | Wake word | ⚠️ | ⚠️ | **Deferred** | `startListening()` entry exposed; engine (Picovoice) is a dev-build follow-up. |
 
 **Known Drop-1 scope note:** turn-by-turn *maneuver* phrasing ("Turn left onto…") is English regardless of locale (the instruction builder accepts a locale for a later pass); everything conversational is in the selected language.
+
+---
+
+## Phase 2 — Drop 1 FIX PACK (post-iPhone-test)
+
+| Item | iOS | Android | Status | Notes |
+|---|---|---|---|---|
+| Mic always available (no ride needed) | ✅ | ✅ | **Fixed** | Bottom-right, above the two map controls (tracks their position); never over the logos. navigate auto-starts a free ride. |
+| Duplicate landmarks (list + markers) | ✅ | ✅ | **Fixed** | Client dedupes by slug before list + markers; ride list keys by doc.id (kills `.$barceloneta`). Data: idempotent seed + `dedupe-locations.js` (run once). |
+| Correct destination + spoken confirm | ✅ | ✅ | **Fixed** | Accent-insensitive similarity match; ≥0.6 routes, 0.4–0.6 asks "Did you mean X?" (auto-arms mic for the yes/no), else region-biased geocode. Always speaks "Heading to X, 1.2 km". |
+| Works outside Barcelona; never silent | ✅ | ✅ | **Fixed** | Location watcher: 8 s timeout + last-known fallback + spoken error; no city gate. Prompt: assistant always has GPS. Dev lat/lng override (DEV-only, not persisted). |
+| Chat → navigation handoff | ✅ | ✅ | **Fixed** | "guide me to X" in BikAI starts real turn-by-turn on the map (deferred until landmarks load). |
+| Active-tour navigate guard | ✅ | ✅ | **By design** | Saying "take me to X" during a curated tour asks you to finish the tour first (no silent hijack / invisible route). |
+| Tactile cues (mic start / mute) | ✅ | ✅ | **Fixed** | Android `VIBRATE` permission now declared (native → APK rebuild at deploy). |
+| Dev location override leak guard | ✅ | ✅ | **Fixed** | `__DEV__`-only + not persisted — cannot ship an override. |
