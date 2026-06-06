@@ -22,6 +22,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { sttLanguageConfig } from '../utils/locale';
 import { enterListenMode, exitListenMode } from '../utils/audioSession';
 import { vlog } from '../store/useVoiceDebug';
+import { parseWavHeader } from '../utils/wav';
 
 // Cycling domain terms that boost Google STT accuracy. Landmark names are added
 // per-call via the `phrases` option.
@@ -137,10 +138,14 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     if (!recordingActiveRef.current) return null;
     recordingActiveRef.current = false;
     setIsListening(false);
+    // Capture duration BEFORE stop() — recorder.currentTime resets to 0 afterwards
+    // (that's why the debug showed dur:0ms, not an empty recording).
+    let durMs = 0;
+    try { durMs = recorder.getStatus().durationMillis ?? 0; } catch { /* ignore */ }
     try {
       await recorder.stop();
       const uri = recorder.uri;
-      vlog(`recording stopped — uri:${uri ? 'ok' : 'null'} dur:${Math.round(recorder.currentTime * 1000)}ms`);
+      vlog(`recording stopped — uri:${uri ? 'ok' : 'null'} dur:${Math.round(durMs)}ms`);
       return uri ?? null;
     } catch (e) {
       vlog(`stop failed: ${String(e)}`);
@@ -165,38 +170,55 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
       const { languageCode } = sttLanguageConfig(appLocale);
       const dynamicPhrases = (optsRef.current.phrases?.() ?? []).filter(Boolean);
       const boost = appLocale === 'en' ? [...dynamicPhrases, ...SPEECH_HINTS] : dynamicPhrases;
-      // Drive the STT encoding from the ACTUAL bytes: a WAV's base64 starts 'UklG'
-      // (= 'RIFF') → omit encoding so Google reads the header. Android AMR_WB is
-      // headerless → must declare encoding+rate; LINEAR16 is a fallback.
-      const isWav = base64.startsWith('UklG');
       const approxBytes = Math.floor((base64.length * 3) / 4);
-      const audioConfig = isWav
-        ? {}
-        : Platform.OS === 'android'
-          ? { encoding: 'AMR_WB', sampleRateHertz: 16000 }
-          : { encoding: 'LINEAR16', sampleRateHertz: 16000, audioChannelCount: 1 };
-      vlog(`STT → ${languageCode} ${isWav ? 'WAV' : (audioConfig as { encoding?: string }).encoding} ${approxBytes}B`);
+      // Parse the REAL WAV header (definitive diagnostic). Build the STT config from
+      // the actual recorded format, so a rate/channel mismatch can't cause "bad
+      // encoding". iOS PCM WAV → LINEAR16 + the header's real rate/channels; Android
+      // is headerless AMR_WB → declare it; anything else → let Google auto-detect.
+      const wav = parseWavHeader(base64);
+      vlog(`file head: "${wav?.head12 ?? '?'}" fmt:${wav?.audioFormat ?? '?'} ch:${wav?.channels ?? '?'} rate:${wav?.sampleRate ?? '?'} bits:${wav?.bitsPerSample ?? '?'} ${approxBytes}B`);
+      let audioConfig: Record<string, unknown>;
+      if (wav?.isRiffWave && wav.audioFormat === 1) {
+        audioConfig = { encoding: 'LINEAR16', sampleRateHertz: wav.sampleRate, audioChannelCount: wav.channels };
+      } else if (Platform.OS === 'android') {
+        audioConfig = { encoding: 'AMR_WB', sampleRateHertz: 16000 };
+      } else {
+        audioConfig = {}; // unknown container → let Google try to detect
+      }
       if (approxBytes < 1200) vlog('⚠ recording is tiny — likely empty/too short');
-      const res = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          config: {
-            ...audioConfig,
-            languageCode,
-            model: 'latest_long',
-            useEnhanced: true,
-            enableAutomaticPunctuation: true,
-            ...(boost.length ? { speechContexts: [{ phrases: boost, boost: 10 }] } : {}),
-            metadata: { interactionType: 'DICTATION', microphoneDistance: 'NEARFIELD', recordingDeviceType: 'SMARTPHONE' },
-          },
-          audio: { content: base64 },
-        }),
-      });
-      const data = (await res.json()) as {
+
+      type STTResp = {
         results?: Array<{ alternatives: Array<{ transcript: string }> }>;
         error?: { message: string; status: string };
       };
+      const recognize = async (cfg: Record<string, unknown>): Promise<STTResp> => {
+        const res = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            config: {
+              ...cfg,
+              languageCode,
+              model: 'latest_long',
+              useEnhanced: true,
+              enableAutomaticPunctuation: true,
+              ...(boost.length ? { speechContexts: [{ phrases: boost, boost: 10 }] } : {}),
+              metadata: { interactionType: 'DICTATION', microphoneDistance: 'NEARFIELD', recordingDeviceType: 'SMARTPHONE' },
+            },
+            audio: { content: base64 },
+          }),
+        });
+        return (await res.json()) as STTResp;
+      };
+
+      vlog(`STT → ${languageCode} ${(audioConfig.encoding as string) ?? 'auto'}@${(audioConfig.sampleRateHertz as number) ?? '?'}`);
+      let data = await recognize(audioConfig);
+      // Fallback: if the explicit config errored on a WAV, retry once letting Google
+      // auto-detect from the header (the two encodings cover each other's failure mode).
+      if (data.error && wav?.isRiffWave && Object.keys(audioConfig).length > 0) {
+        vlog(`STT retry (auto-detect) after: ${data.error.status}`);
+        data = await recognize({});
+      }
       if (data.error) {
         vlog(`STT error ${data.error.status}: ${data.error.message}`);
         optsRef.current.onError?.(`${data.error.status}: ${data.error.message}`);
