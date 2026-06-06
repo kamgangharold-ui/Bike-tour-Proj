@@ -14,12 +14,23 @@ export interface ParkingStation {
   distanceMetres: number;
 }
 
+// Request JSON explicitly; some Open Data endpoints return an HTML block/redirect
+// page without it. Matches the map's Bicing fetch options.
+const FETCH_OPTS = { headers: { Accept: 'application/json', 'User-Agent': 'BikeTourGuide/1.0' } };
+
 function parseStations(
   json: string,
   type: 'bicibox' | 'bicipark',
   userLat: number,
   userLng: number,
 ): ParkingStation[] {
+  // Guard: an HTML response (block page / redirect) is not JSON — degrade to empty
+  // rather than throwing, so find_parking just reports "none nearby".
+  const head = json.trimStart().slice(0, 1);
+  if (head === '<') {
+    console.warn(`[Parking] ${type} endpoint returned HTML, not JSON — skipping`);
+    return [];
+  }
   let rows: Record<string, unknown>[];
   try {
     const parsed = JSON.parse(json) as unknown;
@@ -56,8 +67,18 @@ export async function fetchNearestParking(
   userLng: number,
   radiusMetres = 1500,
 ): Promise<ParkingStation[]> {
-  const [biciboxRes, biciparkRes] = await Promise.all([fetch(BICIBOX_URL), fetch(BICIPARK_URL)]);
-  const [biciboxJson, biciparkJson] = await Promise.all([biciboxRes.text(), biciparkRes.text()]);
+  let biciboxJson = '';
+  let biciparkJson = '';
+  try {
+    const [biciboxRes, biciparkRes] = await Promise.all([
+      fetch(BICIBOX_URL, FETCH_OPTS),
+      fetch(BICIPARK_URL, FETCH_OPTS),
+    ]);
+    [biciboxJson, biciparkJson] = await Promise.all([biciboxRes.text(), biciparkRes.text()]);
+  } catch (e) {
+    console.warn('[Parking] fetch failed', e);
+    return []; // network error → caller reports "no parking nearby" gracefully
+  }
   return [
     ...parseStations(biciboxJson, 'bicibox', userLat, userLng),
     ...parseStations(biciparkJson, 'bicipark', userLat, userLng),
