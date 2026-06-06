@@ -32,6 +32,13 @@ import LandmarkCard from '../../src/components/LandmarkCard';
 import { BARCELONA_CENTER, DISMOUNT_ZONE_CATEGORY } from '../../constants/rules';
 import { haversineMetres } from '../../src/utils/haversine';
 import { speak } from '../../src/utils/voice';
+import {
+  parseOsrmSteps,
+  nextManeuver,
+  distanceToPolyline,
+  type ManeuverStep,
+  type OsrmRoute,
+} from '../../src/utils/routing';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { checkRouteAgainstZones, type RouteZone } from '../../src/utils/routeSafety';
 import { writeCache, readCache, CACHE_KEYS } from '../../src/utils/offlineCache';
@@ -214,6 +221,14 @@ export default function MapScreen() {
   const [routeDest, setRouteDest] = useState<Coords | null>(null);
   const routeReqRef = useRef(0); // token to ignore superseded single-route responses
 
+  // Turn-by-turn (Group F): maneuvers of the active single-leg route + the live
+  // next turn (also read by the voice "status" intent). All local to the map.
+  const [navSteps, setNavSteps] = useState<ManeuverStep[]>([]);
+  const [nextTurn, setNextTurn] = useState<{ instruction: string; distanceM: number } | null>(null);
+  const navStepIdxRef = useRef(0);
+  const announcedTurnsRef = useRef<Set<number>>(new Set());
+  const offRouteCountRef = useRef(0);
+
   // Tour preview / active tour state
   const [tourStops, setTourStops] = useState<TourStop[]>([]);
   const [tourRouteCoords, setTourRouteCoords] = useState<Coords[]>([]);
@@ -255,6 +270,7 @@ export default function MapScreen() {
   const rideFreeTarget = useAppStore((s) => s.rideFreeTarget);
   const avoidNoCyclingZones = useSettingsStore((s) => s.avoidNoCyclingZones);
   const showBicing = useSettingsStore((s) => s.showBicing);
+  const appLocale = useSettingsStore((s) => s.appLocale);
 
   useGeofencing();
 
@@ -665,6 +681,15 @@ export default function MapScreen() {
     }
   }, [activeSlug, exitLandmark]);
 
+  // Reset turn-by-turn tracking (new route or cleared route).
+  const resetNav = useCallback((steps: ManeuverStep[]) => {
+    navStepIdxRef.current = 0;
+    announcedTurnsRef.current = new Set();
+    offRouteCountRef.current = 0;
+    setNavSteps(steps);
+    setNextTurn(null);
+  }, []);
+
   // Clear the single-leg route + finish pin, and cancel any in-flight request.
   const clearSingleRoute = useCallback(() => {
     routeReqRef.current++;
@@ -672,7 +697,8 @@ export default function MapScreen() {
     setRouteInfo(null);
     setRouteDest(null);
     setRouteLoading(false);
-  }, []);
+    resetNav([]);
+  }, [resetNav]);
 
   const fetchRoute = useCallback(async (destLat: number, destLng: number) => {
     if (!userLocation) return;
@@ -687,6 +713,7 @@ export default function MapScreen() {
     if (cached) {
       setRouteCoords(cached.coords);
       setRouteInfo(formatRouteMeta(cached.distance, cached.duration));
+      resetNav(cached.steps ?? []);
       setRouteLoading(false);
       return;
     }
@@ -694,26 +721,63 @@ export default function MapScreen() {
     // Miss → clear, show the instant bearing-line placeholder + loading, fetch.
     setRouteCoords([]);
     setRouteInfo(null);
+    resetNav([]);
     setRouteLoading(true);
     try {
-      const url = `https://router.project-osrm.org/route/v1/${key}?overview=full&geometries=geojson`;
+      // steps=true → turn-by-turn maneuvers for the voice guidance (Group F).
+      const url = `https://router.project-osrm.org/route/v1/${key}?overview=full&geometries=geojson&steps=true`;
       const res = await fetch(url);
-      const data = await res.json() as {
-        routes?: Array<{ geometry: { coordinates: [number, number][] }; distance: number; duration: number }>;
-      };
+      const data = await res.json() as { routes?: OsrmRoute[] };
       if (routeReqRef.current !== token) return; // superseded by a newer request
       const route = data.routes?.[0];
       if (!route) return;
       const coords = route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      const steps = parseOsrmSteps(route, appLocale);
       setRouteCoords(coords);
       setRouteInfo(formatRouteMeta(route.distance, route.duration));
-      void putCachedRoute(key, { coords, distance: route.distance, duration: route.duration });
+      resetNav(steps);
+      void putCachedRoute(key, { coords, distance: route.distance, duration: route.duration, steps });
     } catch (e) {
       console.warn('[fetchRoute]', e);
     } finally {
       if (routeReqRef.current === token) setRouteLoading(false);
     }
-  }, [userLocation]);
+  }, [userLocation, appLocale, resetNav]);
+
+  // ── Turn-by-turn cues + off-route reroute (Group F) ──────────────────────────
+  // Driven by the live position. `nextTurn` stays fresh for the voice "status"
+  // intent; each maneuver is spoken once at ~150 m (only while riding, so a route
+  // preview doesn't chatter). Off-route for 3 readings → recalc to the same dest.
+  useEffect(() => {
+    if (!userLocation) return;
+    if (navSteps.length > 0) {
+      const nt = nextManeuver(userLocation, navSteps, navStepIdxRef.current);
+      if (nt) {
+        navStepIdxRef.current = nt.index;
+        setNextTurn({ instruction: nt.step.instruction, distanceM: nt.distanceM });
+        if (rideActive && nt.distanceM <= 150 && !announcedTurnsRef.current.has(nt.index)) {
+          announcedTurnsRef.current.add(nt.index);
+          const m = Math.max(10, Math.round(nt.distanceM / 10) * 10);
+          speak(`In ${m} meters, ${nt.step.instruction}`, { lang: 'en' });
+        }
+      } else {
+        setNextTurn(null);
+      }
+    }
+    if (rideActive && routeDest && routeCoords.length > 1) {
+      const off = distanceToPolyline(userLocation, routeCoords);
+      if (off > 50) {
+        offRouteCountRef.current += 1;
+        if (offRouteCountRef.current >= 3) {
+          offRouteCountRef.current = 0;
+          speak('Recalculating route', { lang: 'en' });
+          void fetchRoute(routeDest.latitude, routeDest.longitude);
+        }
+      } else {
+        offRouteCountRef.current = 0;
+      }
+    }
+  }, [userLocation, navSteps, routeCoords, routeDest, rideActive, fetchRoute]);
 
   const fetchTourRoute = useCallback(async (stops: TourStop[]) => {
     if (stops.length < 2) return;
@@ -1248,6 +1312,15 @@ export default function MapScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
+          {/* Turn-by-turn next maneuver (Group F) */}
+          {rideActive && nextTurn && tourStops.length === 0 && (
+            <View style={styles.turnBanner}>
+              <Ionicons name="navigate" size={16} color="#fff" />
+              <Text style={styles.turnText} numberOfLines={2}>
+                {`In ${Math.max(10, Math.round(nextTurn.distanceM / 10) * 10)} m · ${nextTurn.instruction}`}
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -1578,6 +1651,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   routeText: { color: '#fff', fontSize: 13, fontWeight: '600', flex: 1 },
+  turnBanner: {
+    backgroundColor: '#0D47A1',
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  turnText: { color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 },
   routeWarnBanner: {
     backgroundColor: '#C62828',
     borderRadius: 10,

@@ -5,6 +5,7 @@
 // without limit; clearable from Settings → "Clear cached data".
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ManeuverStep } from './routing';
 
 export type LatLng = { latitude: number; longitude: number };
 
@@ -12,6 +13,7 @@ export interface CachedRoute {
   coords: LatLng[];
   distance: number; // metres
   duration: number; // seconds
+  steps?: ManeuverStep[]; // turn-by-turn maneuvers (single-leg routes)
 }
 
 const PREFIX = 'route:';
