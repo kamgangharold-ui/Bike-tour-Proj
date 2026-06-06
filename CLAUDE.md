@@ -146,6 +146,33 @@ This project ships Android and iOS differently. There is NO Apple Developer acco
 
 ---
 
+## DEFINITION OF DONE — SHIP & SYNC (run after every validated drop)
+
+This REPLACES the old standalone "publish externally" step. iOS and Android drift apart only when they're built/published from different code states — this sequence prevents that. **Run it after the user validates ANY drop/feature, before starting the next.**
+
+**1. Commit + push (GitHub = source of truth)**
+- Commit ALL outstanding work in clean, per-group commits with descriptive messages (commit per group AS you build — never one blob at the end).
+- `git push -u origin <branch>`.
+- Merge the validated branch into the dev/source-of-truth branch (`feature/safe-routing-recap-offline-settings`) and push that too.
+- Verify + SHOW: `git status` clean, branch up to date with origin, latest commit hash + message, and that GitHub's newest commit is from TODAY.
+
+**2. Publish BOTH platforms from the SAME commit (the parity fix)**
+- State whether the drop is JS-only or includes new native modules.
+- JS-only → `eas update --branch preview --message "<commit-hash> <summary>"` — one bundle reaches iOS (Expo Go) AND the Android APK.
+- New native modules → rebuild the Android APK from THIS commit AND publish the iOS OTA from THIS commit; the APK's per-platform `runtimeVersion` must match its OTA's. Give the new APK install link.
+- **Non-negotiable: iOS and Android publish from the EXACT same git commit hash. Never publish one without the other.**
+
+**3. Release manifest (print every time)** — commit hash + branch · eas update ID + channel + runtimeVersion · Android build/version + APK link (or "OTA only — no native change") · iOS OTA status · one line confirming both platforms resolve to the SAME commit + bundle.
+
+**Standing rules**
+- After the user validates ANY drop, ALWAYS run SHIP & SYNC before starting the next.
+- Never leave validated work uncommitted or unpushed; GitHub must never lag behind what's deployed.
+- Never publish/deploy one platform without the other, always from the same commit.
+- At the START of every session, check for validated-but-unshipped work and remind the user.
+- At the end of each drop, after the user says "tested OK," proactively say: "Ready to run SHIP & SYNC — commit, push, and publish iOS+Android from the same commit?"
+
+---
+
 ## Development Conventions
 
 - Source-of-truth branch: `feature/safe-routing-recap-offline-settings` (current dev line, descends from the older `claude/elegant-shannon-Ybnzo`). Branch all new work from it.
