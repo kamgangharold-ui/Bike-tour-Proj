@@ -115,14 +115,29 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
       // nouns and help every language, so they're always included.
       const dynamicPhrases = (optsRef.current.phrases?.() ?? []).filter(Boolean);
       const boost = appLocale === 'en' ? [...dynamicPhrases, ...SPEECH_HINTS] : dynamicPhrases;
-      // iOS records a headerful WAV (LINEARPCM): omit encoding+sampleRateHertz so
-      // Google reads the RIFF header (sending LINEAR16 made it parse the 44-byte
-      // header as samples → garbage). Android AMR_WB is headerless at a fixed
-      // 16 kHz, so it MUST declare encoding+rate.
-      const audioConfig =
-        Platform.OS === 'android'
+      // Drive the STT encoding from the ACTUAL bytes, not from Platform.OS. A WAV
+      // file's base64 always starts with 'UklG' (= the ASCII 'RIFF' header). When a
+      // header is present we OMIT encoding/sampleRate so Google reads it (declaring
+      // LINEAR16 on a headerful WAV makes Google parse the 44-byte header as samples
+      // → garbage). iOS records headerful 16k mono PCM .wav; Android records
+      // headerless AMR_WB at a fixed 16 kHz (expo-av can't produce PCM/WAV on
+      // Android) so it must declare encoding+rate; the LINEAR16 branch is a safety
+      // net if iOS ever yields headerless PCM.
+      const isWav = base64.startsWith('UklG');
+      const audioConfig = isWav
+        ? {}
+        : Platform.OS === 'android'
           ? { encoding: 'AMR_WB', sampleRateHertz: 16000 }
-          : {};
+          : { encoding: 'LINEAR16', sampleRateHertz: 16000, audioChannelCount: 1 };
+      // One concise line so the format actually sent can be confirmed on-device
+      // against the recording + selected language (no audio content is logged).
+      console.log('[Voice][STT]', {
+        platform: Platform.OS,
+        isWav,
+        approxBytes: Math.floor((base64.length * 3) / 4),
+        languageCode,
+        audioConfig,
+      });
       const res = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

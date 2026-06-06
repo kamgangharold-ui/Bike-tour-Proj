@@ -130,20 +130,28 @@ async function playNext(myGen: number): Promise<void> {
 // guidance. Every onDone/onError is logged for diagnosability.
 function speakItem(item: QueueItem, myGen: number, isRetry: boolean): void {
   const language = isRetry ? 'en-US' : resolveSpeakLang(item.opts.lang);
-  Speech.speak(item.text, {
-    language,
-    rate: item.opts.rate ?? settingsRate(),
-    pitch: item.opts.pitch ?? 1.0,
-    onDone: () => { void playNext(myGen); },
-    onError: (e) => {
-      console.warn('[Voice] TTS error', e);
-      if (!isRetry && language !== 'en-US' && myGen === gen) {
-        speakItem(item, myGen, true); // fall back to the default voice, still speak
-      } else {
-        void playNext(myGen);
-      }
-    },
-  });
+  try {
+    Speech.speak(item.text, {
+      language,
+      rate: item.opts.rate ?? settingsRate(),
+      pitch: item.opts.pitch ?? 1.0,
+      onDone: () => { void playNext(myGen); },
+      onError: (e) => {
+        console.warn('[Voice] TTS error', e);
+        if (!isRetry && language !== 'en-US' && myGen === gen) {
+          speakItem(item, myGen, true); // fall back to the default voice, still speak
+        } else {
+          void playNext(myGen);
+        }
+      },
+    });
+  } catch (e) {
+    // Some platforms can throw synchronously (e.g. an unsupported voice). Don't let
+    // it stall the queue: retry once on the default voice, else advance.
+    console.warn('[Voice] TTS threw', e);
+    if (!isRetry && language !== 'en-US' && myGen === gen) speakItem(item, myGen, true);
+    else void playNext(myGen);
+  }
 }
 
 // Fire-and-forget. No-op when guidance is muted or the text is empty.
