@@ -18,6 +18,7 @@
 import * as Speech from 'expo-speech';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { ensureSpeakMode } from './audioSession';
+import { vlog } from '../store/useVoiceDebug';
 
 // Priority ranks: 'urgent' (regulatory/safety warnings) outranks everything and
 // can never be silenced by a lower cue; 'high' (e.g. an explicit chat answer)
@@ -130,13 +131,15 @@ async function playNext(myGen: number): Promise<void> {
 // guidance. Every onDone/onError is logged for diagnosability.
 function speakItem(item: QueueItem, myGen: number, isRetry: boolean): void {
   const language = isRetry ? 'en-US' : resolveSpeakLang(item.opts.lang);
+  vlog(`speak${isRetry ? ' (retry en-US)' : ''}: "${item.text.slice(0, 32)}" [${language}]`);
   try {
     Speech.speak(item.text, {
       language,
       rate: item.opts.rate ?? settingsRate(),
       pitch: item.opts.pitch ?? 1.0,
-      onDone: () => { void playNext(myGen); },
+      onDone: () => { vlog('TTS onDone'); void playNext(myGen); },
       onError: (e) => {
+        vlog(`TTS onError: ${String(e)}`);
         console.warn('[Voice] TTS error', e);
         if (!isRetry && language !== 'en-US' && myGen === gen) {
           speakItem(item, myGen, true); // fall back to the default voice, still speak
@@ -157,7 +160,8 @@ function speakItem(item: QueueItem, myGen: number, isRetry: boolean): void {
 // Fire-and-forget. No-op when guidance is muted or the text is empty.
 export function speak(text: string, opts: SpeakOptions = {}): void {
   const clean = text.trim().slice(0, MAX_SPEECH_CHARS);
-  if (!clean || !guidanceOn()) return;
+  if (!clean) return;
+  if (!guidanceOn()) { vlog('speak skipped — voice guidance is OFF (🔊 toggle)'); return; }
   const rank = RANK[opts.priority ?? 'normal'];
 
   // high/urgent cues preempt — but NEVER knock out an in-flight cue that

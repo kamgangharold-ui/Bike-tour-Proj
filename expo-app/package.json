@@ -1,6 +1,6 @@
 {
   "name": "expo-app",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -13,7 +13,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~54.0.0",
-    "expo-av": "^16.0.8",
+    "expo-audio": "~1.1.1",
     "expo-background-fetch": "~14.0.9",
     "expo-constants": "~18.0.13",
     "expo-file-system": "^56.0.7",

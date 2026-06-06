@@ -1,17 +1,27 @@
-// ─── Shared voice capture + Google STT ───────────────────────────────────────────
+// ─── Shared voice capture + Google STT (expo-audio) ───────────────────────────────
 // The ONE speech-to-text pipeline, reused by the BikAI chat (tap-to-stop) and the
-// map tap-to-talk (silence auto-stop). expo-av recording → Google Speech-to-Text →
-// onTranscript(text). The caller decides what to do with the transcript (chat sends
-// it to Claude; the map runs it through the command router). expo-av runs in Expo
-// Go on both platforms — no dev build, no Apple Developer account.
+// map tap-to-talk (silence auto-stop). MIGRATED off the deprecated expo-av (dead in
+// SDK 54 Expo Go) to expo-audio: useAudioRecorder → file → Google Speech-to-Text →
+// onTranscript(text). expo-audio works in Expo Go on SDK 54 (recording + audio
+// session), which is the root-cause fix for voice being dead.
+//
+// Every step pushes a line to the on-screen voice debug overlay (vlog) so failures
+// are visible on-device without Metro.
 
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
+import {
+  useAudioRecorder,
+  requestRecordingPermissionsAsync,
+  IOSOutputFormat,
+  AudioQuality,
+  type RecordingOptions,
+} from 'expo-audio';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { sttLanguageConfig } from '../utils/locale';
 import { enterListenMode, exitListenMode } from '../utils/audioSession';
+import { vlog } from '../store/useVoiceDebug';
 
 // Cycling domain terms that boost Google STT accuracy. Landmark names are added
 // per-call via the `phrases` option.
@@ -24,22 +34,43 @@ export const SPEECH_HINTS = [
   'where can I park', 'repeat', 'mute', 'louder', 'slower', 'stop the ride',
 ];
 
-const SPEECH_DB = -35;      // metering above this counts as the user speaking
-const METER_INTERVAL = 150; // ms between recording status updates
+const SPEECH_DB = -40;      // dBFS; metering above this counts as the user speaking
+const METER_INTERVAL = 200; // ms between metering polls (silence detection)
 // Don't let a brief mid-sentence pause auto-stop the recording: require this much
 // speech since it began before the trailing-silence timer is allowed to fire.
 const MIN_UTTERANCE_MS = 900;
 
+// 16 kHz MONO, Google-STT-friendly. iOS → true LINEAR16 WAV; Android → AMR_WB
+// (Google-supported; expo-audio's MediaRecorder can't emit raw PCM/WAV on Android).
+const STT_RECORDING_OPTIONS: RecordingOptions = {
+  isMeteringEnabled: true,
+  extension: '.amr',
+  sampleRate: 16000,
+  numberOfChannels: 1,
+  bitRate: 23850,
+  android: {
+    extension: '.amr',
+    outputFormat: 'amrwb',
+    audioEncoder: 'amr_wb',
+    sampleRate: 16000,
+  },
+  ios: {
+    extension: '.wav',
+    outputFormat: IOSOutputFormat.LINEARPCM,
+    audioQuality: AudioQuality.HIGH,
+    sampleRate: 16000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: { mimeType: 'audio/webm', bitsPerSecond: 128000 },
+};
+
 export interface UseVoiceChatOptions {
-  // Called with the recognized text. The hook never sends to Claude itself.
   onTranscript: (text: string) => void;
-  // Dynamic STT boost terms (e.g. nearby landmark names), read on stop.
   phrases?: () => string[];
-  // Auto-stop after this much TRAILING silence once speech began (map tap-to-talk).
-  // Omit to disable silence detection (chat uses tap-to-stop).
-  silenceMs?: number;
-  // Hard cap on a single utterance (default 60 s; the map passes ~8 s).
-  maxMs?: number;
+  silenceMs?: number; // auto-stop after this much trailing silence (map tap-to-talk)
+  maxMs?: number;     // hard cap on one utterance (default 60 s; map passes ~8 s)
   onError?: (msg: string) => void;
 }
 
@@ -52,16 +83,17 @@ export interface VoiceChat {
 }
 
 export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
-  // Keep the latest options/callbacks in a ref so a timer-fired stop (silence/max)
-  // always uses the current handler, never a stale closure from an earlier render.
   const optsRef = useRef(options);
   optsRef.current = options;
+
+  const recorder = useAudioRecorder(STT_RECORDING_OPTIONS);
 
   const [isListening, setIsListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingActiveRef = useRef(false); // true between record() and stop()
   const maxTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const meterTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechDetected = useRef(false);
   const speechStartedAt = useRef(0);
@@ -70,28 +102,46 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
 
   const clearTimers = () => {
     if (maxTimer.current) { clearTimeout(maxTimer.current); maxTimer.current = null; }
+    if (meterTimer.current) { clearInterval(meterTimer.current); meterTimer.current = null; }
     if (silenceTimer.current) { clearTimeout(silenceTimer.current); silenceTimer.current = null; }
   };
 
+  // Poll input level for trailing-silence auto-stop (map tap-to-talk).
+  const pollMeter = () => {
+    const silenceMs = optsRef.current.silenceMs;
+    if (!silenceMs) return;
+    let level = -160;
+    try { level = recorder.getStatus().metering ?? -160; } catch { /* ignore */ }
+    if (level > SPEECH_DB) {
+      if (!speechDetected.current) { speechStartedAt.current = Date.now(); vlog('speech detected'); }
+      speechDetected.current = true;
+      if (silenceTimer.current) { clearTimeout(silenceTimer.current); silenceTimer.current = null; }
+    } else if (speechDetected.current && !silenceTimer.current) {
+      const spokenFor = Date.now() - speechStartedAt.current;
+      const extra = Math.max(0, MIN_UTTERANCE_MS - spokenFor);
+      silenceTimer.current = setTimeout(() => void stopListening(), silenceMs + extra);
+    }
+  };
+
   // Stop the active recording and return its file URI (or null). Idempotent.
-  // Flips the audio session back to speak-mode (loudspeaker + silent-mode playback)
-  // ONLY when this instance actually held a recording — a no-op stop on an idle
-  // instance must not clear the shared capture count and yank the other instance's
-  // live mic into playback. The error/abort paths still pair their enter.
+  // Pairs exitListenMode ONLY when this instance actually held a recording (a no-op
+  // stop on an idle instance must not clear the shared capture count).
   const stopRecording = async (): Promise<string | null> => {
     clearTimers();
-    const rec = recordingRef.current;
-    recordingRef.current = null;
+    if (!recordingActiveRef.current) return null;
+    recordingActiveRef.current = false;
     setIsListening(false);
-    if (!rec) return null;
     try {
-      await rec.stopAndUnloadAsync();
-      return rec.getURI();
+      await recorder.stop();
+      const uri = recorder.uri;
+      vlog(`recording stopped — uri:${uri ? 'ok' : 'null'} dur:${Math.round(recorder.currentTime * 1000)}ms`);
+      return uri ?? null;
     } catch (e) {
+      vlog(`stop failed: ${String(e)}`);
       console.warn('[Voice] stop failed', e);
       return null;
     } finally {
-      await exitListenMode(); // pairs the enterListenMode() from startListening
+      await exitListenMode();
     }
   };
 
@@ -99,45 +149,28 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
     if (!apiKey) {
       optsRef.current.onError?.('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set.');
+      vlog('STT abort: no API key');
       return;
     }
     setTranscribing(true);
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
       const appLocale = useSettingsStore.getState().appLocale;
-      // Recognize in the SELECTED language only. We drop alternativeLanguageCodes:
-      // they're silently ignored by latest_long AND they let Google fall back to
-      // English, which (with the English hint phrases) was the "only hears English"
-      // bug. The user picks the language in Settings, so trust the explicit primary.
       const { languageCode } = sttLanguageConfig(appLocale);
-      // English command/domain hints bias recognition toward English tokens, so
-      // only send them for an English locale. Dynamic landmark names are proper
-      // nouns and help every language, so they're always included.
       const dynamicPhrases = (optsRef.current.phrases?.() ?? []).filter(Boolean);
       const boost = appLocale === 'en' ? [...dynamicPhrases, ...SPEECH_HINTS] : dynamicPhrases;
-      // Drive the STT encoding from the ACTUAL bytes, not from Platform.OS. A WAV
-      // file's base64 always starts with 'UklG' (= the ASCII 'RIFF' header). When a
-      // header is present we OMIT encoding/sampleRate so Google reads it (declaring
-      // LINEAR16 on a headerful WAV makes Google parse the 44-byte header as samples
-      // → garbage). iOS records headerful 16k mono PCM .wav; Android records
-      // headerless AMR_WB at a fixed 16 kHz (expo-av can't produce PCM/WAV on
-      // Android) so it must declare encoding+rate; the LINEAR16 branch is a safety
-      // net if iOS ever yields headerless PCM.
+      // Drive the STT encoding from the ACTUAL bytes: a WAV's base64 starts 'UklG'
+      // (= 'RIFF') → omit encoding so Google reads the header. Android AMR_WB is
+      // headerless → must declare encoding+rate; LINEAR16 is a fallback.
       const isWav = base64.startsWith('UklG');
+      const approxBytes = Math.floor((base64.length * 3) / 4);
       const audioConfig = isWav
         ? {}
         : Platform.OS === 'android'
           ? { encoding: 'AMR_WB', sampleRateHertz: 16000 }
           : { encoding: 'LINEAR16', sampleRateHertz: 16000, audioChannelCount: 1 };
-      // One concise line so the format actually sent can be confirmed on-device
-      // against the recording + selected language (no audio content is logged).
-      console.log('[Voice][STT]', {
-        platform: Platform.OS,
-        isWav,
-        approxBytes: Math.floor((base64.length * 3) / 4),
-        languageCode,
-        audioConfig,
-      });
+      vlog(`STT → ${languageCode} ${isWav ? 'WAV' : (audioConfig as { encoding?: string }).encoding} ${approxBytes}B`);
+      if (approxBytes < 1200) vlog('⚠ recording is tiny — likely empty/too short');
       const res = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,11 +182,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
             useEnhanced: true,
             enableAutomaticPunctuation: true,
             ...(boost.length ? { speechContexts: [{ phrases: boost, boost: 10 }] } : {}),
-            metadata: {
-              interactionType: 'DICTATION',
-              microphoneDistance: 'NEARFIELD',
-              recordingDeviceType: 'SMARTPHONE',
-            },
+            metadata: { interactionType: 'DICTATION', microphoneDistance: 'NEARFIELD', recordingDeviceType: 'SMARTPHONE' },
           },
           audio: { content: base64 },
         }),
@@ -163,13 +192,15 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
         error?: { message: string; status: string };
       };
       if (data.error) {
+        vlog(`STT error ${data.error.status}: ${data.error.message}`);
         optsRef.current.onError?.(`${data.error.status}: ${data.error.message}`);
         return;
       }
       const transcript = data.results?.[0]?.alternatives?.[0]?.transcript?.trim() ?? '';
-      if (transcript) optsRef.current.onTranscript(transcript);
-      else optsRef.current.onError?.('No speech detected');
+      if (transcript) { vlog(`STT result: "${transcript}"`); optsRef.current.onTranscript(transcript); }
+      else { vlog('STT result: (empty)'); optsRef.current.onError?.('No speech detected'); }
     } catch (e) {
+      vlog(`STT fetch failed: ${String(e)}`);
       console.warn('[Voice] transcribe failed', e);
       optsRef.current.onError?.(String(e));
     } finally {
@@ -192,39 +223,15 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
     finishing.current = false;
   };
 
-  const onStatus = (status: Audio.RecordingStatus) => {
-    const silenceMs = optsRef.current.silenceMs;
-    if (!status.isRecording || !silenceMs) return;
-    let level = status.metering ?? -160;
-    // expo-av reports metering in dBFS on iOS but using a NATURAL-log scale on
-    // Android (≈2.3× more negative). Normalize Android to dBFS so the single
-    // SPEECH_DB threshold means the same loudness on both platforms.
-    if (Platform.OS === 'android') level *= 2.302585;
-    if (level > SPEECH_DB) {
-      if (!speechDetected.current) speechStartedAt.current = Date.now();
-      speechDetected.current = true;
-      if (silenceTimer.current) { clearTimeout(silenceTimer.current); silenceTimer.current = null; }
-    } else if (speechDetected.current && !silenceTimer.current) {
-      // Trailing silence after speech → auto-stop, but never before the user has
-      // spoken for at least MIN_UTTERANCE_MS (so a short word + a natural pause
-      // doesn't cut them off). Extend the wait by whatever min time remains.
-      const spokenFor = Date.now() - speechStartedAt.current;
-      const extra = Math.max(0, MIN_UTTERANCE_MS - spokenFor);
-      silenceTimer.current = setTimeout(() => void stopListening(), silenceMs + extra);
-    }
-  };
-
   const startListening = async () => {
-    // `starting` is a synchronous guard: recordingRef/transcribing/isListening all
-    // lag behind the awaits below, so a fast double-tap (or the map auto-arm firing
-    // alongside a tap) could start two recorders and orphan the first. This rejects
-    // the second caller before any await.
-    if (recordingRef.current || transcribing || starting.current) return;
+    if (recordingActiveRef.current || transcribing || starting.current) return;
     starting.current = true;
-    let entered = false; // did we reach enterListenMode? (so the catch pairs exactly)
+    let entered = false;
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
+      vlog('mic tapped → requesting permission');
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        vlog('mic permission DENIED');
         optsRef.current.onError?.('Microphone permission is required for voice.');
         return;
       }
@@ -233,43 +240,19 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
       speechDetected.current = false;
       speechStartedAt.current = 0;
       finishing.current = false;
-      const { recording } = await Audio.Recording.createAsync(
-        {
-          isMeteringEnabled: true,
-          android: {
-            extension: '.amr',
-            outputFormat: Audio.AndroidOutputFormat.AMR_WB,
-            audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
-            sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 23850,
-          },
-          ios: {
-            extension: '.wav',
-            outputFormat: Audio.IOSOutputFormat.LINEARPCM,
-            audioQuality: Audio.IOSAudioQuality.HIGH,
-            sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 256000,
-            linearPCMBitDepth: 16,
-            linearPCMIsBigEndian: false,
-            linearPCMIsFloat: false,
-          },
-          web: { mimeType: 'audio/webm', bitsPerSecond: 128000 },
-        },
-        onStatus,
-        METER_INTERVAL,
-      );
-      recordingRef.current = recording;
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      recordingActiveRef.current = true;
       setIsListening(true);
+      vlog('recording started — listening…');
+      if (optsRef.current.silenceMs) meterTimer.current = setInterval(pollMeter, METER_INTERVAL);
       maxTimer.current = setTimeout(() => void stopListening(), optsRef.current.maxMs ?? 60000);
     } catch (e) {
+      vlog(`start failed: ${String(e)}`);
       console.warn('[Voice] start failed', e);
       optsRef.current.onError?.(`Could not start recording: ${String(e)}`);
-      // If the recorder failed to start AFTER enterListenMode, pair the exit so the
-      // capture count is balanced (otherwise ensureSpeakMode would stay blocked and
-      // TTS muted). Only when we actually entered — never decrement another
-      // instance's live capture.
+      recordingActiveRef.current = false;
+      setIsListening(false);
       if (entered) await exitListenMode();
     } finally {
       starting.current = false;

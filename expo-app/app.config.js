@@ -3,7 +3,7 @@ module.exports = {
     owner: 'hari237',
     name: 'Bike Tour Guide',
     slug: 'bike-tour-guide',
-    version: '1.1.0',
+    version: '1.2.0',
     privacy: 'public',
     scheme: 'biketourguide',
     orientation: 'portrait',
@@ -51,6 +51,8 @@ module.exports = {
         },
       ],
       ['expo-notifications', { sounds: [] }],
+      // Migrated off deprecated expo-av → expo-audio (recording + audio session).
+      ['expo-audio', { microphonePermission: 'Used to let you ask questions by voice.' }],
     ],
     updates: {
       url: 'https://u.expo.dev/486226d7-7af6-43df-ba8d-41d919f57d87',
