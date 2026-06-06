@@ -49,6 +49,7 @@ import { phrases } from '../../src/intents/phrases';
 import { bestLandmarkMatch, dedupeBySlug } from '../../src/utils/landmarks';
 import { fetchNearestParking } from '../../src/utils/parkingService';
 import { notify } from '../../src/utils/notify';
+import { nativeNavAvailable, startNav, updateNav, stopNav } from '../../src/utils/liveNav';
 import { endRideAndSave } from '../../src/utils/rides';
 import MicButton, { type MicState } from '../../src/components/MicButton';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
@@ -888,6 +889,32 @@ export default function MapScreen() {
       }
     }
   }, [userLocation, navSteps, routeCoords, routeDest, rideActive, fetchRoute, t]);
+
+  // ── Live nav FOREGROUND-SERVICE notification (standalone Android only) ─────────
+  // notifee ongoing notification that survives screen-off and updates per maneuver
+  // with arrow + instruction + distance. No-op in Expo Go (nativeNavAvailable false),
+  // where the expo-notifications sticky in RideBanner is used instead (single notif).
+  const liveNavOnRef = useRef(false);
+  useEffect(() => {
+    if (!nativeNavAvailable()) return;
+    if (rideActive && !liveNavOnRef.current) {
+      liveNavOnRef.current = true;
+      void startNav(t('rideBanner.rideInProgress'), t('rideBanner.starting'));
+    } else if (!rideActive && liveNavOnRef.current) {
+      liveNavOnRef.current = false;
+      void stopNav();
+    }
+  }, [rideActive, t]);
+  useEffect(() => {
+    if (!liveNavOnRef.current) return;
+    const remaining = routeInfo ? `${routeInfo.distance} · ${routeInfo.duration}` : t('rideBanner.rideInProgress');
+    if (nextTurn) {
+      const m = Math.max(10, Math.round(nextTurn.distanceM / 10) * 10);
+      void updateNav(`${nextTurn.arrow}  ${t('map.turnInMeters', { metres: m, instruction: nextTurn.instruction })}`, remaining);
+    } else if (routeInfo) {
+      void updateNav(t('rideBanner.rideInProgress'), remaining);
+    }
+  }, [nextTurn, routeInfo, t]);
 
   // ── Voice command & control (Group G) ────────────────────────────────────────
   // Landmarks in the shape the system prompt + STT boost expect.

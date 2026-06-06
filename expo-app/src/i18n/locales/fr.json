@@ -59,7 +59,8 @@
     "noTours": "Aucune visite pour l'instant. Démarrez un trajet libre pour explorer les lieux à proximité.",
     "metaKm": "{{km}} km · ",
     "metaMin": "{{min}} min · ",
-    "metaStops": "{{count}} arrêts"
+    "metaStops": "{{count}} arrêts",
+    "mute": "Couper le son"
   },
   "chat": {
     "voiceAlertTitle": "Voix",

@@ -13,6 +13,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useRideGuidance } from '../hooks/useRideGuidance';
 import { endRideAndSave } from '../utils/rides';
 import { notify, setRideOngoing, clearRideOngoing } from '../utils/notify';
+import { nativeNavAvailable } from '../utils/liveNav';
 import { OFFLINE_BANNER_HEIGHT } from './OfflineBanner';
 
 const HIT = { top: 10, bottom: 10, left: 10, right: 10 };
@@ -40,10 +41,11 @@ export default function RideBanner() {
   useEffect(() => {
     if (rideActive && !prevActiveRef.current) {
       prevActiveRef.current = true;
-      // The green ride banner (this component) + the ongoing "Ride in progress"
-      // notification already signal the start — no extra in-app banner (that was the
-      // duplicate). Just post the ongoing notification.
-      void setRideOngoing(t('rideBanner.rideInProgress'), t('rideBanner.starting'));
+      // The green ride banner + the ongoing "Ride in progress" notification already
+      // signal the start — no extra in-app banner (that was the duplicate). On the
+      // standalone Android build the notifee foreground service (map.tsx) owns the
+      // ongoing notification, so skip the expo-notifications sticky to avoid a double.
+      if (!nativeNavAvailable()) void setRideOngoing(t('rideBanner.rideInProgress'), t('rideBanner.starting'));
     } else if (!rideActive && prevActiveRef.current) {
       prevActiveRef.current = false;
       void clearRideOngoing();
@@ -64,7 +66,7 @@ export default function RideBanner() {
   // Refresh the ongoing notification (distance + next stop) — throttled ~20 s.
   const lastOngoingRef = useRef(0);
   useEffect(() => {
-    if (!rideActive) return;
+    if (!rideActive || nativeNavAvailable()) return; // standalone → notifee owns it
     const now = Date.now();
     if (now - lastOngoingRef.current < 20000) return;
     lastOngoingRef.current = now;

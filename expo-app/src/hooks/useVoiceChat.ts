@@ -19,10 +19,16 @@ import {
   type RecordingOptions,
 } from 'expo-audio';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { sttLanguageConfig } from '../utils/locale';
+import { sttLanguageConfig, localeToBcp47 } from '../utils/locale';
 import { enterListenMode, exitListenMode } from '../utils/audioSession';
 import { vlog } from '../store/useVoiceDebug';
 import { parseWavHeader } from '../utils/wav';
+import {
+  nativeSpeechAvailable,
+  startNativeListening,
+  stopNativeListening,
+  abortNativeListening,
+} from '../utils/nativeSpeech';
 
 // Cycling domain terms that boost Google STT accuracy. Landmark names are added
 // per-call via the `phrases` option.
@@ -105,6 +111,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   const finishing = useRef(false);
   const starting = useRef(false); // synchronous guard against re-entrant startListening
   const startSeq = useRef(0);     // token to detect teardown during the start awaits
+  const nativeActiveRef = useRef(false); // on-device recognizer (standalone Android) is listening
 
   const clearTimers = () => {
     if (maxTimer.current) { clearTimeout(maxTimer.current); maxTimer.current = null; }
@@ -236,6 +243,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   };
 
   const stopListening = async () => {
+    if (nativeActiveRef.current) { stopNativeListening(); return; } // 'end' event resets state
     startSeq.current += 1; // invalidate any in-flight start (so it releases its capture)
     if (finishing.current) return;
     finishing.current = true;
@@ -245,6 +253,12 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   };
 
   const cancel = async () => {
+    if (nativeActiveRef.current) {
+      abortNativeListening();
+      nativeActiveRef.current = false;
+      setIsListening(false);
+      return;
+    }
     startSeq.current += 1; // invalidate any in-flight start
     finishing.current = true;
     await stopRecording();
@@ -252,7 +266,25 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   };
 
   const startListening = async () => {
-    if (recordingActiveRef.current || transcribing || starting.current) return;
+    if (recordingActiveRef.current || transcribing || starting.current || nativeActiveRef.current) return;
+
+    // Prefer the on-device recognizer when present (standalone Android) — real-time,
+    // multilingual, no record→upload, and immune to the WAV/format issues. In Expo
+    // Go this is false, so we fall through to the expo-audio + Google STT flow.
+    if (nativeSpeechAvailable()) {
+      nativeActiveRef.current = true;
+      setIsListening(true);
+      vlog('on-device STT: listening…');
+      const lang = localeToBcp47(useSettingsStore.getState().appLocale);
+      const ok = await startNativeListening(lang, optsRef.current.phrases?.() ?? [], {
+        onResult: (text, isFinal) => { if (isFinal && text.trim()) optsRef.current.onTranscript(text.trim()); },
+        onError: (msg) => { nativeActiveRef.current = false; setIsListening(false); optsRef.current.onError?.(msg); },
+        onEnd: () => { nativeActiveRef.current = false; setIsListening(false); },
+      });
+      if (!ok) { nativeActiveRef.current = false; setIsListening(false); }
+      return;
+    }
+
     starting.current = true;
     const seq = ++startSeq.current; // this start's token; teardown bumps startSeq
     let entered = false;

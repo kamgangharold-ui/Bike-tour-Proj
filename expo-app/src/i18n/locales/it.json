@@ -59,7 +59,8 @@
     "noTours": "Ancora nessun tour. Inizia un giro libero per esplorare i luoghi vicini.",
     "metaKm": "{{km}} km · ",
     "metaMin": "{{min}} min · ",
-    "metaStops": "{{count}} tappe"
+    "metaStops": "{{count}} tappe",
+    "mute": "Disattiva audio"
   },
   "chat": {
     "voiceAlertTitle": "Voce",

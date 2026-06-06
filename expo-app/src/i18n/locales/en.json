@@ -59,7 +59,8 @@
     "noTours": "No tours yet. Start a free ride to explore nearby landmarks.",
     "metaKm": "{{km}} km · ",
     "metaMin": "{{min}} min · ",
-    "metaStops": "{{count}} stops"
+    "metaStops": "{{count}} stops",
+    "mute": "Mute"
   },
   "chat": {
     "voiceAlertTitle": "Voice",

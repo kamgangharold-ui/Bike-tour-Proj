@@ -59,7 +59,8 @@
     "noTours": "Encara no hi ha rutes. Comença una ruta lliure per descobrir punts d'interès propers.",
     "metaKm": "{{km}} km · ",
     "metaMin": "{{min}} min · ",
-    "metaStops": "{{count}} parades"
+    "metaStops": "{{count}} parades",
+    "mute": "Silencia"
   },
   "chat": {
     "voiceAlertTitle": "Veu",

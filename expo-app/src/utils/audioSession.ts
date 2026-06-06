@@ -17,6 +17,7 @@
 // the other's live mic. We only return to speak-mode when the LAST capture ends.
 
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { setAudioModeAsync } from 'expo-audio';
 import { vlog } from '../store/useVoiceDebug';
 
@@ -24,10 +25,15 @@ type Mode = 'listen' | 'speak';
 let mode: Mode | null = null;
 let activeCaptures = 0;
 
+// Background audio (TTS continues when the screen is off) is enabled ONLY in a real
+// build (standalone APK / dev client) where it's paired with a foreground service.
+// NEVER in Expo Go — that's the original crash (no UIBackgroundModes entitlement).
+const BG = Constants.appOwnership !== 'expo';
+
 const LISTEN = {
   allowsRecording: true,        // iOS: enable mic + record category
   playsInSilentMode: true,      // iOS: audible even with the hardware silent switch on
-  shouldPlayInBackground: false,
+  shouldPlayInBackground: BG,
   shouldRouteThroughEarpiece: false, // Android: loudspeaker, not earpiece
   interruptionMode: 'duckOthers',
 } as const;
@@ -35,7 +41,7 @@ const LISTEN = {
 const SPEAK = {
   allowsRecording: false,       // iOS: drop record category → playback → loudspeaker
   playsInSilentMode: true,
-  shouldPlayInBackground: false,
+  shouldPlayInBackground: BG,   // keep speaking screen-off in the standalone build
   shouldRouteThroughEarpiece: false,
   interruptionMode: 'duckOthers',
 } as const;

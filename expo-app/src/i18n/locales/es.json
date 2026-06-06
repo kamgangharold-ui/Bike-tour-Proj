@@ -59,7 +59,8 @@
     "noTours": "Aún no hay rutas. Inicia una ruta libre para descubrir lugares cercanos.",
     "metaKm": "{{km}} km · ",
     "metaMin": "{{min}} min · ",
-    "metaStops": "{{count}} paradas"
+    "metaStops": "{{count}} paradas",
+    "mute": "Silenciar"
   },
   "chat": {
     "voiceAlertTitle": "Voz",

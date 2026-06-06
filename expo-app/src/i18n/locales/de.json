@@ -59,7 +59,8 @@
     "noTours": "Noch keine Touren. Starte eine freie Fahrt, um Sehenswürdigkeiten in der Nähe zu entdecken.",
     "metaKm": "{{km}} km · ",
     "metaMin": "{{min}} Min · ",
-    "metaStops": "{{count}} Stopps"
+    "metaStops": "{{count}} Stopps",
+    "mute": "Stummschalten"
   },
   "chat": {
     "voiceAlertTitle": "Sprache",

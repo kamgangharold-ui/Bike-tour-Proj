@@ -3,7 +3,7 @@ module.exports = {
     owner: 'hari237',
     name: 'Bike Tour Guide',
     slug: 'bike-tour-guide',
-    version: '1.2.0',
+    version: '1.3.0',
     privacy: 'public',
     scheme: 'biketourguide',
     orientation: 'portrait',
@@ -19,7 +19,15 @@ module.exports = {
       // which failed the "Configure expo-updates" phase.) Defensive native-module
       // imports are the crash backstop regardless.
       runtimeVersion: { policy: 'appVersion' },
-      permissions: ['RECORD_AUDIO', 'VIBRATE', 'POST_NOTIFICATIONS'],
+      // FOREGROUND_SERVICE* power the live nav notification (notifee) in the
+      // standalone APK. Harmless on the Expo Go path (Expo Go ignores app.config).
+      permissions: [
+        'RECORD_AUDIO',
+        'VIBRATE',
+        'POST_NOTIFICATIONS',
+        'FOREGROUND_SERVICE',
+        'FOREGROUND_SERVICE_LOCATION',
+      ],
       ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
         ? { config: { googleMaps: { apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY } } }
         : {}),
@@ -35,7 +43,7 @@ module.exports = {
           'Used to let you ask questions by voice.',
         NSSpeechRecognitionUsageDescription:
           'Used to convert your voice to text for the BikAI chat.',
-        UIBackgroundModes: ['location', 'fetch'],
+        UIBackgroundModes: ['location', 'fetch', 'audio'],
         ITSAppUsesNonExemptEncryption: false,
       },
     },
@@ -53,6 +61,20 @@ module.exports = {
       ['expo-notifications', { sounds: [] }],
       // Migrated off deprecated expo-av → expo-audio (recording + audio session).
       ['expo-audio', { microphonePermission: 'Used to let you ask questions by voice.' }],
+      // Native (standalone APK) — on-device STT + the notifee foreground-service nav
+      // notification. Expo Go ignores config plugins; the JS is require-guarded so it
+      // never loads in Expo Go.
+      [
+        'expo-speech-recognition',
+        {
+          microphonePermission: 'Allow CycleGuide to use the microphone for voice commands.',
+          speechRecognitionPermission: 'Allow CycleGuide to convert your speech to text.',
+          androidSpeechServicePackages: ['com.google.android.googlequicksearchbox'],
+        },
+      ],
+      // @notifee/react-native autolinks (no config plugin); this local plugin gives
+      // its ForegroundService a foregroundServiceType so Android 14+ accepts it.
+      './plugins/withNotifeeForegroundServiceType',
     ],
     updates: {
       url: 'https://u.expo.dev/486226d7-7af6-43df-ba8d-41d919f57d87',
