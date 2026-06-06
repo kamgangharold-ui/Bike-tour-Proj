@@ -9,34 +9,19 @@ import {
 } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, DocumentData } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, DocumentData } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../src/firebase/config';
 import { useAppStore } from '../../src/store/useAppStore';
-import { loadRideHistory, clearRideHistory } from '../../src/utils/rideHistory';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function fmtDay(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-function fmtKm(m: number): string {
-  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
-}
-function fmtDur(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
+import { clearRideHistory } from '../../src/utils/rideHistory';
 
 export default function ProfileScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<DocumentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rides, setRides] = useState<{ count: number; km: number }>({ count: 0, km: 0 });
+  const [landmarkNames, setLandmarkNames] = useState<Record<string, string>>({});
   const setSubscribed = useAppStore((s) => s.setSubscribed);
-  const rideHistory = useAppStore((s) => s.rideHistory);
-  const setRideHistory = useAppStore((s) => s.setRideHistory);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -46,10 +31,23 @@ export default function ProfileScreen() {
     return unsub;
   }, []);
 
-  // Hydrate the local ride history (Group B) for the list below.
+  // Resolve visited slugs → landmark names for the Visited block (FIX 19).
   useEffect(() => {
-    void loadRideHistory().then(setRideHistory);
-  }, [setRideHistory]);
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'locations'), where('is_active', '==', true)));
+        const map: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          const slug = data['slug'] as string | undefined;
+          if (slug) map[slug] = (data['name'] as string) ?? slug;
+        });
+        setLandmarkNames(map);
+      } catch (e) {
+        console.warn('[Profile] landmark names fetch failed', e);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -98,7 +96,8 @@ export default function ProfileScreen() {
   }
 
   const points = (profile?.['total_points'] as number) ?? 0;
-  const visited = ((profile?.['visited_location_slugs'] as string[]) ?? []).length;
+  const visitedSlugs = (profile?.['visited_location_slugs'] as string[]) ?? [];
+  const visited = visitedSlugs.length;
   const subStatus = (profile?.['subscription_status'] as string) ?? 'free';
   const isPremium = subStatus === 'active';
   const displayName = user?.isAnonymous
@@ -164,25 +163,17 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Ride history (Group B) */}
-      {rideHistory.length > 0 && (
+      {/* Visited landmarks (FIX 19) — populated when the rider comes within 100 m */}
+      {visitedSlugs.length > 0 && (
         <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>RIDE HISTORY</Text>
-          {rideHistory.map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              style={styles.historyRow}
-              onPress={() => router.push({ pathname: '/recap', params: { id: r.id } })}
-            >
-              <Ionicons name={r.mode === 'tour' ? 'flag' : 'bicycle'} size={18} color="#00C853" />
+          <Text style={styles.historyTitle}>VISITED LANDMARKS</Text>
+          {visitedSlugs.map((slug) => (
+            <View key={slug} style={styles.historyRow}>
+              <Ionicons name="checkmark-circle" size={18} color="#43A047" />
               <View style={styles.historyInfo}>
-                <Text style={styles.historyDate}>{fmtDay(r.endedAt)}</Text>
-                <Text style={styles.historyStats}>
-                  {fmtKm(r.distanceMeters)} · {fmtDur(r.durationSec)} · {r.visitedSlugs.length} seen
-                </Text>
+                <Text style={styles.historyDate}>{landmarkNames[slug] ?? slug}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#555" />
-            </TouchableOpacity>
+            </View>
           ))}
         </View>
       )}
@@ -243,7 +234,6 @@ const styles = StyleSheet.create({
   },
   historyInfo: { flex: 1 },
   historyDate: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  historyStats: { color: '#9E9E9E', fontSize: 12, marginTop: 2 },
   statCard: {
     flex: 1,
     backgroundColor: '#1E1E1E',
