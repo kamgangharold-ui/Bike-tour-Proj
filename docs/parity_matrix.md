@@ -92,3 +92,16 @@ iOS ships via **Expo Go**; Android via **Expo Go (testing)** and a **standalone 
 | Tap "Rides" → Ride History screen (FIX 15) | ✅ | ✅ | **Fixed** | Profile "Rides" stat card is pressable → dedicated `app/ride-history.tsx` (reuses the AsyncStorage history + row → recap nav; reads live from the store so sign-out can't leak a previous account's rides). |
 
 **Round 3 delivery:** all JS-only (no new native module / permission / app.config change) → OTA / Metro-testable in Expo Go on both platforms; no APK rebuild required for these fixes.
+
+## Phase 2 — ROUND 4 PART 1 (Expo Go / Metro)
+
+| Item | iOS | Android | Status | Notes |
+|---|---|---|---|---|
+| STT audio format correct (FIX 16) | ✅ | ✅ | **Fixed** | Encoding is **bytes-driven**: detect a `RIFF` header (`base64` starts `UklG`) → omit encoding so Google reads the WAV header; else AMR_WB+16000 (Android) or LINEAR16+16000+1ch (fallback). A `[Voice][STT]` log prints `isWav`/bytes/`languageCode`/config to confirm on-device. **Verified:** iOS already records a headerful WAV (not AAC), so forcing LINEAR16 would re-break it. `languageCode` is the selected locale, never hardcoded. |
+| "Get Directions" launches navigation (FIX 17) | ✅ | ✅ | **Fixed** | The pin card button now runs the **same `doNavigate` path as the voice intent** (hoisted to component scope): starts a free ride, draws the route, begins turn-by-turn, speaks the destination, and closes the card. GPS-cold-start safe (route fetches once a fix arrives). |
+| Duplicate inline ride history removed (FIX 18) | ✅ | ✅ | **Fixed** | Profile = stats (Rides tappable → Ride History screen) + Upgrade + Sign Out; the inline list is gone. |
+| Visited block populated at 100 m (FIX 19) | ✅ | ✅ | **Fixed** | New `VISITED_RADIUS_METRES = 100`. A foreground sweep (with or without an active ride) persists `visited_location_slugs` (arrayUnion + merge) when within 100 m; Profile shows the count **and** a list of visited landmark names. (40 m was too tight → "seen" stayed 0.) |
+| BikAI input bar redesigned (FIX 20) | ✅ | ✅ | **Fixed** | One elevated rounded **dock** (mic + growing field + filled green send with a glow), data-driven disabled state, Android text centered. Confirmed chat.tsx is the only rendered bar — prior "unchanged" was a stale bundle (reload Metro with `-c`). |
+| TTS fully reliable (FIX 21) | ✅ | ✅ | **Fixed** | `Speech.speak` wrapped so a synchronous throw can't stall the queue, on top of FIX 11's speak-mode-before-speak + default-voice fallback + silent-mode playback. |
+
+**Round 4 PART 1 delivery:** all JS-only → OTA / Metro-testable in Expo Go on both platforms. **PART 2** (Android dev client: foreground-service live nav notification + on-device STT) is native and ships only in the dev build.
