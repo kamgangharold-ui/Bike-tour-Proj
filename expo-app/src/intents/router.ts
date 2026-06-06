@@ -15,6 +15,7 @@ export type CommandIntent =
   | { kind: 'skip_stop' }
   | { kind: 'find_parking' }
   | { kind: 'status' }
+  | { kind: 'where_am_i' }
   | { kind: 'repeat' }
   | { kind: 'mute' }
   | { kind: 'unmute' }
@@ -33,6 +34,7 @@ export interface CommandContext {
   skipStop: () => string;
   findParking: () => Promise<string>;
   status: () => string;
+  whereAmI: () => Promise<string> | string;
   repeat: () => string;
   setMuted: (muted: boolean) => string;
   slower: () => string;
@@ -46,6 +48,7 @@ interface LocalPatterns {
   find_parking: string[];
   skip_stop: string[];
   status: string[];
+  where_am_i: string[];
   repeat: string[];
   mute: string[];
   unmute: string[];
@@ -60,7 +63,8 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     navigate: ['take me to', 'navigate to', 'guide me to', 'directions to', 'go to', 'route to'],
     find_parking: ['where can i park', 'find parking', 'bike parking', 'park my bike', 'parking'],
     skip_stop: ['skip', 'next stop'],
-    status: ['how far', 'how long', 'where am i', "what's next", 'what is next', 'distance to'],
+    status: ['how far', 'how long', "what's next", 'what is next', 'distance to', 'how much further'],
+    where_am_i: ['where am i', "what's my location", 'my location', 'where i am'],
     repeat: ['repeat', 'say again', 'say that again'],
     mute: ['mute', 'be quiet', 'stop talking', 'silence'],
     unmute: ['unmute', 'talk again', 'voice on'],
@@ -73,7 +77,8 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     navigate: ['llévame a', 'llevame a', 'guíame a', 'guiame a', 'navega a', 'cómo llego a', 'como llego a', 'ir a', 'ruta a', 'vamos a'],
     find_parking: ['dónde aparco', 'donde aparco', 'aparcamiento', 'aparcar', 'dónde dejo la bici', 'donde dejo la bici'],
     skip_stop: ['salta', 'siguiente parada', 'omitir'],
-    status: ['cuánto falta', 'cuanto falta', 'dónde estoy', 'donde estoy', 'qué sigue', 'que sigue', 'distancia'],
+    status: ['cuánto falta', 'cuanto falta', 'qué sigue', 'que sigue', 'distancia', 'cuánto queda', 'cuanto queda'],
+    where_am_i: ['dónde estoy', 'donde estoy', 'mi ubicación', 'mi ubicacion', 'dónde me encuentro', 'donde me encuentro'],
     repeat: ['repite', 'repetir', 'otra vez'],
     mute: ['silencio', 'cállate', 'callate', 'sin voz'],
     unmute: ['activa la voz', 'habla', 'con voz'],
@@ -86,7 +91,8 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     navigate: ["porta'm a", "guia'm a", 'porta a', 'navega a', 'com arribo a', 'anar a', 'ruta a', 'vés a', 'ves a'],
     find_parking: ['on aparco', 'aparcament', 'aparcar', 'on deixo la bici'],
     skip_stop: ['salta', 'següent parada', 'seguent parada', 'ometre'],
-    status: ['quant falta', 'on soc', 'on sóc', 'què ve ara', 'que ve ara', 'distància', 'distancia'],
+    status: ['quant falta', 'què ve ara', 'que ve ara', 'distància', 'distancia', 'quant queda'],
+    where_am_i: ['on soc', 'on sóc', 'on em trobo', 'la meva ubicació', 'la meva ubicacio'],
     repeat: ['repeteix', 'repetir', 'una altra vegada'],
     mute: ['silenci', 'calla', 'sense veu'],
     unmute: ['activa la veu', 'parla', 'amb veu'],
@@ -99,7 +105,8 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     navigate: ['emmène-moi à', 'emmene moi à', "emmène-moi au", 'guide-moi vers', 'guide moi vers', 'va à', 'aller à', 'itinéraire vers', 'route vers', "amène-moi à"],
     find_parking: ['où me garer', 'ou me garer', 'stationnement', 'garer mon vélo', 'parking vélo', 'parking'],
     skip_stop: ['passer', 'arrêt suivant', 'arret suivant', 'sauter'],
-    status: ['combien de temps', 'à quelle distance', 'a quelle distance', 'où suis-je', 'ou suis je', 'quelle est la suite', 'distance'],
+    status: ['combien de temps', 'à quelle distance', 'a quelle distance', 'quelle est la suite', 'distance', 'encore loin'],
+    where_am_i: ['où suis-je', 'ou suis je', 'où je suis', 'ma position', 'je suis où', 'je suis ou'],
     repeat: ['répète', 'repete', 'répéter', 'encore'],
     mute: ['silence', 'tais-toi', 'tais toi', 'sans voix'],
     unmute: ['active la voix', 'parle', 'avec voix'],
@@ -112,7 +119,8 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     navigate: ['bring mich zur', 'bring mich zu', 'führe mich zu', 'fuhre mich zu', 'navigiere zu', 'fahr zur', 'fahr zu', 'fahr nach', 'route nach'],
     find_parking: ['wo kann ich parken', 'fahrradparkplatz', 'parken', 'parkplatz', 'rad abstellen'],
     skip_stop: ['überspringen', 'uberspringen', 'nächster halt', 'nachster halt'],
-    status: ['wie weit', 'wie lange', 'wo bin ich', 'was kommt als nächstes', 'was kommt als nachstes', 'entfernung'],
+    status: ['wie weit', 'wie lange', 'was kommt als nächstes', 'was kommt als nachstes', 'entfernung'],
+    where_am_i: ['wo bin ich', 'mein standort', 'wo befinde ich mich'],
     repeat: ['wiederhole', 'wiederholen', 'nochmal'],
     mute: ['ruhe', 'sei still', 'stumm'],
     unmute: ['stimme an', 'sprich', 'mit stimme'],
@@ -125,7 +133,8 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     navigate: ['portami a', 'portami al', 'guidami a', 'guidami verso', 'naviga verso', 'vai a', 'andare a', 'percorso per', 'rotta per'],
     find_parking: ['dove posso parcheggiare', 'parcheggio', 'parcheggiare', 'dove lascio la bici'],
     skip_stop: ['salta', 'prossima tappa', 'ometti'],
-    status: ['quanto manca', 'quanto dista', 'dove sono', 'cosa viene dopo', 'distanza'],
+    status: ['quanto manca', 'quanto dista', 'cosa viene dopo', 'distanza'],
+    where_am_i: ['dove sono', 'la mia posizione', 'dove mi trovo'],
     repeat: ['ripeti', 'ripetere', 'di nuovo'],
     mute: ['silenzio', 'stai zitto', 'senza voce'],
     unmute: ['attiva la voce', 'parla', 'con voce'],
@@ -196,6 +205,7 @@ export function parseLocalIntent(raw: string, locale: AppLocale): CommandIntent 
   if (has(p.find_parking)) return { kind: 'find_parking' };
   if (has(p.reroute)) return { kind: 'reroute' };
   if (has(p.skip_stop)) return { kind: 'skip_stop' };
+  if (has(p.where_am_i)) return { kind: 'where_am_i' };
   if (has(p.status)) return { kind: 'status' };
   if (has(p.repeat)) return { kind: 'repeat' };
   if (has(p.unmute)) return { kind: 'unmute' };
@@ -219,9 +229,11 @@ export function parseLocalIntent(raw: string, locale: AppLocale): CommandIntent 
 const ROUTER_INSTRUCTIONS = (locale: AppLocale) =>
   `\n\nYou are ALSO the command parser for this hands-free cycling app. For the rider's next message, reply with ONLY strict minified JSON (no prose, no markdown, no code fence):\n` +
   `{"intent":"INTENT","params":{"query":"DEST"},"spoken_reply":"TEXT"}\n` +
-  `INTENT is one of: navigate, reroute, skip_stop, find_parking, status, repeat, mute, unmute, slower, louder, end_ride, answer.\n` +
+  `INTENT is one of: navigate, reroute, skip_stop, find_parking, status, where_am_i, repeat, mute, unmute, slower, louder, end_ride, answer.\n` +
   `- navigate: the rider wants directions somewhere — put the place name in params.query.\n` +
-  `- reroute/skip_stop/find_parking/status/repeat/mute/unmute/slower/louder/end_ride: app commands (params can be empty).\n` +
+  `- where_am_i: the rider asks where they are / their current location.\n` +
+  `- status: route progress questions (how far / how long / what's next) — only meaningful with an active route.\n` +
+  `- reroute/skip_stop/find_parking/repeat/mute/unmute/slower/louder/end_ride: app commands (params can be empty).\n` +
   `- answer: anything else (a question about surroundings, landmarks, safety, rules) — put the full helpful answer in spoken_reply using the live location context above.\n` +
   `spoken_reply must be in the user's language (locale: ${locale}), one or two short sentences.`;
 
@@ -249,6 +261,7 @@ async function execute(intent: CommandIntent, ctx: CommandContext): Promise<stri
     case 'skip_stop': return ctx.skipStop();
     case 'find_parking': return ctx.findParking();
     case 'status': return ctx.status();
+    case 'where_am_i': return ctx.whereAmI();
     case 'repeat': return ctx.repeat();
     case 'mute': return ctx.setMuted(true);
     case 'unmute': return ctx.setMuted(false);
@@ -282,7 +295,7 @@ export async function runCommand(transcript: string, ctx: CommandContext): Promi
       }
       return parsed.spoken_reply?.trim() || ph.cantDo;
     }
-    const allowed = ['reroute', 'skip_stop', 'find_parking', 'status', 'repeat', 'mute', 'unmute', 'slower', 'louder', 'end_ride'];
+    const allowed = ['reroute', 'skip_stop', 'find_parking', 'status', 'where_am_i', 'repeat', 'mute', 'unmute', 'slower', 'louder', 'end_ride'];
     if (allowed.includes(parsed.intent)) {
       const spoken = await execute({ kind: parsed.intent } as CommandIntent, ctx);
       return spoken || parsed.spoken_reply?.trim() || '';

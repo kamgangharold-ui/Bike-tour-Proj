@@ -25,6 +25,7 @@ import { buildBikAISystemPrompt, type LandmarkInfo } from '../../src/utils/syste
 import { dedupeBySlug } from '../../src/utils/landmarks';
 import { parseLocalIntent } from '../../src/intents/router';
 import { phrases } from '../../src/intents/phrases';
+import { detectLang } from '../../src/utils/locale';
 import { useVoiceChat } from '../../src/hooks/useVoiceChat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -70,9 +71,8 @@ export default function ChatScreen() {
   const chatPrefill = useAppStore((s) => s.chatPrefill);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
   const setNavRequest = useAppStore((s) => s.setNavRequest);
-  // activeName/activeSlug drive the context pill; the rest of the live geofence
-  // context is read inside buildBikAISystemPrompt via the store directly.
-  const activeSlug = useAppStore((s) => s.activeSlug);
+  // activeName seeds the suggested-question chips; the full live geofence context
+  // is read inside buildBikAISystemPrompt via the store directly.
   const activeName = useAppStore((s) => s.activeName);
   const userLat = useAppStore((s) => s.userLat);
   const userLng = useAppStore((s) => s.userLng);
@@ -91,7 +91,6 @@ export default function ChatScreen() {
   }, [userLat, userLng, landmarks]);
 
   const contextName = activeName || nearestLandmark?.name || null;
-  const contextIsActive = Boolean(activeSlug);
 
   const suggestions = useMemo(() => {
     if (contextName) {
@@ -163,19 +162,21 @@ export default function ChatScreen() {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
 
     try {
+      // No forced locale → Claude replies in the SAME language the user wrote in
+      // (typed French → French, etc.). For voice input the transcript is already
+      // in the Settings language, so the reply matches that too.
       const aiText = await callAnthropic(
-        buildBikAISystemPrompt(landmarks, appLocale),
+        buildBikAISystemPrompt(landmarks),
         history.map(({ role, content }) => ({ role, content })),
       );
       setMessages((prev) => [
         ...prev,
         { id: (Date.now() + 1).toString(), role: 'assistant', content: aiText },
       ]);
-      // Speak the reply through the shared voice queue (self-gates on the
-      // voiceGuidanceEnabled setting). priority 'high' so an explicit question's
-      // answer takes precedence over any ambient ride-guidance cue. The reply is
-      // in the user's language (system prompt), so speak it in the chosen locale.
-      voice.speak(aiText, { lang: appLocale, rate: 0.92, priority: 'high' });
+      // Speak through the shared queue (self-gates on voiceGuidanceEnabled).
+      // priority 'high' so an explicit answer beats ambient ride cues. Pick the
+      // TTS voice from the reply's detected language so text and voice agree.
+      voice.speak(aiText, { lang: detectLang(aiText, appLocale), rate: 0.92, priority: 'high' });
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -237,14 +238,6 @@ export default function ChatScreen() {
           />
         </TouchableOpacity>
       </View>
-
-      {contextName ? (
-        <View style={styles.locationPill}>
-          <Text style={styles.locationPillText}>
-            {contextIsActive ? `📍 At ${contextName}` : `📍 Near ${contextName}`}
-          </Text>
-        </View>
-      ) : null}
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -311,14 +304,14 @@ export default function ChatScreen() {
             ) : (
               <Ionicons
                 name={isListening ? 'stop-circle' : 'mic'}
-                size={20}
+                size={22}
                 color={isListening ? '#EF5350' : '#9E9E9E'}
               />
             )}
           </TouchableOpacity>
           <TextInput
             style={styles.input}
-            placeholder="Ask about cycling, landmarks, rules…"
+            placeholder="Message BikAI…"
             placeholderTextColor="#666"
             value={input}
             onChangeText={setInput}
@@ -358,19 +351,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   headerTitle: { color: '#fff', fontSize: 17, fontWeight: '600' },
-
-  locationPill: {
-    alignSelf: 'flex-start',
-    marginHorizontal: 16,
-    marginTop: 10,
-    backgroundColor: '#10301C',
-    borderColor: '#1B5E20',
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  locationPillText: { color: '#00C853', fontSize: 12, fontWeight: '600' },
 
   emptyState: {
     flex: 1,
@@ -436,39 +416,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    paddingBottom: Platform.OS === 'ios' ? 4 : 8,
-    backgroundColor: '#1E1E1E',
-    borderTopWidth: 1,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backgroundColor: '#1A1A1A',
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#333',
     gap: 8,
   },
   input: {
     flex: 1,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 20,
+    minHeight: 42,
+    maxHeight: 120,
+    backgroundColor: '#262626',
+    borderRadius: 21,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#3A3A3A',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 11,
+    paddingBottom: 11,
     color: '#fff',
-    fontSize: 14,
-    maxHeight: 100,
+    fontSize: 15,
+    lineHeight: 20,
   },
   micBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#2A2A2A',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#262626',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#3A3A3A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  micBtnActive: { backgroundColor: '#4A0000' },
+  micBtnActive: { backgroundColor: '#4A0000', borderColor: '#7A1F1F' },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: '#00C853',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnOff: { backgroundColor: '#333' },
+  sendBtnOff: { backgroundColor: '#2E2E2E' },
 });

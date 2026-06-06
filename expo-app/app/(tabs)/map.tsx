@@ -963,6 +963,22 @@ export default function MapScreen() {
         if (routeInfo) parts.push(ph.statusToDest(routeInfo.distance, routeInfo.duration));
         return parts.length ? parts.join(' ') : ph.statusNoRoute;
       },
+      // Location question — answer from live GPS via reverse-geocode (no route
+      // needed; works anywhere, not just Barcelona).
+      whereAmI: async () => {
+        const s = useAppStore.getState();
+        if (s.userLat == null || s.userLng == null) return ph.needLocation;
+        try {
+          const a = (await Location.reverseGeocodeAsync({ latitude: s.userLat, longitude: s.userLng }))[0];
+          if (!a) return ph.needLocation;
+          const street = a.street || a.name || '';
+          const area = a.district || a.subregion || a.city || a.region || '';
+          const place = [street, area].filter(Boolean).join(', ') || area || street;
+          return place ? ph.youAreAt(place) : ph.needLocation;
+        } catch {
+          return ph.needLocation;
+        }
+      },
       repeat: () => {
         const last = getLastSpoken();
         if (last.text) speak(last.text, { lang: last.lang, priority: 'high' });
@@ -1145,6 +1161,16 @@ export default function MapScreen() {
       freeRouteKeyRef.current = null;
     }
   }, [rideActive, rideMode, rideFreeTarget, userLocation, fetchRoute]);
+
+  // FIX 6: when a ride/navigation ENDS, clear the single-leg route, maneuver
+  // steps, next-turn, destination and polyline — the dotted line vanishes and the
+  // next ride can't inherit it. (The tour route auto-clears via the tour-stops
+  // resolver.) Only fires on the active→inactive transition, never on start.
+  const prevRideActiveRef = useRef(rideActive);
+  useEffect(() => {
+    if (prevRideActiveRef.current && !rideActive) clearSingleRoute();
+    prevRideActiveRef.current = rideActive;
+  }, [rideActive, clearSingleRoute]);
 
   // Fit camera to all tour stop pins once when the route first loads.
   useEffect(() => {

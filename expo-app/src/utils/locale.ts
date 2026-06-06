@@ -51,6 +51,27 @@ export function deviceDefaultLocale(): AppLocale {
   return 'en';
 }
 
+// Heuristic language detection over the six supported languages, for choosing the
+// TTS voice of a free-text reply (Claude already replies in the user's language;
+// this just picks a matching voice). Falls back to `fallback` when unsure.
+const LANG_HINTS: Record<AppLocale, RegExp> = {
+  ca: /\b(què|aquest|amb|però|això|fins|meu|teva|si us plau|gràcies|on ets|cap a|girar)\b/i,
+  es: /\b(qué|está|gracias|por favor|dónde|hacia|girar|izquierda|derecha|cerca|tú|usted)\b/i,
+  fr: /\b(où|vous|c'est|merci|s'il vous plaît|gauche|droite|tourne|vers|près|êtes)\b/i,
+  de: /\b(wo|bist|danke|bitte|links|rechts|nach|abbiegen|nächste|du|sie|straße)\b/i,
+  it: /\b(dove|sei|grazie|per favore|sinistra|destra|gira|verso|vicino|prossima)\b/i,
+  en: /\b(the|you|where|please|thanks|left|right|turn|towards|near|street)\b/i,
+};
+
+export function detectLang(text: string, fallback: AppLocale = 'en'): AppLocale {
+  const t = text.toLowerCase();
+  // Order matters: check the more-distinctive languages before en.
+  for (const l of ['ca', 'es', 'fr', 'de', 'it', 'en'] as AppLocale[]) {
+    if (LANG_HINTS[l].test(t)) return l;
+  }
+  return fallback;
+}
+
 // Google STT config: the selected locale as primary, up to 3 others as
 // alternatives so a rider speaking another supported language is still understood.
 export function sttLanguageConfig(locale: AppLocale): {
