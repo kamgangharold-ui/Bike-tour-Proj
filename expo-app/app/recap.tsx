@@ -7,8 +7,9 @@ import {
   ScrollView,
   Share,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,7 +66,6 @@ export default function RecapScreen() {
   const mapRef = useRef<MapView>(null);
   const [coordsBySlug, setCoordsBySlug] = useState<Map<string, Coords>>(new Map());
   const [mapReady, setMapReady] = useState(false);
-  const [fitted, setFitted] = useState(false);
   const [sharing, setSharing] = useState(false);
 
   // Safety net: onMapReady occasionally never fires on iOS Apple Maps. Ensure the
@@ -141,8 +141,8 @@ export default function RecapScreen() {
     [routeLine, pins],
   );
 
-  // Fit the map once content + map are ready. `fitted` then gates the Share
-  // snapshot so we never capture the initial wide region.
+  // Fit the map once content + map are ready, so the on-screen recap shows the
+  // whole ride. (Sharing is text-only, so no snapshot gating is needed.)
   useEffect(() => {
     if (!mapReady || allCoords.length === 0) return;
     if (allCoords.length === 1) {
@@ -157,7 +157,6 @@ export default function RecapScreen() {
         animated: false,
       });
     }
-    setFitted(true);
   }, [mapReady, allCoords]);
 
   if (!lastRide) {
@@ -181,50 +180,18 @@ export default function RecapScreen() {
     `🚴 Barcelona CycleGuide — ${distanceStr} ridden, ${durationStr}, ` +
     `${landmarkCount} landmark${landmarkCount === 1 ? '' : 's'} seen (${dateStr}).`;
 
-  const hasMapContent = pins.length > 0 || routeLine.length >= 2;
-
   const handleShare = async () => {
     if (sharing) return;
     setSharing(true);
     try {
-      let snapped = false;
-      // Primary: a map-image share via the built-in MapView snapshot + expo-sharing.
-      // Only when there's actual map content AND the map has fitted to it — else a
-      // snapshot would capture a blank/wrong-region image instead of falling back.
-      // NOTE: expo-sharing shares only the image file; the stats caption can't ride
-      // along with it (it reaches recipients via the text fallback below).
-      // Defensive: load expo-sharing lazily so a missing native module (an older
-      // build reached by an OTA) can't crash the recap — we fall back to text.
-      const Sharing = (() => {
-        try { return require('expo-sharing') as typeof import('expo-sharing'); }
-        catch { return null; }
-      })();
-      try {
-        if (Sharing && hasMapContent && mapRef.current && mapReady && fitted && (await Sharing.isAvailableAsync())) {
-          const uri = await mapRef.current.takeSnapshot({
-            width: 1080,
-            height: 1080,
-            format: 'png',
-            result: 'file',
-          });
-          const fileUri =
-            uri.startsWith('file') || uri.startsWith('content') ? uri : `file://${uri}`;
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'image/png',
-            dialogTitle: caption,
-            UTI: 'public.png',
-          });
-          snapped = true;
-        }
-      } catch (e) {
-        console.warn('[recap] snapshot share failed, falling back to text', e);
-      }
-      // Fallback: text summary + deep link (no image) when the snapshot is flaky.
-      if (!snapped) {
-        await Share.share({
-          message: `${caption}\nExplore Barcelona by bike with CycleGuide.`,
-        });
-      }
+      // Text-only, IDENTICAL on iOS and Android. The old image path (expo-sharing
+      // snapshot) shared only a PNG — succeeding on Android (image, caption lost)
+      // but flaky on iOS (fell back to text), so the two platforms behaved
+      // differently and Android leaked a map image. RN Share.share with a message
+      // is consistent everywhere and never attaches a location image.
+      await Share.share({
+        message: `${caption}\nExplore Barcelona by bike with CycleGuide.`,
+      });
     } catch (e) {
       console.warn('[recap] share failed', e);
     } finally {
@@ -241,7 +208,7 @@ export default function RecapScreen() {
         <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFill}
-          provider={PROVIDER_DEFAULT}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
           mapType="standard"
           onMapReady={() => setMapReady(true)}
           initialRegion={{ ...BARCELONA_CENTER, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
@@ -281,9 +248,9 @@ export default function RecapScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.shareBtn, (sharing || (hasMapContent && !fitted)) && styles.shareBtnDisabled]}
+          style={[styles.shareBtn, sharing && styles.shareBtnDisabled]}
           onPress={() => void handleShare()}
-          disabled={sharing || (hasMapContent && !fitted)}
+          disabled={sharing}
         >
           {sharing ? (
             <ActivityIndicator color="#000" />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, type ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,9 @@ import {
   ActivityIndicator,
   ScrollView,
   PanResponder,
+  Platform,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -95,6 +96,29 @@ const CATEGORY_COLORS: Record<string, string> = {
   hazard: '#E65100',
   viewpoint: '#4A148C',
 };
+
+// Android renders custom-view markers BLANK when `tracksViewChanges` is false from
+// the first frame — the native side never captures the marker bitmap. So we start
+// tracking ON (the marker draws), then flip it OFF after a beat for performance.
+// Bump `trackKey` to force a re-capture when the marker's content changes (e.g. a
+// tour pin going pending → visited). iOS is unaffected but follows the same path.
+function TrackedMarker({
+  trackKey,
+  children,
+  ...props
+}: ComponentProps<typeof Marker> & { trackKey?: string | number }) {
+  const [tracks, setTracks] = useState(true);
+  useEffect(() => {
+    setTracks(true);
+    const t = setTimeout(() => setTracks(false), 600);
+    return () => clearTimeout(t);
+  }, [trackKey]);
+  return (
+    <Marker {...props} tracksViewChanges={tracks}>
+      {children}
+    </Marker>
+  );
+}
 
 const CATEGORY_LABELS: Record<string, string> = {
   landmark: 'Landmark',
@@ -263,6 +287,22 @@ export default function MapScreen() {
   useEffect(() => {
     if (userLocation) setUserCoords(userLocation.latitude, userLocation.longitude);
   }, [userLocation, setUserCoords]);
+
+  // One-time auto-center on the user's first GPS fix. initialRegion is only a
+  // Barcelona bootstrap; without this a rider OUTSIDE Barcelona would open on
+  // Barcelona and have to tap re-center to find themselves. Skipped while a tour
+  // is shown (the tour-fit effect owns the camera then). No bounds gate — the
+  // map always follows the real user, anywhere.
+  const hasAutoCenteredRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoCenteredRef.current || !userLocation || !mapReady || tourStops.length > 0) return;
+    hasAutoCenteredRef.current = true;
+    mapRef.current?.animateToRegion({
+      ...userLocation,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+  }, [userLocation, mapReady, tourStops.length]);
 
   // Foreground geofence: keep activeSlug in sync with the live position using the
   // SAME Haversine + per-landmark radius as the native geofence, so the map and
@@ -821,7 +861,7 @@ export default function MapScreen() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_DEFAULT}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
         mapType="standard"
         showsPointsOfInterest
         onPoiClick={handlePoiClick}
@@ -836,10 +876,10 @@ export default function MapScreen() {
           const isTarget = rideActive && stop.slug === rideTargetSlug;
           const isFinish = i === arr.length - 1; // last RESOLVED stop = distinct finish pin
           return (
-            <Marker
+            <TrackedMarker
               key={`tour-${stop.slug}`}
+              trackKey={`${visited ? 'v' : ''}${isTarget ? 't' : ''}${isFinish ? 'f' : ''}${stop.index}`}
               coordinate={stop.coordinates}
-              tracksViewChanges={false}
               anchor={{ x: 0.5, y: 0.5 }}
               zIndex={isFinish ? 11 : 10}
             >
@@ -850,7 +890,7 @@ export default function MapScreen() {
               ]}>
                 <Text style={styles.tourPinNum}>{visited ? '✓' : isFinish ? '🏁' : stop.index + 1}</Text>
               </View>
-            </Marker>
+            </TrackedMarker>
           );
         })}
 
@@ -859,26 +899,26 @@ export default function MapScreen() {
           if (!loc.coordinates.latitude && !loc.coordinates.longitude) return null;
           const pinColor = CATEGORY_COLORS[loc.category] ?? '#1565C0';
           return (
-            <Marker
+            <TrackedMarker
               key={loc.id}
+              trackKey={pinColor}
               coordinate={loc.coordinates}
-              tracksViewChanges={false}
               anchor={{ x: 0.5, y: 0.5 }}
               onPress={() => handleLandmarkPress(loc)}
             >
               <View style={styles.pinHitArea}>
                 <View style={[styles.pin, { backgroundColor: pinColor }]} />
               </View>
-            </Marker>
+            </TrackedMarker>
           );
         })}
 
         {/* Bicing station markers (toggle: Settings → Map layers) */}
         {showBicing && bicingStations.map((station) => (
-          <Marker
+          <TrackedMarker
             key={`bicing-${station.station_id}`}
+            trackKey={station.num_bikes_available > 0 ? 'g' : 'r'}
             coordinate={{ latitude: station.lat, longitude: station.lon }}
-            tracksViewChanges={false}
           >
             <View
               style={[
@@ -888,7 +928,7 @@ export default function MapScreen() {
             >
               <Text style={styles.bicingMarkerLabel}>B</Text>
             </View>
-          </Marker>
+          </TrackedMarker>
         ))}
         {/* Group C: instant straight placeholder while the real route loads */}
         {tourRouteLoading && tourRouteCoords.length === 0 && tourStops.length >= 2 && (
