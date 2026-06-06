@@ -35,3 +35,22 @@ iOS ships via **Expo Go**; Android via **Expo Go (testing)** and a **standalone 
 | Keyboard avoidance | padding | default | **Parity (intentional)** | Standard RN `Platform.select`. |
 
 **No "works on iOS, broken on Android" rows remain unexplained.** The remaining ⚠️/❌ rows are genuine platform limits (background execution in Expo Go; iOS background audio without an Apple Developer account; Apple Maps POI taps), not bugs.
+
+---
+
+## Phase 2 — Drop 1 (map voice command & control + turn-by-turn)
+
+| Feature | iOS | Android | Status | Notes |
+|---|---|---|---|---|
+| Shared STT pipeline (`useVoiceChat`) | ✅ | ✅ | **Parity** | One hook for chat + map; per-platform codec (AMR_WB/LINEAR16) preserved. |
+| Map tap-to-talk (MicButton) | ✅ | ✅ | **Parity** | Big rideActive-gated button; pulse + barge-in; `Vibration` start cue + on mute (iOS ignores the duration arg — still buzzes). |
+| Silence auto-stop (~1.5 s) + 8 s cap | ✅ | ✅ (fixed) | **Parity** | Android metering uses a natural-log scale — normalized to dBFS so the threshold matches iOS. Tune on-device if needed; 8 s cap is the backstop. |
+| Hybrid command router | ✅ | ✅ | **Parity** | Per-locale keyword fast-path (word-boundary matched), else Claude `{intent,params,spoken_reply}`. Commands are network-free; only Q&A/ambiguous calls Claude. |
+| Intents: navigate / reroute / skip / parking / status / repeat / mute / slower / louder / end | ✅ | ✅ | **Parity** | Reuse the route pipeline, store actions, `parkingService`. navigate = ranked landmark match → geocode fallback. |
+| Turn-by-turn maneuvers (spoken) | ✅ | ✅ | **Parity** | OSRM `steps=true`; cue once at ~150 m + a turn banner. **Maneuver phrasing is English in Drop 1** (locale-ready); the conversational layer (STT + answers + confirmations) is fully localized. |
+| Off-route → reroute | ✅ | ✅ | **Parity** | Recalculates after 3 off-route readings. |
+| Multilingual STT + TTS (EN/ES/CA/FR/DE/IT) | ✅ | ✅ | **Parity** | Device-locale default + Settings picker (BCP-47). Catalan TTS falls back to Spanish when no voice is installed. |
+| Voice-language Settings picker | ✅ | ✅ | **Parity** | Chips in Settings → Voice & guidance. |
+| Wake word | ⚠️ | ⚠️ | **Deferred** | `startListening()` entry exposed; engine (Picovoice) is a dev-build follow-up. |
+
+**Known Drop-1 scope note:** turn-by-turn *maneuver* phrasing ("Turn left onto…") is English regardless of locale (the instruction builder accepts a locale for a later pass); everything conversational is in the selected language.
