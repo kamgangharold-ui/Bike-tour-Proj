@@ -76,6 +76,7 @@ interface RideActions {
   startRide: (opts: { mode: RideMode; tourId?: string; stops?: string[]; freeTarget?: FreeTarget }) => void;
   endRide: () => void;
   setRideTarget: (slug: string | null) => void;
+  setRideFreeTarget: (target: FreeTarget | null) => void;
   markRideVisited: (slug: string) => void;
   addRideDistance: (metres: number) => void;
   appendTrackPoint: (p: TrackPoint) => void;
@@ -188,6 +189,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
   endRide: () => set({ ...RIDE_CLEARED }),
   setRideTarget: (slug) => set({ rideTargetSlug: slug }),
+  setRideFreeTarget: (target) => set({ rideFreeTarget: target }),
   markRideVisited: (slug) => {
     const s = get();
     if (!s.rideActive) return;

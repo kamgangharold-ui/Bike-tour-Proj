@@ -42,7 +42,7 @@ import {
 } from '../../src/utils/routing';
 import { useVoiceChat } from '../../src/hooks/useVoiceChat';
 import { buildBikAISystemPrompt, type LandmarkInfo } from '../../src/utils/systemPrompt';
-import { runCommand, isAffirmative, isNegative, type CommandContext } from '../../src/intents/router';
+import { runCommand, parseLocalIntent, isAffirmative, isNegative, type CommandContext } from '../../src/intents/router';
 import { phrases } from '../../src/intents/phrases';
 import { bestLandmarkMatch, dedupeBySlug } from '../../src/utils/landmarks';
 import { fetchNearestParking } from '../../src/utils/parkingService';
@@ -287,18 +287,19 @@ export default function MapScreen() {
 
   // ── Feature 4: Real-time position tracking (works ANYWHERE — no city gate) ───
   useEffect(() => {
-    // TEMP dev override: pin the position so outside-Barcelona behavior is testable
-    // without traveling. Remove before ship.
-    if (devLocation) {
+    // TEMP dev override (dev builds only — never honored in a release build): pin
+    // the position so outside-Barcelona behavior is testable without traveling.
+    if (__DEV__ && devLocation) {
       setUserLocation({ latitude: devLocation.lat, longitude: devLocation.lng });
       return;
     }
     let sub: Location.LocationSubscription | null = null;
     let cancelled = false;
     (async () => {
+      const loc = useSettingsStore.getState().appLocale; // read at use time (keeps deps lean)
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        speak(phrases(appLocale).needLocation, { lang: appLocale, priority: 'high' });
+        speak(phrases(loc).needLocation, { lang: loc, priority: 'high' });
         return;
       }
       // Robust first fix: race a timeout, then fall back to last-known. Never hang
@@ -316,7 +317,7 @@ export default function MapScreen() {
       }
       if (cancelled) return;
       if (coords) setUserLocation(coords);
-      else speak(phrases(appLocale).needLocation, { lang: appLocale, priority: 'high' });
+      else speak(phrases(loc).needLocation, { lang: loc, priority: 'high' });
       try {
         sub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
@@ -327,7 +328,7 @@ export default function MapScreen() {
       }
     })();
     return () => { cancelled = true; sub?.remove(); };
-  }, [devLocation, appLocale]);
+  }, [devLocation]);
 
   // Mirror the live position into the store so the AI chat reads the SAME
   // position the map uses (single source of truth).
@@ -834,12 +835,19 @@ export default function MapScreen() {
     const ph = phrases(appLocale);
 
     // Start (or retarget) navigation to a resolved point + speak the destination
-    // and distance. Auto-starts a free ride if none is active so turn-by-turn runs.
+    // and distance. No ride → auto-start a free ride so turn-by-turn runs. Active
+    // FREE ride → retarget (keep guidance/banner/voice in sync with the new route).
+    // Active TOUR → don't silently hijack the tour; ask the rider to finish it.
     const doNavigate = async (lat: number, lng: number, name: string): Promise<string> => {
       const st = useAppStore.getState();
       if (!st.rideActive) {
         st.startRide({ mode: 'free', freeTarget: { slug: null, lat, lng, name } });
+      } else if (st.rideMode === 'free') {
+        st.setRideFreeTarget({ slug: null, lat, lng, name });
+      } else {
+        return ph.navBusyTour;
       }
+      freeRouteKeyRef.current = `${lat},${lng}`; // we fetch now → skip the free-route effect's duplicate fetch
       await fetchRoute(lat, lng);
       const d =
         st.userLat != null && st.userLng != null
@@ -849,22 +857,27 @@ export default function MapScreen() {
       return distStr ? ph.headingTo(name, distStr) : ph.routing(name);
     };
 
-    // If we asked "did you mean X?", this turn is the yes/no answer.
+    // If we asked "did you mean X?", this turn may be the yes/no answer — BUT a
+    // fresh explicit command (e.g. "stop the ride", "where can I park") must win
+    // over the stale confirmation.
     if (pendingNavRef.current) {
       const pend = pendingNavRef.current;
-      if (isAffirmative(transcript, appLocale)) {
+      const fresh = parseLocalIntent(transcript, appLocale);
+      if (fresh) {
+        pendingNavRef.current = null; // a real command → fall through to run it
+      } else if (isAffirmative(transcript, appLocale)) {
         pendingNavRef.current = null;
         setMicPhase('speaking');
         speak(await doNavigate(pend.lat, pend.lng, pend.name), { lang: appLocale, priority: 'high' });
         return;
-      }
-      if (isNegative(transcript, appLocale)) {
+      } else if (isNegative(transcript, appLocale)) {
         pendingNavRef.current = null;
         setMicPhase('speaking');
         speak(ph.cancelled, { lang: appLocale, priority: 'high' });
         return;
+      } else {
+        pendingNavRef.current = null; // unrecognized → drop the pending question
       }
-      pendingNavRef.current = null; // not a yes/no → treat as a fresh command
     }
 
     const ctx: CommandContext = {
@@ -1021,10 +1034,20 @@ export default function MapScreen() {
       ? 'thinking'
       : micPhase;
 
-  // Drop back to idle once TTS finishes (expo-speech has no per-call done hook here).
+  // Drop back to idle once TTS finishes (expo-speech has no per-call done hook
+  // here). If a "did you mean X?" confirmation is pending, auto-arm the mic so the
+  // rider can answer yes/no fully hands-free (no second tap needed).
   useEffect(() => {
     if (micPhase !== 'speaking') return;
-    const id = setInterval(() => { if (!isSpeaking()) setMicPhase('idle'); }, 300);
+    const id = setInterval(() => {
+      if (isSpeaking()) return;
+      clearInterval(id);
+      clearTimeout(max);
+      if (pendingNavRef.current && !commandVoice.isListening) {
+        void commandVoice.startListening(); // listen for the spoken yes/no
+      }
+      setMicPhase('idle');
+    }, 300);
     const max = setTimeout(() => setMicPhase('idle'), 30000);
     return () => { clearInterval(id); clearTimeout(max); };
   }, [micPhase]);

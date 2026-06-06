@@ -1,10 +1,12 @@
 // One-shot cleanup: remove DUPLICATE landmark docs and normalize every landmark
 // to a deterministic doc id == slug, so the seeder + generator (both upsert by
-// slug) can never create duplicates again.
+// slug) can never create duplicates again. Also dedupes quizzes/faqs left over
+// from the old (auto-id) seeder.
 //
-// For each slug it keeps the EARLIEST doc (by created_at), rewrites it to a
-// doc whose id is the slug, and deletes all other docs for that slug (including
-// the original auto-id one). Idempotent — safe to run more than once.
+// Canonical per slug = an EXISTING slug-id doc if present (it's the permanent
+// home written by seed.js/the generator), else the earliest-created doc, which
+// is then copied to a slug-id doc (exact copy — no merge, so no blended/ghost
+// fields). All other docs for that slug are deleted. Idempotent.
 //
 // Run:  cd firebase/seed && node dedupe-locations.js
 // Needs firebase/seed/serviceAccountKey.json (same as seed.js). DRY_RUN=true to
@@ -48,38 +50,69 @@ async function main() {
 
   let dupes = 0;
   let migrated = 0;
-  let normalized = 0;
 
   for (const [slug, docs] of bySlug) {
-    // Canonical = earliest created_at (fallback: first in the list).
-    docs.sort((a, b) => toMillis(a.get('created_at')) - toMillis(b.get('created_at')));
-    const canonical = docs[0];
-    const extras = docs.slice(1);
+    // Prefer an existing slug-id doc as canonical; else earliest created_at,
+    // tie-broken by doc id for determinism.
+    docs.sort((a, b) => {
+      const t = toMillis(a.get('created_at')) - toMillis(b.get('created_at'));
+      return t !== 0 ? t : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+    const canonical = docs.find((d) => d.id === slug) ?? docs[0];
+    const extras = docs.filter((d) => d !== canonical);
+    if (canonical.id === slug && extras.length === 0) continue; // already clean
 
-    const needsMigration = canonical.id !== slug;
-    if (!needsMigration && extras.length === 0) continue; // already clean
-
-    if (needsMigration) {
+    if (canonical.id !== slug) {
       console.log(`   • ${slug}: migrate id "${canonical.id}" → "${slug}"${extras.length ? `, drop ${extras.length} dupe(s)` : ''}`);
       if (!DRY_RUN) {
-        await db.collection('locations').doc(slug).set(canonical.data(), { merge: true });
-        await canonical.ref.delete(); // remove the old auto-id doc
+        await db.collection('locations').doc(slug).set(canonical.data()); // exact copy, no merge
+        await canonical.ref.delete();
       }
       migrated++;
     } else if (extras.length) {
-      console.log(`   • ${slug}: drop ${extras.length} duplicate(s)`);
+      console.log(`   • ${slug}: keep slug doc, drop ${extras.length} duplicate(s)`);
     }
-    normalized++;
     for (const ex of extras) {
+      if (ex.id === slug) continue; // never delete the canonical slug doc
       dupes++;
-      if (!DRY_RUN && ex.id !== slug) await ex.ref.delete();
+      if (!DRY_RUN) await ex.ref.delete();
     }
   }
 
-  console.log(
-    `\n${DRY_RUN ? '🧪 DRY RUN — nothing written.' : '✅ Done.'} ` +
-    `${bySlug.size} unique slugs, normalized ${normalized}, migrated ${migrated}, deleted ${dupes} duplicate doc(s).`,
-  );
+  console.log(`\n   locations: ${bySlug.size} unique slugs, migrated ${migrated}, deleted ${dupes} duplicate(s).`);
+
+  // Leftover duplicate quizzes/faqs from the old auto-id seeder: keep one per
+  // (location_slug + question), prefer a deterministic-id doc.
+  await dedupeByKey('quizzes', (d) => `${d.get('location_slug')}::${norm(d.get('question'))}`);
+  await dedupeByKey('faqs', (d) => `${d.get('location_slug')}::${norm(d.get('question'))}`);
+
+  console.log(`\n${DRY_RUN ? '🧪 DRY RUN — nothing written.' : '✅ Done.'}`);
+}
+
+const norm = (s) => String(s ?? '').trim().toLowerCase();
+
+// Generic: keep one doc per key, prefer a deterministic-id doc, delete the rest.
+async function dedupeByKey(collection, keyFn) {
+  const snap = await db.collection(collection).get();
+  const groups = new Map();
+  for (const d of snap.docs) {
+    const k = keyFn(d);
+    if (!k || k.endsWith('::')) continue; // skip docs missing the natural key
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(d);
+  }
+  let removed = 0;
+  for (const docs of groups.values()) {
+    if (docs.length < 2) continue;
+    docs.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const keep = docs.find((d) => /-(sq|sf|quiz|faq)\d*$/.test(d.id)) ?? docs[0];
+    for (const d of docs) {
+      if (d === keep) continue;
+      removed++;
+      if (!DRY_RUN) await d.ref.delete();
+    }
+  }
+  console.log(`   ${collection}: removed ${removed} duplicate(s)`);
 }
 
 main()

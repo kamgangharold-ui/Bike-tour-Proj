@@ -70,7 +70,8 @@ export const useSettingsStore = create<SettingsState>()(
         voiceGuidanceEnabled: s.voiceGuidanceEnabled,
         appLocale: s.appLocale,
         voiceRate: s.voiceRate,
-        devLocation: s.devLocation,
+        // devLocation is intentionally NOT persisted — a dev-only override must
+        // never survive a restart or leak into a release build.
         landmarkAlertsEnabled: s.landmarkAlertsEnabled,
         safetyAlertsEnabled: s.safetyAlertsEnabled,
         offlineCacheEnabled: s.offlineCacheEnabled,

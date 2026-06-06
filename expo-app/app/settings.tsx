@@ -251,6 +251,7 @@ export default function SettingsScreen() {
         />
       </Section>
 
+      {__DEV__ && (
       <Section title="Developer (temporary)">
         <View style={styles.devRow}>
           <Ionicons name="bug-outline" size={20} color="#9E9E9E" style={styles.rowIcon} />
@@ -301,6 +302,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </Section>
+      )}
 
       <Section title="About">
         <ActionRow icon="information-circle-outline" label="App version" value={appVersion} />

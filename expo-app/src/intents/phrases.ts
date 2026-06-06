@@ -29,6 +29,7 @@ export interface Phrases {
   headingTo: (name: string, dist: string) => string;
   didYouMean: (name: string) => string;
   cancelled: string;
+  navBusyTour: string;
 }
 
 const EN: Phrases = {
@@ -56,6 +57,7 @@ const EN: Phrases = {
   headingTo: (n, d) => `Heading to ${n}, ${d}.`,
   didYouMean: (n) => `Did you mean ${n}?`,
   cancelled: 'Okay, cancelled.',
+  navBusyTour: 'Finish or end the tour first to navigate somewhere else.',
 };
 
 const ES: Phrases = {
@@ -83,6 +85,7 @@ const ES: Phrases = {
   headingTo: (n, d) => `Vamos a ${n}, ${d}.`,
   didYouMean: (n) => `¿Querías decir ${n}?`,
   cancelled: 'Vale, cancelado.',
+  navBusyTour: 'Termina o finaliza la ruta primero para ir a otro sitio.',
 };
 
 const CA: Phrases = {
@@ -110,6 +113,7 @@ const CA: Phrases = {
   headingTo: (n, d) => `Anem a ${n}, ${d}.`,
   didYouMean: (n) => `Volies dir ${n}?`,
   cancelled: "D'acord, cancel·lat.",
+  navBusyTour: 'Acaba o finalitza la ruta primer per anar a un altre lloc.',
 };
 
 const FR: Phrases = {
@@ -137,6 +141,7 @@ const FR: Phrases = {
   headingTo: (n, d) => `Direction ${n}, ${d}.`,
   didYouMean: (n) => `Vouliez-vous dire ${n} ?`,
   cancelled: "D'accord, annulé.",
+  navBusyTour: 'Terminez d’abord la balade pour aller ailleurs.',
 };
 
 const DE: Phrases = {
@@ -164,6 +169,7 @@ const DE: Phrases = {
   headingTo: (n, d) => `Auf dem Weg nach ${n}, ${d}.`,
   didYouMean: (n) => `Meintest du ${n}?`,
   cancelled: 'Okay, abgebrochen.',
+  navBusyTour: 'Beende zuerst die Tour, um woanders hinzufahren.',
 };
 
 const IT: Phrases = {
@@ -191,6 +197,7 @@ const IT: Phrases = {
   headingTo: (n, d) => `Andiamo a ${n}, ${d}.`,
   didYouMean: (n) => `Intendevi ${n}?`,
   cancelled: 'Va bene, annullato.',
+  navBusyTour: 'Termina prima il giro per andare altrove.',
 };
 
 const TABLE: Record<AppLocale, Phrases> = { en: EN, es: ES, ca: CA, fr: FR, de: DE, it: IT };

@@ -141,7 +141,7 @@ export default function RideScreen() {
               cachedLocs.data
                 .filter((l) => l.coordinates)
                 .map((l) => ({
-                  id: l.slug,
+                  id: l.slug && l.slug.trim() ? l.slug : `${l.name}@${l.coordinates!.latitude},${l.coordinates!.longitude}`,
                   slug: l.slug,
                   name: l.name,
                   latitude: l.coordinates!.latitude,

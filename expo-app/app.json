@@ -11,7 +11,7 @@
     "platforms": ["ios", "android"],
     "android": {
       "package": "com.biketourguide.app",
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": ["RECORD_AUDIO", "VIBRATE"]
     },
     "ios": {
       "bundleIdentifier": "com.biketourguide.app",

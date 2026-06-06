@@ -154,21 +154,25 @@ function boundedMatchEnd(text: string, phrase: string): number {
   }
 }
 
+// Confirmation tokens for the "did you mean X?" yes/no turn. Kept UNAMBIGUOUS —
+// no 'go'/'right'/'stop', which are common command words ("stop the ride") and
+// would hijack the confirmation. A fresh explicit command is also checked first
+// at the call site, so these only apply when nothing else matched.
 const YES: Record<AppLocale, string[]> = {
-  en: ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'correct', 'right', 'go'],
-  es: ['sí', 'si', 'vale', 'correcto', 'claro', 'venga'],
-  ca: ['sí', 'si', "d'acord", 'correcte', 'va'],
-  fr: ['oui', 'ouais', "d'accord", 'ok', 'correct', 'vas-y'],
-  de: ['ja', 'genau', 'ok', 'okay', 'richtig', 'klar'],
+  en: ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'correct'],
+  es: ['sí', 'si', 'vale', 'correcto', 'claro'],
+  ca: ['sí', 'si', "d'acord", 'correcte'],
+  fr: ['oui', 'ouais', "d'accord", 'ok', 'correct'],
+  de: ['ja', 'genau', 'ok', 'okay', 'richtig'],
   it: ['sì', 'si', 'ok', 'va bene', 'esatto', 'certo'],
 };
 const NO: Record<AppLocale, string[]> = {
-  en: ['no', 'nope', 'cancel', 'stop', 'nevermind', 'never mind'],
-  es: ['no', 'cancela', 'cancelar', 'para'],
-  ca: ['no', 'cancel·la', 'cancella', 'atura'],
-  fr: ['non', 'annule', 'annuler', 'stop'],
-  de: ['nein', 'abbrechen', 'stopp', 'stop'],
-  it: ['no', 'annulla', 'ferma', 'stop'],
+  en: ['no', 'nope', 'cancel', 'nevermind', 'never mind'],
+  es: ['no', 'cancela', 'cancelar'],
+  ca: ['no', 'cancel·la', 'cancella'],
+  fr: ['non', 'annule', 'annuler'],
+  de: ['nein', 'abbrechen'],
+  it: ['no', 'annulla'],
 };
 
 export function isAffirmative(raw: string, locale: AppLocale): boolean {
