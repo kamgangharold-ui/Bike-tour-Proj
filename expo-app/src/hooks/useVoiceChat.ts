@@ -171,20 +171,18 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
       const dynamicPhrases = (optsRef.current.phrases?.() ?? []).filter(Boolean);
       const boost = appLocale === 'en' ? [...dynamicPhrases, ...SPEECH_HINTS] : dynamicPhrases;
       const approxBytes = Math.floor((base64.length * 3) / 4);
-      // Parse the REAL WAV header (definitive diagnostic). Build the STT config from
-      // the actual recorded format, so a rate/channel mismatch can't cause "bad
-      // encoding". iOS PCM WAV → LINEAR16 + the header's real rate/channels; Android
-      // is headerless AMR_WB → declare it; anything else → let Google auto-detect.
+      // Header is parsed for DIAGNOSTICS only (the on-device log) — NOT to choose the
+      // encoding. The fmt field reads 0 unreliably, so gating on it pushed the code
+      // into the omit/"auto" branch, which Google rejects with "bad encoding". We
+      // KNOW the recorded format from the RecordingOptions, so declare it explicitly:
+      //   • iOS  = 16 kHz mono 16-bit LINEAR16 PCM WAV  → LINEAR16/16000/1
+      //   • Android = headerless AMR_WB @ 16 kHz         → AMR_WB/16000
       const wav = parseWavHeader(base64);
       vlog(`file head: "${wav?.head12 ?? '?'}" fmt:${wav?.audioFormat ?? '?'} ch:${wav?.channels ?? '?'} rate:${wav?.sampleRate ?? '?'} bits:${wav?.bitsPerSample ?? '?'} ${approxBytes}B`);
-      let audioConfig: Record<string, unknown>;
-      if (wav?.isRiffWave && wav.audioFormat === 1) {
-        audioConfig = { encoding: 'LINEAR16', sampleRateHertz: wav.sampleRate, audioChannelCount: wav.channels };
-      } else if (Platform.OS === 'android') {
-        audioConfig = { encoding: 'AMR_WB', sampleRateHertz: 16000 };
-      } else {
-        audioConfig = {}; // unknown container → let Google try to detect
-      }
+      const audioConfig: Record<string, unknown> =
+        Platform.OS === 'android'
+          ? { encoding: 'AMR_WB', sampleRateHertz: 16000 }
+          : { encoding: 'LINEAR16', sampleRateHertz: 16000, audioChannelCount: 1 };
       if (approxBytes < 1200) vlog('⚠ recording is tiny — likely empty/too short');
 
       type STTResp = {
