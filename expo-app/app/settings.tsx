@@ -22,6 +22,7 @@ import { useAppStore } from '../src/store/useAppStore';
 import { clearCache, getCacheInfo } from '../src/utils/offlineCache';
 import { clearRideHistory } from '../src/utils/rideHistory';
 import { clearRouteCache } from '../src/utils/routeCache';
+import { SUPPORTED_LOCALES, LOCALE_LABELS, type AppLocale } from '../src/utils/locale';
 
 // Placeholder until a real hosted Terms page exists.
 const TERMS_URL = 'https://example.com/cycleguide/terms';
@@ -42,6 +43,8 @@ export default function SettingsScreen() {
   const setAvoidNoCyclingZones = useSettingsStore((s) => s.setAvoidNoCyclingZones);
   const voiceGuidanceEnabled = useSettingsStore((s) => s.voiceGuidanceEnabled);
   const setVoiceGuidanceEnabled = useSettingsStore((s) => s.setVoiceGuidanceEnabled);
+  const appLocale = useSettingsStore((s) => s.appLocale);
+  const setAppLocale = useSettingsStore((s) => s.setAppLocale);
   const landmarkAlertsEnabled = useSettingsStore((s) => s.landmarkAlertsEnabled);
   const setLandmarkAlertsEnabled = useSettingsStore((s) => s.setLandmarkAlertsEnabled);
   const safetyAlertsEnabled = useSettingsStore((s) => s.safetyAlertsEnabled);
@@ -172,6 +175,7 @@ export default function SettingsScreen() {
           value={voiceGuidanceEnabled}
           onValueChange={setVoiceGuidanceEnabled}
         />
+        <LanguageRow value={appLocale} onChange={setAppLocale} />
       </Section>
 
       <Section title="Notifications">
@@ -295,6 +299,37 @@ function ToggleRow({
   );
 }
 
+function LanguageRow({ value, onChange }: { value: AppLocale; onChange: (l: AppLocale) => void }) {
+  return (
+    <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Ionicons name="language-outline" size={20} color="#9E9E9E" style={styles.rowIcon} />
+        <View style={styles.rowText}>
+          <Text style={styles.rowLabel}>Voice language</Text>
+          <Text style={styles.rowSub}>Speech recognition & spoken replies</Text>
+        </View>
+      </View>
+      <View style={styles.langChips}>
+        {SUPPORTED_LOCALES.map((l) => {
+          const active = l === value;
+          return (
+            <TouchableOpacity
+              key={l}
+              style={[styles.langChip, active && styles.langChipActive]}
+              onPress={() => onChange(l)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.langChipText, active && styles.langChipTextActive]}>
+                {LOCALE_LABELS[l]}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function ActionRow({
   icon,
   label,
@@ -365,4 +400,17 @@ const styles = StyleSheet.create({
   rowLabel: { color: '#fff', fontSize: 15, fontWeight: '500' },
   rowSub: { color: '#777', fontSize: 12, marginTop: 2 },
   rowValue: { color: '#9E9E9E', fontSize: 14, fontWeight: '600' },
+
+  langChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingLeft: 34 },
+  langChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: '#2A2A2A',
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+  },
+  langChipActive: { backgroundColor: '#10301C', borderColor: '#00C853' },
+  langChipText: { color: '#bbb', fontSize: 13, fontWeight: '600' },
+  langChipTextActive: { color: '#00C853' },
 });

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { type AppLocale, deviceDefaultLocale } from '../utils/locale';
 
 // Persisted user settings (AsyncStorage). Group A introduces the routing-safety
 // gate; later groups (esp. the Settings screen) extend this store with more
@@ -14,6 +15,10 @@ interface SettingsState {
   // Voice & guidance — drives the 🔊 TTS in BikAI. Default ON.
   voiceGuidanceEnabled: boolean;
   setVoiceGuidanceEnabled: (value: boolean) => void;
+  // Language for STT + TTS. Seeded from the device locale (English fallback);
+  // overridable in Settings. Used for both Google STT and expo-speech.
+  appLocale: AppLocale;
+  setAppLocale: (value: AppLocale) => void;
   // Notifications — gate the geofence-entry notifications. Default ON.
   landmarkAlertsEnabled: boolean;
   setLandmarkAlertsEnabled: (value: boolean) => void;
@@ -35,6 +40,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAvoidNoCyclingZones: (value) => set({ avoidNoCyclingZones: value }),
       voiceGuidanceEnabled: true,
       setVoiceGuidanceEnabled: (value) => set({ voiceGuidanceEnabled: value }),
+      appLocale: deviceDefaultLocale(),
+      setAppLocale: (value) => set({ appLocale: value }),
       landmarkAlertsEnabled: true,
       setLandmarkAlertsEnabled: (value) => set({ landmarkAlertsEnabled: value }),
       safetyAlertsEnabled: true,
@@ -50,6 +57,7 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (s) => ({
         avoidNoCyclingZones: s.avoidNoCyclingZones,
         voiceGuidanceEnabled: s.voiceGuidanceEnabled,
+        appLocale: s.appLocale,
         landmarkAlertsEnabled: s.landmarkAlertsEnabled,
         safetyAlertsEnabled: s.safetyAlertsEnabled,
         offlineCacheEnabled: s.offlineCacheEnabled,

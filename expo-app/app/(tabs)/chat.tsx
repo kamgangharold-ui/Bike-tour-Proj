@@ -19,8 +19,9 @@ import { useAppStore } from '../../src/store/useAppStore';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { haversineMetres } from '../../src/utils/haversine';
 import * as voice from '../../src/utils/voice';
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
+import { callAnthropic } from '../../src/utils/anthropic';
+import { buildBikAISystemPrompt, type LandmarkInfo } from '../../src/utils/systemPrompt';
+import { useVoiceChat } from '../../src/hooks/useVoiceChat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,19 +31,7 @@ interface ChatMessage {
   content: string;
 }
 
-interface LandmarkInfo {
-  name: string;
-  slug?: string;
-  short_description?: string;
-  category?: string;
-  coordinates?: { latitude: number; longitude: number };
-  geofence_radius_metres?: number;
-  regulatory_alert?: { message?: string; fine_eur?: number };
-}
-
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
 const SUGGESTED = [
   "What's near me right now?",
@@ -50,45 +39,6 @@ const SUGGESTED = [
   'Where can I park my bike?',
   'What are the cycling rules here?',
 ];
-
-// Domain phrase hints that boost speech-to-text accuracy for cycling terms.
-// Landmark names are appended dynamically from Firestore (kept city-agnostic).
-const SPEECH_HINTS = [
-  'bike lane', 'bike lanes', 'cycle lane', 'cycling route', 'bike parking',
-  'park my bike', 'Bicing', 'Bicibox', 'Bicipark', 'dismount', 'dismount zone',
-  'sidewalk', 'fine', 'earphones', 'helmet', "what's near me", 'where am I',
-];
-
-// Direct fetch wrapper — avoids Node.js built-ins in @anthropic-ai/sdk
-async function callAnthropic(
-  system: string,
-  messages: { role: 'user' | 'assistant'; content: string }[],
-): Promise<string> {
-  const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-  const res = await fetch(ANTHROPIC_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 500,
-      system,
-      messages,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Anthropic API error ${res.status}: ${err}`);
-  }
-  const data = (await res.json()) as {
-    content: { type: string; text: string }[];
-  };
-  const first = data.content[0];
-  return first?.type === 'text' ? first.text : 'No response generated.';
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -99,23 +49,25 @@ export default function ChatScreen() {
   // Voice/TTS state is global (Settings ↔ this header toggle share it).
   const speakerOn = useSettingsStore((s) => s.voiceGuidanceEnabled);
   const setVoiceGuidanceEnabled = useSettingsStore((s) => s.setVoiceGuidanceEnabled);
-  const [isListening, setIsListening] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [transcribing, setTranscribing] = useState(false);
+  const appLocale = useSettingsStore((s) => s.appLocale);
   const [landmarks, setLandmarks] = useState<LandmarkInfo[]>([]);
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
-  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Shared voice capture (tap-to-stop here; the map uses silence auto-stop). On a
+  // recognized transcript, send it straight to BikAI — fully hands-free.
+  const { isListening, transcribing, startListening, stopListening } = useVoiceChat({
+    onTranscript: (text) => void sendMessage(text),
+    phrases: () => landmarks.map((l) => l.name).filter(Boolean),
+    onError: (msg) => Alert.alert('Voice', msg),
+  });
 
   const chatPrefill = useAppStore((s) => s.chatPrefill);
   const setChatPrefill = useAppStore((s) => s.setChatPrefill);
+  // activeName/activeSlug drive the context pill; the rest of the live geofence
+  // context is read inside buildBikAISystemPrompt via the store directly.
   const activeSlug = useAppStore((s) => s.activeSlug);
   const activeName = useAppStore((s) => s.activeName);
-  const activeCategory = useAppStore((s) => s.activeCategory);
-  const activeDescription = useAppStore((s) => s.activeDescription);
-  const activeIsRegulatory = useAppStore((s) => s.activeIsRegulatory);
-  const activeRegulatoryMessage = useAppStore((s) => s.activeRegulatoryMessage);
-  const activeRegulatoryFineEur = useAppStore((s) => s.activeRegulatoryFineEur);
   const userLat = useAppStore((s) => s.userLat);
   const userLng = useAppStore((s) => s.userLng);
 
@@ -169,189 +121,6 @@ export default function ChatScreen() {
     }
   }, [chatPrefill, setChatPrefill]);
 
-  // ── Voice recording + Google STT ─────────────────────────────────────────────
-  const stopAndTranscribe = async (rec: Audio.Recording) => {
-    if (recordingTimer.current) { clearTimeout(recordingTimer.current); recordingTimer.current = null; }
-    setIsListening(false);
-    try {
-      await rec.stopAndUnloadAsync();
-      const uri = rec.getURI();
-      setRecording(null);
-      if (uri) void transcribeAudio(uri);
-    } catch (e) {
-      console.warn('[Voice] stop failed', e);
-      setRecording(null);
-    }
-  };
-
-  const handleVoice = async () => {
-    if (isListening) {
-      if (recording) void stopAndTranscribe(recording);
-    } else {
-      try {
-        const { status } = await Audio.requestPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission needed', 'Microphone access is required for voice input.');
-          return;
-        }
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-        const { recording: rec } = await Audio.Recording.createAsync({
-          android: {
-            extension: '.amr',
-            outputFormat: Audio.AndroidOutputFormat.AMR_WB,
-            audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
-            sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 23850,
-          },
-          ios: {
-            extension: '.wav',
-            outputFormat: Audio.IOSOutputFormat.LINEARPCM,
-            audioQuality: Audio.IOSAudioQuality.HIGH,
-            sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 256000,
-            linearPCMBitDepth: 16,
-            linearPCMIsBigEndian: false,
-            linearPCMIsFloat: false,
-          },
-          web: { mimeType: 'audio/webm', bitsPerSecond: 128000 },
-        });
-        setRecording(rec);
-        setIsListening(true);
-        // 60s hard limit — user taps again to stop early
-        recordingTimer.current = setTimeout(() => void stopAndTranscribe(rec), 60000);
-      } catch (e) {
-        console.warn('[Voice] start failed', e);
-        Alert.alert('Mic error', `Could not start recording: ${String(e)}`);
-      }
-    }
-  };
-
-  const transcribeAudio = async (uri: string) => {
-    const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
-    if (!apiKey) {
-      Alert.alert('Missing API key', 'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set.');
-      return;
-    }
-    setTranscribing(true);
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const res = await fetch(
-        `https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            config: {
-              encoding: Platform.OS === 'android' ? 'AMR_WB' : 'LINEAR16',
-              sampleRateHertz: 16000,
-              languageCode: 'en-US',
-              alternativeLanguageCodes: ['es-ES', 'ca-ES', 'fr-FR'],
-              model: 'latest_long',
-              useEnhanced: true,
-              enableAutomaticPunctuation: true,
-              speechContexts: [
-                {
-                  phrases: [...landmarks.map((l) => l.name).filter(Boolean), ...SPEECH_HINTS],
-                  boost: 15,
-                },
-              ],
-              metadata: {
-                interactionType: 'DICTATION',
-                microphoneDistance: 'NEARFIELD',
-                recordingDeviceType: 'SMARTPHONE',
-              },
-            },
-            audio: { content: base64 },
-          }),
-        },
-      );
-      const data = await res.json() as {
-        results?: Array<{ alternatives: Array<{ transcript: string }> }>;
-        error?: { message: string; status: string };
-      };
-      if (data.error) {
-        Alert.alert('Speech API error', `${data.error.status}: ${data.error.message}`);
-        return;
-      }
-      const transcript = data.results?.[0]?.alternatives?.[0]?.transcript ?? '';
-      if (transcript) {
-        // Hands-free: send straight to BikAI so the answer is spoken back (the
-        // reply TTS in sendMessage). The user never has to touch the keyboard.
-        void sendMessage(transcript);
-      } else {
-        Alert.alert('No speech detected', 'Nothing was heard. Speak clearly and try again.');
-      }
-    } catch (e) {
-      console.warn('[Voice] transcribe failed', e);
-      Alert.alert('Transcription failed', String(e));
-    } finally {
-      setTranscribing(false);
-      await FileSystem.deleteAsync(uri, { idempotent: true });
-    }
-  };
-
-  // ── System prompt builder ────────────────────────────────────────────────────
-  // Built fresh on every send from the SAME store the map/geofence uses: the live
-  // position (userLat/userLng) and the confirmed active landmark (activeSlug).
-  const buildSystemPrompt = (): string => {
-    const hasPos = userLat !== null && userLng !== null;
-    const lat = userLat ?? 0;
-    const lng = userLng ?? 0;
-
-    // Distance-sorted nearby landmarks, excluding the confirmed current one.
-    let nearbyStr = 'GPS position not available yet.';
-    if (hasPos) {
-      const nearby = landmarks
-        .map((loc) => {
-          const c = loc.coordinates;
-          if (!c || loc.slug === activeSlug) return null;
-          const dist = Math.round(haversineMetres(lat, lng, c.latitude, c.longitude));
-          const regNote = loc.regulatory_alert?.message ? ` ⚠️ ${loc.regulatory_alert.message}` : '';
-          return { name: loc.name, dist, desc: loc.short_description ?? '', regNote };
-        })
-        .filter((l): l is NonNullable<typeof l> => l !== null && l.dist <= 500)
-        .sort((a, b) => a.dist - b.dist)
-        .map((l) => `- ${l.name} (${l.dist} m)${l.regNote}: ${l.desc}`);
-      nearbyStr = nearby.length > 0 ? nearby.join('\n') : 'None within 500 m';
-    }
-
-    // GROUND TRUTH first: the geofence's confirmed current landmark.
-    let current: string;
-    if (activeSlug) {
-      const active = landmarks.find((l) => l.slug === activeSlug);
-      const radius = active?.geofence_radius_metres ?? 40;
-      current =
-        `CURRENT LOCATION — CONFIRMED by the app's GPS geofencing: the user is RIGHT NOW at ` +
-        `"${activeName}" [${activeCategory}], inside its ${radius} m geofence. ` +
-        `Treat this as their exact location — do NOT contradict it or claim they are somewhere else.\n` +
-        `About it: ${activeDescription}\n` +
-        (activeIsRegulatory
-          ? `⚠️ Regulatory alert here: €${activeRegulatoryFineEur} fine — ${activeRegulatoryMessage}\n`
-          : '');
-    } else if (hasPos) {
-      current =
-        `CURRENT LOCATION: no geofence is active — the user is NOT confirmed at any landmark. ` +
-        `Their GPS position is [${lat.toFixed(5)}, ${lng.toFixed(5)}]. Use the nearest landmarks below for context.\n`;
-    } else {
-      current = `CURRENT LOCATION: GPS position is not available yet.\n`;
-    }
-
-    return (
-      `You are BikAI, a cycling guide assistant for bike tourists in Barcelona.\n` +
-      current +
-      `\nNearby landmarks within 500 m (distance-sorted):\n${nearbyStr}\n\n` +
-      `Cycling regulations: sidewalk riding = €500 fine, both earphones = €100 fine, ` +
-      `Gothic Quarter = mandatory dismount zone.\n` +
-      `Answer concisely and helpfully. If unsure, say so honestly. ` +
-      `Respond in the same language the user writes in. ` +
-      `Use plain text only — no markdown (no **, no ##, no ---, no > blocks). Emojis are fine.`
-    );
-  };
-
   // ── Send message ─────────────────────────────────────────────────────────────
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
@@ -372,7 +141,7 @@ export default function ChatScreen() {
 
     try {
       const aiText = await callAnthropic(
-        buildSystemPrompt(),
+        buildBikAISystemPrompt(landmarks),
         history.map(({ role, content }) => ({ role, content })),
       );
       setMessages((prev) => [
@@ -381,11 +150,9 @@ export default function ChatScreen() {
       ]);
       // Speak the reply through the shared voice queue (self-gates on the
       // voiceGuidanceEnabled setting). priority 'high' so an explicit question's
-      // answer takes precedence over any ambient ride-guidance cue.
-      const lang = /\b(je|vous|est|les|des|une|du|en|nous|qui|que|pas|sur|plus)\b/i.test(aiText)
-        ? 'fr'
-        : 'en';
-      voice.speak(aiText, { lang, rate: 0.92, priority: 'high' });
+      // answer takes precedence over any ambient ride-guidance cue. The reply is
+      // in the user's language (system prompt), so speak it in the chosen locale.
+      voice.speak(aiText, { lang: appLocale, rate: 0.92, priority: 'high' });
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -513,7 +280,7 @@ export default function ChatScreen() {
         <View style={styles.inputBar}>
           <TouchableOpacity
             style={[styles.micBtn, isListening && styles.micBtnActive]}
-            onPress={() => void handleVoice()}
+            onPress={() => void (isListening ? stopListening() : startListening())}
             disabled={transcribing}
           >
             {transcribing ? (
