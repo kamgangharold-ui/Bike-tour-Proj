@@ -38,6 +38,7 @@ import {
   parseOsrmSteps,
   nextManeuver,
   distanceToPolyline,
+  maneuverArrow,
   type ManeuverStep,
   type OsrmRoute,
 } from '../../src/utils/routing';
@@ -238,7 +239,7 @@ export default function MapScreen() {
   // Turn-by-turn (Group F): maneuvers of the active single-leg route + the live
   // next turn (also read by the voice "status" intent). All local to the map.
   const [navSteps, setNavSteps] = useState<ManeuverStep[]>([]);
-  const [nextTurn, setNextTurn] = useState<{ instruction: string; distanceM: number } | null>(null);
+  const [nextTurn, setNextTurn] = useState<{ instruction: string; distanceM: number; arrow: string } | null>(null);
   const navStepIdxRef = useRef(0);
   const announcedTurnsRef = useRef<Set<number>>(new Set());
   const offRouteCountRef = useRef(0);
@@ -859,7 +860,11 @@ export default function MapScreen() {
       const nt = nextManeuver(userLocation, navSteps, navStepIdxRef.current);
       if (nt) {
         navStepIdxRef.current = nt.index;
-        setNextTurn({ instruction: nt.step.instruction, distanceM: nt.distanceM });
+        setNextTurn({
+          instruction: nt.step.instruction,
+          distanceM: nt.distanceM,
+          arrow: maneuverArrow(nt.step.maneuverType, nt.step.modifier),
+        });
         if (rideActive && nt.distanceM <= 150 && !announcedTurnsRef.current.has(nt.index)) {
           announcedTurnsRef.current.add(nt.index);
           const m = Math.max(10, Math.round(nt.distanceM / 10) * 10);
@@ -1726,7 +1731,7 @@ export default function MapScreen() {
           {/* Turn-by-turn next maneuver (Group F) */}
           {rideActive && nextTurn && tourStops.length === 0 && (
             <View style={styles.turnBanner}>
-              <Ionicons name="navigate" size={16} color="#fff" />
+              <Text style={styles.turnArrow}>{nextTurn.arrow}</Text>
               <Text style={styles.turnText} numberOfLines={2}>
                 {t('map.turnInMeters', { metres: Math.max(10, Math.round(nextTurn.distanceM / 10) * 10), instruction: nextTurn.instruction })}
               </Text>
@@ -2082,6 +2087,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
+  turnArrow: { color: '#fff', fontSize: 22, fontWeight: '900', width: 26, textAlign: 'center' },
   turnText: { color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 },
   routeWarnBanner: {
     backgroundColor: '#C62828',

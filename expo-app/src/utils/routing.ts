@@ -11,6 +11,26 @@ import type { AppLocale } from './locale';
 export interface ManeuverStep {
   instruction: string;
   location: { latitude: number; longitude: number };
+  maneuverType: string;       // OSRM maneuver.type (turn / continue / roundabout / arrive…)
+  modifier?: string;          // OSRM maneuver.modifier (left / right / uturn / straight…)
+}
+
+// A Unicode directional arrow for a maneuver — shown in the in-app turn banner and
+// the live nav notification, so the rider can glance at the direction.
+export function maneuverArrow(type: string, modifier?: string): string {
+  if (type === 'arrive') return '🏁';
+  if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') return '⟳';
+  switch (modifier) {
+    case 'left': return '←';
+    case 'right': return '→';
+    case 'slight left': return '↖';
+    case 'slight right': return '↗';
+    case 'sharp left': return '↰';
+    case 'sharp right': return '↱';
+    case 'uturn': return '⤵';
+    case 'straight': return '↑';
+    default: return '↑';
+  }
 }
 
 interface OsrmStep {
@@ -84,6 +104,8 @@ export function parseOsrmSteps(route: OsrmRoute, locale: AppLocale = 'en'): Mane
       out.push({
         instruction: buildInstruction(s.maneuver.type, s.maneuver.modifier, s.name, locale),
         location: { latitude: lat, longitude: lng },
+        maneuverType: s.maneuver.type,
+        modifier: s.maneuver.modifier,
       });
     }
   }
