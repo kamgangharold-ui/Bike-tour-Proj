@@ -80,10 +80,23 @@ export function nativeNavAvailable(): boolean {
   return ensure();
 }
 
+// Call ONCE at app entry (module top level) so notifee's foreground-service runner +
+// background event handler are registered before any headless task can fire — i.e.
+// the notification's Stop/Mute still work if the OS killed the process mid-ride.
+// No-op off the standalone/dev Android build.
+export function registerLiveNavBackgroundHandler(): void {
+  ensure();
+}
+
 const CHANNEL_ID = 'nav';
 const NOTIF_ID = 'live-nav';
 
 async function display(title: string, body: string): Promise<void> {
+  // createChannel is idempotent (create-or-update). Calling it here guarantees the
+  // 'nav' channel exists before EVERY displayNotification — closing the race where
+  // updateNav() fires (gated on liveNavOnRef) before startNav's async createChannel
+  // has resolved. On API >= 26 posting to a missing channel throws (notifee docs).
+  await notifee.createChannel({ id: CHANNEL_ID, name: 'Live navigation', importance: AndroidImportance.LOW });
   await notifee.displayNotification({
     id: NOTIF_ID, // same id → updates in place instead of stacking
     title,

@@ -15,9 +15,15 @@ import OfflineBanner from '../src/components/OfflineBanner';
 import EventBanner from '../src/components/EventBanner';
 import VoiceDebugOverlay from '../src/components/VoiceDebugOverlay';
 import { setupNotifications } from '../src/utils/notify';
+import { registerLiveNavBackgroundHandler } from '../src/utils/liveNav';
 import { useTranslation } from 'react-i18next';
 import i18n from '../src/i18n';
 import { useSettingsStore } from '../src/store/useSettingsStore';
+
+// At app entry (even a headless notifee task launch): register the foreground-service
+// runner + background event handler so the live-nav notification's Stop/Mute work even
+// if the OS killed the process. No-op off the standalone Android build.
+registerLiveNavBackgroundHandler();
 
 // SDK 54: shouldShowAlert is deprecated — present via shouldShowBanner + shouldShowList
 // (+ shouldPlaySound). Note: full expo-notifications support needs a dev build; in

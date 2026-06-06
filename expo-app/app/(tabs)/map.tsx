@@ -905,6 +905,12 @@ export default function MapScreen() {
       void stopNav();
     }
   }, [rideActive, t]);
+  // Unmount-only safety net: if MapScreen ever tears down mid-ride (e.g. sign-out),
+  // stop the foreground service so it can't outlive the screen. Empty deps → runs
+  // only on unmount, so no stop/restart churn on re-renders.
+  useEffect(() => () => {
+    if (liveNavOnRef.current) { liveNavOnRef.current = false; void stopNav(); }
+  }, []);
   useEffect(() => {
     if (!liveNavOnRef.current) return;
     const remaining = routeInfo ? `${routeInfo.distance} · ${routeInfo.duration}` : t('rideBanner.rideInProgress');
