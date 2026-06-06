@@ -7,7 +7,8 @@
     "close": "Chiudi",
     "yes": "Sì",
     "no": "No",
-    "error": "Si è verificato un errore"
+    "error": "Si è verificato un errore",
+    "offlineSavedData": "⚠️ Offline — dati salvati visualizzati"
   },
   "nav": {
     "recap": "Riepilogo giro",
@@ -84,7 +85,9 @@
     "emptyTitle": "Nessun parcheggio per bici entro 500 m",
     "emptySubtitle": "Avvicinati al centro città o trascina verso il basso per aggiornare",
     "defaultName": "Parcheggio",
-    "spotsWithin": "{{count}} posti entro 500 m"
+    "spotsWithin": "{{count}} posti entro 500 m",
+    "instructionBicibox": "PIN richiesto — apri l’app Bicibox per ottenere il codice",
+    "instructionBicipark": "Rastrelliera aperta — lega la bici direttamente al supporto"
   },
   "settings": {
     "clearHistoryTitle": "Cancellare la cronologia dei giri?",
@@ -236,6 +239,10 @@
     "quizAvailableTitle": "Quiz disponibile — {{name}}",
     "quizAvailableBody": "Metti alla prova le tue conoscenze.",
     "reroutingTitle": "Ricalcolo in corso",
-    "reroutingBody": "Ricalcolo del percorso."
+    "reroutingBody": "Ricalcolo del percorso.",
+    "notifyWarning": "Attenzione: {{name}}.",
+    "notifyArriving": "Stai arrivando a {{name}}.",
+    "notifyFineSpeak": " Multa: {{euros}} euro.",
+    "destinationFallback": "destinazione"
   }
 }

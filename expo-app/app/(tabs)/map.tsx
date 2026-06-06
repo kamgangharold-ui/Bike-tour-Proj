@@ -397,12 +397,16 @@ export default function MapScreen() {
         const allowed = inside.isRegulatory ? set.safetyAlertsEnabled : set.landmarkAlertsEnabled;
         if (allowed) {
           if (inside.isRegulatory) {
-            const fineText = inside.regulatoryFineEur > 0 ? ` Fine: ${Math.round(inside.regulatoryFineEur)} euros.` : '';
+            // App prefixes localize; the landmark's regulatory message itself is
+            // Firestore content (English) — that's the separate content-i18n effort.
+            const fineText = inside.regulatoryFineEur > 0
+              ? t('map.notifyFineSpeak', { euros: Math.round(inside.regulatoryFineEur) })
+              : '';
             void notify({
               kind: 'alert',
               title: `⚠️ ${inside.name}`,
               body: `${inside.regulatoryMessage}${fineText}`,
-              speak: `Warning: ${inside.name}. ${inside.regulatoryMessage}${fineText}`,
+              speak: `${t('map.notifyWarning', { name: inside.name })} ${inside.regulatoryMessage}${fineText}`,
               data: { slug: inside.slug },
             });
           } else {
@@ -410,7 +414,7 @@ export default function MapScreen() {
               kind: 'navigation',
               title: inside.name,
               body: inside.description,
-              speak: `You're arriving at ${inside.name}.${inside.description ? ' ' + inside.description : ''}`,
+              speak: `${t('map.notifyArriving', { name: inside.name })}${inside.description ? ' ' + inside.description : ''}`,
               data: { slug: inside.slug },
             });
             // Quiz-available event (Drop 2): surface it if this landmark has one.
@@ -1763,7 +1767,7 @@ export default function MapScreen() {
                 onQuizCorrect={handleQuizCorrect}
                 onGetDirections={fullLat !== undefined && fullLng !== undefined
                   ? () => {
-                      const lat = fullLat, lng = fullLng, name = fullName || 'destination';
+                      const lat = fullLat, lng = fullLng, name = fullName || t('map.destinationFallback');
                       handleDismissCard(); // close the sheet so the route + turn banner are visible
                       void doNavigate(lat, lng, name).then((line) => {
                         if (line && line.trim()) speak(line, { lang: appLocale, priority: 'high' });

@@ -7,7 +7,8 @@
     "close": "Fermer",
     "yes": "Oui",
     "no": "Non",
-    "error": "Une erreur est survenue"
+    "error": "Une erreur est survenue",
+    "offlineSavedData": "⚠️ Hors ligne — affichage des données enregistrées"
   },
   "nav": {
     "recap": "Résumé du trajet",
@@ -84,7 +85,9 @@
     "emptyTitle": "Aucun stationnement vélo dans un rayon de 500 m",
     "emptySubtitle": "Rapprochez-vous du centre-ville ou tirez vers le bas pour actualiser",
     "defaultName": "Stationnement",
-    "spotsWithin": "{{count}} emplacements dans un rayon de 500 m"
+    "spotsWithin": "{{count}} emplacements dans un rayon de 500 m",
+    "instructionBicibox": "Code PIN requis — ouvrez l’app Bicibox pour obtenir votre code",
+    "instructionBicipark": "Support ouvert — attachez votre vélo directement à l’arceau"
   },
   "settings": {
     "clearHistoryTitle": "Effacer l'historique des trajets ?",
@@ -236,6 +239,10 @@
     "quizAvailableTitle": "Quiz disponible — {{name}}",
     "quizAvailableBody": "Testez vos connaissances.",
     "reroutingTitle": "Recalcul de l'itinéraire",
-    "reroutingBody": "Recalcul de l'itinéraire en cours."
+    "reroutingBody": "Recalcul de l'itinéraire en cours.",
+    "notifyWarning": "Attention : {{name}}.",
+    "notifyArriving": "Vous arrivez à {{name}}.",
+    "notifyFineSpeak": " Amende : {{euros}} euros.",
+    "destinationFallback": "destination"
   }
 }

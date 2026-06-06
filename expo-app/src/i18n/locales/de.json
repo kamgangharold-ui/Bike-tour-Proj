@@ -7,7 +7,8 @@
     "close": "Schließen",
     "yes": "Ja",
     "no": "Nein",
-    "error": "Etwas ist schiefgelaufen"
+    "error": "Etwas ist schiefgelaufen",
+    "offlineSavedData": "⚠️ Offline — gespeicherte Daten werden angezeigt"
   },
   "nav": {
     "recap": "Fahrt-Zusammenfassung",
@@ -84,7 +85,9 @@
     "emptyTitle": "Keine Fahrradparkplätze in 500 m Umkreis",
     "emptySubtitle": "Geh näher ans Stadtzentrum oder zieh nach unten zum Aktualisieren",
     "defaultName": "Parkplatz",
-    "spotsWithin": "{{count}} Plätze in 500 m Umkreis"
+    "spotsWithin": "{{count}} Plätze in 500 m Umkreis",
+    "instructionBicibox": "PIN erforderlich — öffne die Bicibox-App für deinen Code",
+    "instructionBicipark": "Offener Ständer — schließe dein Fahrrad direkt am Ständer an"
   },
   "settings": {
     "clearHistoryTitle": "Fahrtverlauf löschen?",
@@ -236,6 +239,10 @@
     "quizAvailableTitle": "Quiz verfügbar — {{name}}",
     "quizAvailableBody": "Teste dein Wissen.",
     "reroutingTitle": "Wird umgeleitet",
-    "reroutingBody": "Route wird neu berechnet."
+    "reroutingBody": "Route wird neu berechnet.",
+    "notifyWarning": "Achtung: {{name}}.",
+    "notifyArriving": "Du erreichst {{name}}.",
+    "notifyFineSpeak": " Bußgeld: {{euros}} Euro.",
+    "destinationFallback": "Ziel"
   }
 }

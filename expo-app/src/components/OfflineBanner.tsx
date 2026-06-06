@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 
 let Network: typeof import('expo-network') | null = null;
@@ -26,6 +27,7 @@ export const OFFLINE_BANNER_HEIGHT = 28;
 
 export default function OfflineBanner() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const setOnline = useAppStore((s) => s.setOnline);
   const [offline, setOffline] = useState(false);
 
@@ -58,7 +60,7 @@ export default function OfflineBanner() {
       style={[styles.wrap, { top: insets.top, height: OFFLINE_BANNER_HEIGHT }]}
       pointerEvents="none"
     >
-      <Text style={styles.text}>⚠️ Offline — showing saved data</Text>
+      <Text style={styles.text}>{t('common.offlineSavedData')}</Text>
     </View>
   );
 }

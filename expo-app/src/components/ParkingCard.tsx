@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   type: 'bicibox' | 'bicipark';
@@ -9,11 +10,13 @@ interface Props {
 }
 
 export default function ParkingCard({ type, name, distanceMetres }: Props) {
+  const { t } = useTranslation();
   const isBicibox = type === 'bicibox';
   const color = isBicibox ? '#1565C0' : '#2E7D32';
+  // Bicibox / Bicipark are brand names → kept literal; only the instruction localizes.
   const instruction = isBicibox
-    ? 'PIN required — open the Bicibox app to get your code'
-    : 'Open rack — lock your bike directly to the stand';
+    ? t('parking.instructionBicibox')
+    : t('parking.instructionBicipark');
 
   return (
     <View style={styles.card}>

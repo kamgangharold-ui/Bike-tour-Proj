@@ -7,7 +7,8 @@
     "close": "Cerrar",
     "yes": "Sí",
     "no": "No",
-    "error": "Algo ha salido mal"
+    "error": "Algo ha salido mal",
+    "offlineSavedData": "⚠️ Sin conexión — mostrando datos guardados"
   },
   "nav": {
     "recap": "Resumen de la ruta",
@@ -84,7 +85,9 @@
     "emptyTitle": "No hay aparcamientos para bicis a menos de 500 m",
     "emptySubtitle": "Acércate al centro de la ciudad o desliza hacia abajo para actualizar",
     "defaultName": "Aparcamiento",
-    "spotsWithin": "{{count}} plazas a menos de 500 m"
+    "spotsWithin": "{{count}} plazas a menos de 500 m",
+    "instructionBicibox": "PIN necesario — abre la app Bicibox para obtener tu código",
+    "instructionBicipark": "Aparcamiento abierto — ata tu bici directamente al soporte"
   },
   "settings": {
     "clearHistoryTitle": "¿Borrar el historial de rutas?",
@@ -236,6 +239,10 @@
     "quizAvailableTitle": "Quiz disponible — {{name}}",
     "quizAvailableBody": "Pon a prueba tus conocimientos.",
     "reroutingTitle": "Recalculando",
-    "reroutingBody": "Recalculando la ruta."
+    "reroutingBody": "Recalculando la ruta.",
+    "notifyWarning": "Atención: {{name}}.",
+    "notifyArriving": "Estás llegando a {{name}}.",
+    "notifyFineSpeak": " Multa: {{euros}} euros.",
+    "destinationFallback": "destino"
   }
 }

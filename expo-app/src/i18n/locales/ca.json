@@ -7,7 +7,8 @@
     "close": "Tanca",
     "yes": "Sí",
     "no": "No",
-    "error": "Alguna cosa ha fallat"
+    "error": "Alguna cosa ha fallat",
+    "offlineSavedData": "⚠️ Sense connexió — mostrant dades desades"
   },
   "nav": {
     "recap": "Resum de la ruta",
@@ -84,7 +85,9 @@
     "emptyTitle": "No hi ha aparcament per a bicis en 500 m",
     "emptySubtitle": "Acosta't al centre de la ciutat o llisca cap avall per actualitzar",
     "defaultName": "Aparcament",
-    "spotsWithin": "{{count}} places en 500 m"
+    "spotsWithin": "{{count}} places en 500 m",
+    "instructionBicibox": "Cal PIN — obre l’app Bicibox per obtenir el teu codi",
+    "instructionBicipark": "Aparcament obert — lliga la bici directament al suport"
   },
   "settings": {
     "clearHistoryTitle": "Vols esborrar l'historial de rutes?",
@@ -236,6 +239,10 @@
     "quizAvailableTitle": "Qüestionari disponible — {{name}}",
     "quizAvailableBody": "Posa a prova els teus coneixements.",
     "reroutingTitle": "Recalculant",
-    "reroutingBody": "Recalculant la ruta."
+    "reroutingBody": "Recalculant la ruta.",
+    "notifyWarning": "Atenció: {{name}}.",
+    "notifyArriving": "Estàs arribant a {{name}}.",
+    "notifyFineSpeak": " Multa: {{euros}} euros.",
+    "destinationFallback": "destinació"
   }
 }

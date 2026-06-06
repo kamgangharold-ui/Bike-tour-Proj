@@ -7,7 +7,8 @@
     "close": "Close",
     "yes": "Yes",
     "no": "No",
-    "error": "Something went wrong"
+    "error": "Something went wrong",
+    "offlineSavedData": "⚠️ Offline — showing saved data"
   },
   "nav": {
     "recap": "Ride recap",
@@ -84,7 +85,9 @@
     "emptyTitle": "No bike parking within 500m",
     "emptySubtitle": "Move closer to the city centre or pull down to refresh",
     "defaultName": "Parking",
-    "spotsWithin": "{{count}} spots within 500m"
+    "spotsWithin": "{{count}} spots within 500m",
+    "instructionBicibox": "PIN required — open the Bicibox app to get your code",
+    "instructionBicipark": "Open rack — lock your bike directly to the stand"
   },
   "settings": {
     "clearHistoryTitle": "Clear ride history?",
@@ -236,6 +239,10 @@
     "quizAvailableTitle": "Quiz available — {{name}}",
     "quizAvailableBody": "Test your knowledge.",
     "reroutingTitle": "Rerouting",
-    "reroutingBody": "Recalculating the route."
+    "reroutingBody": "Recalculating the route.",
+    "notifyWarning": "Warning: {{name}}.",
+    "notifyArriving": "You’re arriving at {{name}}.",
+    "notifyFineSpeak": " Fine: {{euros}} euros.",
+    "destinationFallback": "destination"
   }
 }
