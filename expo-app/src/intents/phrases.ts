@@ -23,6 +23,9 @@ export interface Phrases {
   statusToDest: (dist: string, dur: string) => string;
   statusNoRoute: string;
   needLocation: string;
+  didntCatch: string;
+  cantDo: string;
+  assistantUnreachable: string;
 }
 
 const EN: Phrases = {
@@ -44,6 +47,9 @@ const EN: Phrases = {
   statusToDest: (dist, dur) => `${dist} to your destination, about ${dur}.`,
   statusNoRoute: 'No route is active right now.',
   needLocation: 'I need your location first.',
+  didntCatch: "Sorry, I didn't catch that.",
+  cantDo: "Sorry, I couldn't do that.",
+  assistantUnreachable: "I couldn't reach the assistant. Please try again.",
 };
 
 const ES: Phrases = {
@@ -65,6 +71,9 @@ const ES: Phrases = {
   statusToDest: (dist, dur) => `${dist} hasta tu destino, unos ${dur}.`,
   statusNoRoute: 'Ahora mismo no hay ninguna ruta activa.',
   needLocation: 'Primero necesito tu ubicación.',
+  didntCatch: 'Perdona, no te he entendido.',
+  cantDo: 'Perdona, no he podido hacerlo.',
+  assistantUnreachable: 'No he podido contactar con el asistente. Inténtalo de nuevo.',
 };
 
 const CA: Phrases = {
@@ -86,6 +95,9 @@ const CA: Phrases = {
   statusToDest: (dist, dur) => `${dist} fins al destí, uns ${dur}.`,
   statusNoRoute: 'Ara mateix no hi ha cap ruta activa.',
   needLocation: 'Primer necessito la teva ubicació.',
+  didntCatch: "Perdona, no t'he entès.",
+  cantDo: 'Perdona, no ho he pogut fer.',
+  assistantUnreachable: "No he pogut contactar amb l'assistent. Torna-ho a provar.",
 };
 
 const FR: Phrases = {
@@ -107,6 +119,9 @@ const FR: Phrases = {
   statusToDest: (dist, dur) => `${dist} jusqu'à destination, environ ${dur}.`,
   statusNoRoute: "Aucun itinéraire actif pour le moment.",
   needLocation: "J'ai d'abord besoin de votre position.",
+  didntCatch: "Désolé, je n'ai pas compris.",
+  cantDo: "Désolé, je n'ai pas pu faire ça.",
+  assistantUnreachable: "Je n'ai pas pu joindre l'assistant. Réessayez.",
 };
 
 const DE: Phrases = {
@@ -128,6 +143,9 @@ const DE: Phrases = {
   statusToDest: (dist, dur) => `${dist} bis zum Ziel, etwa ${dur}.`,
   statusNoRoute: 'Momentan keine aktive Route.',
   needLocation: 'Ich brauche zuerst deinen Standort.',
+  didntCatch: 'Entschuldige, das habe ich nicht verstanden.',
+  cantDo: 'Entschuldige, das konnte ich nicht tun.',
+  assistantUnreachable: 'Ich konnte den Assistenten nicht erreichen. Versuch es erneut.',
 };
 
 const IT: Phrases = {
@@ -149,6 +167,9 @@ const IT: Phrases = {
   statusToDest: (dist, dur) => `${dist} alla destinazione, circa ${dur}.`,
   statusNoRoute: 'Al momento nessun percorso attivo.',
   needLocation: 'Mi serve prima la tua posizione.',
+  didntCatch: 'Scusa, non ho capito.',
+  cantDo: 'Scusa, non sono riuscito a farlo.',
+  assistantUnreachable: "Non sono riuscito a contattare l'assistente. Riprova.",
 };
 
 const TABLE: Record<AppLocale, Phrases> = { en: EN, es: ES, ca: CA, fr: FR, de: DE, it: IT };

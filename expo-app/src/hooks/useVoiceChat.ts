@@ -155,7 +155,11 @@ export function useVoiceChat(options: UseVoiceChatOptions): VoiceChat {
   const onStatus = (status: Audio.RecordingStatus) => {
     const silenceMs = optsRef.current.silenceMs;
     if (!status.isRecording || !silenceMs) return;
-    const level = status.metering ?? -160;
+    let level = status.metering ?? -160;
+    // expo-av reports metering in dBFS on iOS but using a NATURAL-log scale on
+    // Android (≈2.3× more negative). Normalize Android to dBFS so the single
+    // SPEECH_DB threshold means the same loudness on both platforms.
+    if (Platform.OS === 'android') level *= 2.302585;
     if (level > SPEECH_DB) {
       speechDetected.current = true;
       if (silenceTimer.current) { clearTimeout(silenceTimer.current); silenceTimer.current = null; }

@@ -141,7 +141,7 @@ export default function ChatScreen() {
 
     try {
       const aiText = await callAnthropic(
-        buildBikAISystemPrompt(landmarks),
+        buildBikAISystemPrompt(landmarks, appLocale),
         history.map(({ role, content }) => ({ role, content })),
       );
       setMessages((prev) => [

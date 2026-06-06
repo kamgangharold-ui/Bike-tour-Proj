@@ -45,6 +45,32 @@ export function langToBcp47(code?: string): string {
   return BCP47[key] ?? 'en-US';
 }
 
+// One-time probe of installed TTS voices so we can fall back when a selected
+// language has no voice on this device (commonly Catalan). TTS-only — STT and
+// on-screen text stay in the user's chosen locale. Never throws.
+let availablePrefixes: Set<string> | null = null;
+let probed = false;
+async function ensureVoices(): Promise<void> {
+  if (probed) return;
+  probed = true;
+  try {
+    const voices = await Speech.getAvailableVoicesAsync();
+    availablePrefixes = new Set(voices.map((v) => (v.language ?? '').slice(0, 2).toLowerCase()));
+  } catch {
+    availablePrefixes = null; // unknown → don't substitute
+  }
+}
+void ensureVoices();
+
+function resolveSpeakLang(code?: string): string {
+  const bcp = langToBcp47(code);
+  const prefix = bcp.slice(0, 2).toLowerCase();
+  if (availablePrefixes && availablePrefixes.size > 0 && !availablePrefixes.has(prefix)) {
+    return prefix === 'ca' ? 'es-ES' : 'en-US'; // Catalan → Spanish, else English
+  }
+  return bcp;
+}
+
 // Single source of truth for "is voice guidance on". The background geofence task
 // rehydrates the persisted settings before it speaks, so this reads fresh there too.
 function guidanceOn(): boolean {
@@ -62,11 +88,12 @@ const queue: QueueItem[] = [];
 let speaking = false;
 let currentRank = -1; // rank of the cue currently speaking (-1 = idle)
 let gen = 0;
-let lastSpokenText = ''; // for the voice "repeat" command
+let lastSpoken: { text: string; lang?: string } = { text: '' }; // for "repeat"
 
-// Last thing the app spoke (used by the "repeat" intent).
-export function getLastSpoken(): string {
-  return lastSpokenText;
+// Last thing the app spoke + the language it was spoken in (the "repeat" intent
+// re-speaks in the SAME language, e.g. an English turn cue stays English).
+export function getLastSpoken(): { text: string; lang?: string } {
+  return lastSpoken;
 }
 
 function settingsRate(): number {
@@ -87,9 +114,9 @@ function playNext(myGen: number): void {
   }
   speaking = true;
   currentRank = RANK[next.opts.priority ?? 'normal'];
-  lastSpokenText = next.text;
+  lastSpoken = { text: next.text, lang: next.opts.lang };
   Speech.speak(next.text, {
-    language: langToBcp47(next.opts.lang),
+    language: resolveSpeakLang(next.opts.lang),
     rate: next.opts.rate ?? settingsRate(),
     pitch: next.opts.pitch ?? 1.0,
     onDone: () => playNext(myGen),

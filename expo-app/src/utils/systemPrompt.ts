@@ -6,6 +6,7 @@
 
 import { useAppStore } from '../store/useAppStore';
 import { haversineMetres } from './haversine';
+import { LOCALE_LABELS, type AppLocale } from './locale';
 
 export interface LandmarkInfo {
   name: string;
@@ -17,7 +18,7 @@ export interface LandmarkInfo {
   regulatory_alert?: { message?: string; fine_eur?: number };
 }
 
-export function buildBikAISystemPrompt(landmarks: LandmarkInfo[]): string {
+export function buildBikAISystemPrompt(landmarks: LandmarkInfo[], locale?: AppLocale): string {
   const s = useAppStore.getState();
   const { userLat, userLng, activeSlug, activeName, activeCategory, activeDescription } = s;
   const hasPos = userLat !== null && userLng !== null;
@@ -69,7 +70,9 @@ export function buildBikAISystemPrompt(landmarks: LandmarkInfo[]): string {
     `Cycling regulations: sidewalk riding = €500 fine, both earphones = €100 fine, ` +
     `Gothic Quarter = mandatory dismount zone.\n` +
     `Answer concisely and helpfully. If unsure, say so honestly. ` +
-    `Respond in the same language the user writes in. ` +
+    (locale
+      ? `Respond ONLY in ${LOCALE_LABELS[locale]} (locale ${locale}), regardless of the language the question is in. `
+      : `Respond in the same language the user writes in. `) +
     `Use plain text only — no markdown (no **, no ##, no ---, no > blocks). Emojis are fine.`
   );
 }

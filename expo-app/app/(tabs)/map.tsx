@@ -816,25 +816,52 @@ export default function MapScreen() {
     const ph = phrases(appLocale);
     const ctx: CommandContext = {
       locale: appLocale,
-      systemContext: () => buildBikAISystemPrompt(landmarkInfos),
+      systemContext: () => buildBikAISystemPrompt(landmarkInfos, appLocale),
       navigate: async (query) => {
         const s = useAppStore.getState();
         if (s.userLat == null || s.userLng == null) return ph.needLocation;
-        const q = query.toLowerCase();
-        const match =
-          landmarkInfos.find((l) => (l.name ?? '').toLowerCase() === q) ??
-          landmarkInfos.find((l) => {
+        const stripArticle = (str: string) =>
+          str.replace(/^(the|el|la|los|las|le|les|l'|il|lo|der|die|das)\s+/i, '').trim();
+        // Resolve to a known landmark: exact name → ranked substring (length-
+        // guarded so short words can't mis-match; prefer startsWith, then closest
+        // length). Try the raw query and an article-stripped variant.
+        const resolveLandmark = (): LandmarkInfo | null => {
+          const forms = [query.toLowerCase().trim(), stripArticle(query).toLowerCase()];
+          for (const q of forms) {
+            if (!q) continue;
+            const exact = landmarkInfos.find((l) => (l.name ?? '').toLowerCase() === q);
+            if (exact) return exact;
+          }
+          const q = forms[0];
+          if (q.length < 4) return null;
+          const subs = landmarkInfos.filter((l) => {
             const n = (l.name ?? '').toLowerCase();
-            return !!n && (n.includes(q) || q.includes(n));
+            return !!n && (n.includes(q) || (n.length >= 4 && q.includes(n)));
           });
+          if (!subs.length) return null;
+          subs.sort((a, b) => {
+            const an = (a.name ?? '').toLowerCase();
+            const bn = (b.name ?? '').toLowerCase();
+            const aStarts = an.startsWith(q) ? 0 : 1;
+            const bStarts = bn.startsWith(q) ? 0 : 1;
+            if (aStarts !== bStarts) return aStarts - bStarts;
+            return Math.abs(an.length - q.length) - Math.abs(bn.length - q.length);
+          });
+          return subs[0];
+        };
+        const match = resolveLandmark();
         let dest: Coords | null = match?.coordinates ?? null;
         const name = match?.name ?? query;
         if (!dest) {
-          try {
-            const geo = await Location.geocodeAsync(/barcelona/i.test(query) ? query : `${query}, Barcelona`);
-            if (geo[0]) dest = { latitude: geo[0].latitude, longitude: geo[0].longitude };
-          } catch {
-            /* geocode failed → not found */
+          // Geocode the full name first, then an article-stripped variant.
+          for (const g of [query, stripArticle(query)]) {
+            if (!g) continue;
+            try {
+              const geo = await Location.geocodeAsync(/barcelona/i.test(g) ? g : `${g}, Barcelona`);
+              if (geo[0]) { dest = { latitude: geo[0].latitude, longitude: geo[0].longitude }; break; }
+            } catch {
+              /* try next form */
+            }
           }
         }
         if (!dest) return ph.notFound(query);
@@ -874,11 +901,19 @@ export default function MapScreen() {
         if (routeInfo) parts.push(ph.statusToDest(routeInfo.distance, routeInfo.duration));
         return parts.length ? parts.join(' ') : ph.statusNoRoute;
       },
-      repeat: () => getLastSpoken(),
+      repeat: () => {
+        const last = getLastSpoken();
+        if (last.text) speak(last.text, { lang: last.lang, priority: 'high' });
+        return ''; // re-spoken directly in its original language
+      },
       setMuted: (muted) => {
         setVoiceGuidanceEnabled(!muted);
-        if (muted) stopSpeaking();
-        return muted ? ph.muted : ph.unmuted;
+        if (muted) {
+          stopSpeaking();
+          Vibration.vibrate(40); // tactile confirm — TTS is now off, can't speak it
+          return '';
+        }
+        return ph.unmuted;
       },
       slower: () => {
         const cur = useSettingsStore.getState().voiceRate;
@@ -899,6 +934,8 @@ export default function MapScreen() {
       if (spoken && spoken.trim()) {
         setMicPhase('speaking');
         speak(spoken, { lang: appLocale, priority: 'high' });
+      } else if (isSpeaking()) {
+        setMicPhase('speaking'); // an executor re-spoke directly (e.g. repeat)
       } else {
         setMicPhase('idle');
       }

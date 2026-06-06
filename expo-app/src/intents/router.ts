@@ -7,6 +7,7 @@
 
 import type { AppLocale } from '../utils/locale';
 import { callAnthropic } from '../utils/anthropic';
+import { phrases } from './phrases';
 
 export type CommandIntent =
   | { kind: 'navigate'; query: string }
@@ -108,7 +109,7 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
     reroute: ['recalcule', 'recalculer', 'nouvel itinéraire'],
   },
   de: {
-    navigate: ['bring mich zu', 'bring mich zur', 'navigiere zu', 'fahr zu', 'route nach', 'zu', 'nach'],
+    navigate: ['bring mich zur', 'bring mich zu', 'navigiere zu', 'fahr zur', 'fahr zu', 'fahr nach', 'route nach'],
     find_parking: ['wo kann ich parken', 'fahrradparkplatz', 'parken', 'parkplatz', 'rad abstellen'],
     skip_stop: ['überspringen', 'uberspringen', 'nächster halt', 'nachster halt'],
     status: ['wie weit', 'wie lange', 'wo bin ich', 'was kommt als nächstes', 'was kommt als nachstes', 'entfernung'],
@@ -135,21 +136,32 @@ const LOCAL: Record<AppLocale, LocalPatterns> = {
   },
 };
 
-const ARTICLE = /^(the|el|la|los|las|le|les|l'|al|au|aux|a|à|il|lo|gli|der|die|das|den|dem|zur|zum|a la|al)\s+/i;
+const isLetter = (ch: string): boolean => /\p{L}/u.test(ch);
+
+// Whole-token match: the keyword/phrase must not sit inside a larger word, so
+// 'salta' doesn't fire inside 'resaltar' and German 'zu' can't fire inside 'zum'.
+// Returns the index just AFTER the matched phrase, or -1.
+function boundedMatchEnd(text: string, phrase: string): number {
+  let from = 0;
+  for (;;) {
+    const i = text.indexOf(phrase, from);
+    if (i < 0) return -1;
+    const before = i === 0 ? ' ' : text[i - 1];
+    const endIdx = i + phrase.length;
+    const after = endIdx >= text.length ? ' ' : text[endIdx];
+    if (!isLetter(before) && !isLetter(after)) return endIdx;
+    from = i + 1;
+  }
+}
 
 export function parseLocalIntent(raw: string, locale: AppLocale): CommandIntent | null {
-  const text = raw.toLowerCase().trim();
+  const rawTrimmed = raw.trim();
+  const text = rawTrimmed.toLowerCase(); // same length as rawTrimmed → indices align
   const p = LOCAL[locale] ?? LOCAL.en;
-  const has = (list: string[]) => list.some((k) => text.includes(k));
+  const has = (list: string[]) => list.some((k) => boundedMatchEnd(text, k) >= 0);
 
-  // navigate needs a destination after the phrase
-  for (const phrase of p.navigate) {
-    const i = text.indexOf(phrase);
-    if (i >= 0) {
-      const query = raw.slice(i + phrase.length).trim().replace(ARTICLE, '').trim();
-      if (query) return { kind: 'navigate', query };
-    }
-  }
+  // Explicit command keywords FIRST, so e.g. "go to the next stop" is skip_stop,
+  // not navigate. navigate is the fall-through (it needs a destination).
   if (has(p.end_ride)) return { kind: 'end_ride' };
   if (has(p.find_parking)) return { kind: 'find_parking' };
   if (has(p.reroute)) return { kind: 'reroute' };
@@ -160,6 +172,16 @@ export function parseLocalIntent(raw: string, locale: AppLocale): CommandIntent 
   if (has(p.mute)) return { kind: 'mute' };
   if (has(p.slower)) return { kind: 'slower' };
   if (has(p.louder)) return { kind: 'louder' };
+
+  // navigate: first phrase that matches on a token boundary with a non-empty
+  // destination after it. Slice from rawTrimmed (index-aligned) to keep case.
+  for (const phrase of p.navigate) {
+    const end = boundedMatchEnd(text, phrase);
+    if (end >= 0) {
+      const query = rawTrimmed.slice(end).trim();
+      if (query) return { kind: 'navigate', query };
+    }
+  }
   return null;
 }
 
@@ -209,6 +231,7 @@ async function execute(intent: CommandIntent, ctx: CommandContext): Promise<stri
 
 // Runs an utterance and returns the text to speak back. Never throws.
 export async function runCommand(transcript: string, ctx: CommandContext): Promise<string> {
+  const ph = phrases(ctx.locale);
   const local = parseLocalIntent(transcript, ctx.locale);
   if (local) return execute(local, ctx);
 
@@ -217,9 +240,9 @@ export async function runCommand(transcript: string, ctx: CommandContext): Promi
     const system = ctx.systemContext() + ROUTER_INSTRUCTIONS(ctx.locale);
     const raw = await callAnthropic(system, [{ role: 'user', content: transcript }], { maxTokens: 400 });
     const parsed = parseRouterJson(raw);
-    if (!parsed) return raw.trim(); // not JSON → treat the whole reply as the answer
+    if (!parsed) return raw.trim(); // not JSON → treat the whole reply as the answer (already in-locale)
     if (parsed.intent === 'answer') {
-      return parsed.spoken_reply?.trim() || "Sorry, I didn't catch that.";
+      return parsed.spoken_reply?.trim() || ph.didntCatch;
     }
     if (parsed.intent === 'navigate') {
       const query = parsed.params?.query?.trim();
@@ -227,6 +250,7 @@ export async function runCommand(transcript: string, ctx: CommandContext): Promi
         const spoken = await execute({ kind: 'navigate', query }, ctx);
         return spoken || parsed.spoken_reply?.trim() || '';
       }
+      return parsed.spoken_reply?.trim() || ph.cantDo;
     }
     const allowed = ['reroute', 'skip_stop', 'find_parking', 'status', 'repeat', 'mute', 'unmute', 'slower', 'louder', 'end_ride'];
     if (allowed.includes(parsed.intent)) {
@@ -234,8 +258,8 @@ export async function runCommand(transcript: string, ctx: CommandContext): Promi
       return spoken || parsed.spoken_reply?.trim() || '';
     }
     // Unknown intent → speak whatever Claude said, else a gentle fallback.
-    return parsed.spoken_reply?.trim() || "Sorry, I couldn't do that.";
+    return parsed.spoken_reply?.trim() || ph.cantDo;
   } catch {
-    return "Sorry, I couldn't reach the assistant. Please try again.";
+    return ph.assistantUnreachable;
   }
 }
