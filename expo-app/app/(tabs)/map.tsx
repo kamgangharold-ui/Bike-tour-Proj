@@ -537,7 +537,11 @@ export default function MapScreen() {
           fetch(BICING_STATUS, FETCH_OPTS).then((r) => r.text()),
         ]);
         if (infoText.trim().startsWith('<') || statusText.trim().startsWith('<')) {
-          console.warn('[Bicing] API blocked — HTML response');
+          // The public GBFS endpoint intermittently returns an HTML block page.
+          // Degrade gracefully: no Bicing overlay this session (find_parking uses a
+          // separate, guarded endpoint and is unaffected). Info-level, not a warning.
+          console.log('[Bicing] overlay unavailable (endpoint returned HTML) — skipping');
+          setBicingRaw([]);
           return;
         }
         const infoJson = JSON.parse(infoText) as { data?: { stations?: Record<string, unknown>[] } };

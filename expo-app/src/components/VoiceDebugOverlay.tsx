@@ -29,7 +29,7 @@ export default function VoiceDebugOverlay() {
         onPress={() => setOpen(true)}
         accessibilityLabel="Open voice debug"
       >
-        <Text style={styles.fabText}>🐞</Text>
+        <Text style={styles.fabText}>STT</Text>
       </TouchableOpacity>
     );
   }
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  fabText: { fontSize: 16 },
+  fabText: { fontSize: 10, fontWeight: '800', color: '#00E676', letterSpacing: 0.5 },
   wrap: { position: 'absolute', left: 8, right: 8, zIndex: 3000 },
   card: {
     backgroundColor: '#000000E6',
