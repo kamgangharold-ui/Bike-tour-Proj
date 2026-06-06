@@ -3,7 +3,7 @@ module.exports = {
     owner: 'hari237',
     name: 'Bike Tour Guide',
     slug: 'bike-tour-guide',
-    version: '1.0.0',
+    version: '1.1.0',
     privacy: 'public',
     scheme: 'biketourguide',
     orientation: 'portrait',
