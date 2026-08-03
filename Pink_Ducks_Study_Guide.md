@@ -755,7 +755,7 @@ Operationalised, not appended: **SDG 12** (battery cells retired at 80% capacity
 | **MICE** | Meetings, Incentives, Conferences, Exhibitions — the year-round corporate segment. |
 | **Net rate** | Confidential wholesale price; the partner adds its own markup. Used for DMCs. |
 | **Commission** | A % paid to a partner for a referral on the retail price. Used for hotels/hostels. |
-| **NPS** | Net Promoter Score (−100 to +100); ≥70 is excellent. *Not* the founder's 8–9 CSAT estimate. |
+| **NPS** | Net Promoter Score (−100 to +100). Pink Ducks' pilot threshold is **≥75**. *Not* the founder's 8–9 CSAT estimate. |
 | **OTA** | Online Travel Agency (GetYourGuide, Viator) — takes 20–30% commission. |
 | **RFP** | Request for Proposal — the corporate procurement process DMCs run. |
 | **SLA** | Service-Level Agreement — here, the WhatsApp confirmation-speed promise (15-min / sub-5-min). |
