@@ -42,6 +42,16 @@ Barcelona CycleGuide's goal is to preserve that experience after the human guide
 | Distribution | EAS Build (APK Android) |
 | Automatisation | GitHub Actions — générateur quotidien qui enrichit la base de lieux |
 
+## Comment l'utiliser
+
+```bash
+cd expo-app
+npm install
+npx expo start          # serveur de développement, scanner le QR code avec Expo Go
+```
+
+Le backend (Firestore, règles de sécurité) est déployé depuis `firebase/` avec la CLI Firebase. Les scripts de `scripts/` régénèrent la base de lieux à partir des données ouvertes de la ville. Voir `docs/` pour le détail de la configuration et la parité iOS/Android.
+
 ## Décisions techniques
 
 **1. Abandon du no-code (FlutterFlow).**
@@ -88,6 +98,14 @@ Limites assumées et connues, documentées explicitement dans le handoff remis a
 - Pas de déploiement en production ni de publication sur les stores à ce stade.
 - Couverture de test manuelle, pas de suite de tests automatisés end-to-end.
 - Dépendance à des données ouvertes tierces (Bicing/Bicibox) dont la fraîcheur n'est pas garantie par le projet.
+
+## Suivi
+
+Aucun outil externe : le statut du projet vit dans ce README (section État actuel / limites ci-dessus) et dans [`docs/dev-log/`](docs/dev-log/).
+
+## Confidentialité
+
+Les secrets (clé de service Firebase, `.env` avec les clés API) restent en local : ils sont exclus par `.gitignore` et n'ont jamais été commités, sur aucune branche. La géolocalisation "maison" utilisée par le géofencing (formule de Haversine) reste sur l'appareil du cycliste, elle n'est pas envoyée à un tiers.
 
 ## Structure du dépôt
 
