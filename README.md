@@ -12,6 +12,10 @@ A mobile bike-tour guide for Barcelona: a React Native / Expo app that narrates 
 
 Built solo, in pair-programming with an AI development assistant (Claude Code), end to end: architecture, native mobile code, backend, and documentation.
 
+**Key documents.** Technical notes in [`docs/`](docs/): [parity_matrix.md](docs/parity_matrix.md) (feature parity),
+[radar_setup.md](docs/radar_setup.md), and the development log in [`docs/dev-log/`](docs/dev-log/). App code in
+[`expo-app/`](expo-app/), backend in [`api/`](api/) and [`firebase/`](firebase/).
+
 ## Le problème
 
 A human bike-tour guide gives context, safety warnings, and answers to questions — but only to one group, in one language, and only during the tour itself. Once the guide leaves, that value disappears.
